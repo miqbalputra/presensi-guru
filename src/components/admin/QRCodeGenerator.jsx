@@ -3,7 +3,8 @@ import { QrCode, Copy, RefreshCw, Download, Printer, CheckCircle, AlertTriangle,
 import { QRCodeCanvas } from 'qrcode.react'
 import { qrGenerateAPI } from '../../services/api'
 
-function QRCodeGenerator() {
+function QRCodeGenerator({ user }) {
+    const isReadOnly = user?.role === 'kepala_sekolah'
     const [qrData, setQrData] = useState(null)
     const [loading, setLoading] = useState(true)
     const [regenerating, setRegenerating] = useState(false)
@@ -198,6 +199,17 @@ function QRCodeGenerator() {
 
                 {/* Content */}
                 <div className="p-6">
+                    {/* Banner Read-Only untuk Kepala Sekolah */}
+                    {isReadOnly && (
+                        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                            <span className="text-2xl">👁️</span>
+                            <div>
+                                <p className="font-semibold text-amber-800 text-sm">Mode Lihat Saja</p>
+                                <p className="text-xs text-amber-700">Akun Kepala Sekolah dapat melihat dan mengunduh QR Code, namun tidak dapat memperbarui (regenerate) secret key.</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Message */}
                     {message.text && (
                         <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 ${message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
@@ -297,14 +309,20 @@ function QRCodeGenerator() {
                                     Jika Anda mencurigai QR Code telah bocor atau disalahgunakan,
                                     Anda dapat membuat secret baru. QR Code lama tidak akan berfungsi lagi.
                                 </p>
-                                <button
-                                    onClick={() => setShowRegenerateConfirm(true)}
-                                    disabled={regenerating}
-                                    className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 transition-colors"
-                                >
-                                    <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
-                                    {regenerating ? 'Memproses...' : 'Regenerate Secret'}
-                                </button>
+                                {isReadOnly ? (
+                                    <p className="text-gray-500 text-xs italic">
+                                        Fitur regenerate secret hanya tersedia untuk Admin.
+                                    </p>
+                                ) : (
+                                    <button
+                                        onClick={() => setShowRegenerateConfirm(true)}
+                                        disabled={regenerating}
+                                        className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 transition-colors"
+                                    >
+                                        <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
+                                        {regenerating ? 'Memproses...' : 'Regenerate Secret'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
