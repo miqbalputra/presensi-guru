@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS = {
   radius_gps: '100'
 }
 
-function LokasiGeofence() {
+function LokasiGeofence({ user }) {
+  const isReadOnly = user?.role === 'kepala_sekolah'
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [savingKey, setSavingKey] = useState(null) // track which group is saving
@@ -112,6 +113,17 @@ function LokasiGeofence() {
         </div>
       </div>
 
+      {/* Banner Read-Only untuk Kepala Sekolah */}
+      {isReadOnly && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <span className="text-2xl">👁️</span>
+          <div>
+            <p className="font-semibold text-amber-800 text-sm">Mode Lihat Saja</p>
+            <p className="text-xs text-amber-700">Akun Kepala Sekolah hanya dapat melihat koordinat lokasi, tidak dapat mengubah atau menyimpan data.</p>
+          </div>
+        </div>
+      )}
+
       {/* Grid Lokasi */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -125,9 +137,9 @@ function LokasiGeofence() {
             {/* Toggle Apel Senin */}
             <button
               onClick={toggleApel}
-              disabled={savingKey === 'apel_toggle'}
+              disabled={savingKey === 'apel_toggle' || isReadOnly}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-              title={apelEnabled ? 'Klik untuk menonaktifkan apel Senin' : 'Klik untuk mengaktifkan apel Senin'}
+              title={isReadOnly ? 'Akses hanya lihat' : apelEnabled ? 'Klik untuk menonaktifkan apel Senin' : 'Klik untuk mengaktifkan apel Senin'}
             >
               {savingKey === 'apel_toggle' ? (
                 <Loader className="w-8 h-8 animate-spin" />
@@ -158,8 +170,9 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.lokasi_apel_latitude}
                   onChange={(e) => handleChange('lokasi_apel_latitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="-7.123456"
+                  disabled={isReadOnly}
                 />
               </div>
               <div>
@@ -169,15 +182,16 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.lokasi_apel_longitude}
                   onChange={(e) => handleChange('lokasi_apel_longitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="112.123456"
+                  disabled={isReadOnly}
                 />
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => handleSavePair('apel', 'lokasi_apel_latitude', 'lokasi_apel_longitude', 'Titik Apel')}
-                disabled={isSaving('apel')}
+                disabled={isSaving('apel') || isReadOnly}
                 className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {isSaving('apel') ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -212,8 +226,9 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.lokasi_laki_latitude}
                   onChange={(e) => handleChange('lokasi_laki_latitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="-7.123456"
+                  disabled={isReadOnly}
                 />
               </div>
               <div>
@@ -223,15 +238,16 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.lokasi_laki_longitude}
                   onChange={(e) => handleChange('lokasi_laki_longitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="112.123456"
+                  disabled={isReadOnly}
                 />
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => handleSavePair('laki', 'lokasi_laki_latitude', 'lokasi_laki_longitude', 'Pos Putra')}
-                disabled={isSaving('laki')}
+                disabled={isSaving('laki') || isReadOnly}
                 className="flex-1 bg-blue-900 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {isSaving('laki') ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -266,8 +282,9 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.lokasi_perempuan_latitude}
                   onChange={(e) => handleChange('lokasi_perempuan_latitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="-7.123456"
+                  disabled={isReadOnly}
                 />
               </div>
               <div>
@@ -277,15 +294,16 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.lokasi_perempuan_longitude}
                   onChange={(e) => handleChange('lokasi_perempuan_longitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="112.123456"
+                  disabled={isReadOnly}
                 />
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => handleSavePair('perempuan', 'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude', 'Pos Putri')}
-                disabled={isSaving('perempuan')}
+                disabled={isSaving('perempuan') || isReadOnly}
                 className="flex-1 bg-pink-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-pink-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {isSaving('perempuan') ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -320,8 +338,9 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.sekolah_latitude}
                   onChange={(e) => handleChange('sekolah_latitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="-7.123456"
+                  disabled={isReadOnly}
                 />
               </div>
               <div>
@@ -331,15 +350,16 @@ function LokasiGeofence() {
                   step="0.000001"
                   value={settings.sekolah_longitude}
                   onChange={(e) => handleChange('sekolah_longitude', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 outline-none disabled:bg-gray-50 disabled:text-gray-500"
                   placeholder="112.123456"
+                  disabled={isReadOnly}
                 />
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => handleSavePair('sekolah', 'sekolah_latitude', 'sekolah_longitude', 'Lokasi Sekolah')}
-                disabled={isSaving('sekolah')}
+                disabled={isSaving('sekolah') || isReadOnly}
                 className="flex-1 bg-gray-800 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-gray-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {isSaving('sekolah') ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
