@@ -1,0 +1,71 @@
+═══════════════════════════════════════════════════════════
+  🚀 QUICK UPLOAD - FITUR JADWAL PIKET GURU
+═══════════════════════════════════════════════════════════
+
+📦 FILE YANG PERLU DIUPLOAD:
+───────────────────────────────────────────────────────────
+
+1. API (Backend):
+   ✓ api/jadwal_piket.php → public_html/api/
+
+2. FRONTEND (Build):
+   ✓ dist/index.html → public_html/ (replace)
+   ✓ dist/assets/* → public_html/assets/ (replace all)
+
+3. DATABASE:
+   ✓ Jalankan SQL: database_jadwal_piket.sql di phpMyAdmin
+
+═══════════════════════════════════════════════════════════
+
+🔧 LANGKAH CEPAT:
+───────────────────────────────────────────────────────────
+
+STEP 1: Upload API
+  → File Manager → public_html/api/
+  → Upload: jadwal_piket.php
+
+STEP 2: Upload Frontend
+  → File Manager → public_html/
+  → Upload: dist/index.html (replace)
+  → Masuk: public_html/assets/
+  → Upload: dist/assets/* (replace all)
+
+STEP 3: Update Database
+  → phpMyAdmin → sobataja2_geopresence
+  → Tab SQL → Copy-paste: database_jadwal_piket.sql
+  → Klik "Go"
+
+═══════════════════════════════════════════════════════════
+
+✅ TESTING CEPAT:
+───────────────────────────────────────────────────────────
+
+1. Login admin → Cek menu "Jadwal Piket" muncul
+2. Tambah jadwal piket → Berhasil tersimpan
+3. Login guru yang piket → Badge piket muncul
+4. Presensi setelah jam piket → Notifikasi warning muncul
+
+═══════════════════════════════════════════════════════════
+
+📚 DOKUMENTASI LENGKAP:
+───────────────────────────────────────────────────────────
+
+→ FITUR_JADWAL_PIKET.md (Dokumentasi lengkap)
+→ UPLOAD_JADWAL_PIKET.md (Checklist detail)
+→ SUMMARY_JADWAL_PIKET.md (Ringkasan implementasi)
+
+═══════════════════════════════════════════════════════════
+
+🌐 INFO AKSES:
+───────────────────────────────────────────────────────────
+
+Domain: https://kelolasekolah.web.id
+Database: sobataja2_geopresence
+Admin: miputra / manduraga
+
+═══════════════════════════════════════════════════════════
+
+✨ STATUS: SELESAI & SIAP UPLOAD
+📅 Tanggal: 26 Desember 2025
+
+═══════════════════════════════════════════════════════════

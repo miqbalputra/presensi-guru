@@ -1,0 +1,76 @@
+═══════════════════════════════════════════════════════════
+  🔧 QUICK UPLOAD - FIX SIDEBAR SCROLLABLE
+═══════════════════════════════════════════════════════════
+
+🐛 MASALAH:
+  - Sidebar terlalu panjang
+  - Tombol logout terpotong di bawah
+  - Warna biru hilang di bagian bawah
+
+✅ SOLUSI:
+  - Menu sidebar sekarang bisa di-scroll
+  - Tombol logout tetap terlihat di bawah
+  - Warna biru tidak hilang lagi
+
+═══════════════════════════════════════════════════════════
+
+📦 FILE YANG PERLU DIUPLOAD:
+───────────────────────────────────────────────────────────
+
+1. FRONTEND (Build):
+   ✓ dist/index.html → public_html/ (replace)
+   ✓ dist/assets/index-Bs7yeE1m.js → public_html/assets/ (replace)
+   ✓ dist/assets/index-LsX6U6Jf.css → public_html/assets/ (replace)
+
+ATAU upload semua file dari dist/assets/ ke public_html/assets/
+
+═══════════════════════════════════════════════════════════
+
+🔧 LANGKAH CEPAT:
+───────────────────────────────────────────────────────────
+
+STEP 1: Upload Frontend
+  → File Manager → public_html/
+  → Upload: dist/index.html (replace)
+  → Masuk: public_html/assets/
+  → Upload: dist/assets/* (replace all)
+
+STEP 2: Clear Cache
+  → Tekan Ctrl + Shift + Delete di browser
+  → Clear cache
+  → Atau tekan Ctrl + F5 untuk hard refresh
+
+═══════════════════════════════════════════════════════════
+
+✅ TESTING CEPAT:
+───────────────────────────────────────────────────────────
+
+1. Login admin → Cek sidebar
+2. Scroll menu ke bawah → Menu bisa di-scroll
+3. Tombol logout terlihat di bawah dengan warna biru
+4. Hover tombol logout → Berubah merah
+
+═══════════════════════════════════════════════════════════
+
+🎨 HASIL:
+───────────────────────────────────────────────────────────
+
+✓ Header (Fixed) - Tidak scroll
+✓ Menu (Scrollable) - Bisa di-scroll
+✓ Logout (Fixed) - Tetap di bawah dengan warna biru
+✓ Warna biru tidak hilang lagi!
+
+═══════════════════════════════════════════════════════════
+
+🌐 INFO AKSES:
+───────────────────────────────────────────────────────────
+
+Domain: https://kelolasekolah.web.id
+Admin: miputra / manduraga
+
+═══════════════════════════════════════════════════════════
+
+✨ STATUS: FIXED & READY TO UPLOAD
+📅 Tanggal: 26 Desember 2025
+
+═══════════════════════════════════════════════════════════

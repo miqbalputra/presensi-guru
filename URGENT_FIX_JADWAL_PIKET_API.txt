@@ -1,0 +1,149 @@
+═══════════════════════════════════════════════════════════════
+  🚨 URGENT FIX - ROOT CAUSE DITEMUKAN!
+═══════════════════════════════════════════════════════════════
+
+🔍 DARI CONSOLE SCREENSHOT:
+  📋 Checking jadwal piket...
+  Jadwal piket response: Object
+  ❌ No piket data or empty response  ← MASALAH DI SINI!
+
+✅ ROOT CAUSE:
+  API jadwal_piket.php menggunakan kolom is_active
+  yang TIDAK ADA di tabel jadwal_piket → SQL ERROR!
+
+───────────────────────────────────────────────────────────────
+  📦 FILE YANG PERLU DIUPLOAD
+───────────────────────────────────────────────────────────────
+
+⚠️ CRITICAL: UPLOAD API DULU!
+
+1. API BACKEND (WAJIB!)
+   ✓ api/jadwal_piket.php
+
+2. FRONTEND (Sudah diupload sebelumnya)
+   Jika belum, upload folder dist
+
+───────────────────────────────────────────────────────────────
+  🚀 LANGKAH UPDATE (10 MENIT)
+───────────────────────────────────────────────────────────────
+
+STEP 1: UPLOAD API (CRITICAL!)
+  1. Login cPanel → File Manager
+  2. Masuk ke /public_html/api/
+  3. Backup: Rename jadwal_piket.php → jadwal_piket.php.backup
+  4. Upload file jadwal_piket.php yang baru
+  5. Set permission: 644
+  6. Test: https://kelolasekolah.web.id/api/jadwal_piket.php?today=1
+     Harus return JSON dengan data jadwal (bukan error)
+
+STEP 2: RESET PRESENSI PANDU (Jika Perlu)
+  Jika Pandu sudah presensi hari ini:
+  1. phpMyAdmin → Tab SQL
+  2. Query:
+     DELETE FROM attendance_logs 
+     WHERE nama = 'Pandu' AND tanggal = '2025-12-26';
+  3. Klik "Go"
+
+STEP 3: CLEAR CACHE & TEST
+  1. Clear browser cache (Ctrl+Shift+Del)
+  2. Hard reload (Ctrl+F5)
+  3. Login sebagai Pandu
+  4. F12 → Buka Console
+  5. Refresh halaman
+  6. Lihat Console log
+
+───────────────────────────────────────────────────────────────
+  ✅ EXPECTED RESULT (SUKSES)
+───────────────────────────────────────────────────────────────
+
+CONSOLE LOG (Load Halaman):
+  📋 Checking jadwal piket...
+  📋 Jadwal piket response: { success: true, ... }
+  📋 Jadwal list: [{ id: 1, user_id: X, nama_guru: "Pandu", ... }]
+  📋 Current user ID: X
+  📋 Comparing: X with X
+  ✅ Piket hari ini: { id: 1, user_id: X, jam_piket: "02:00:00", ... }
+
+PERBEDAAN:
+  ❌ Sebelum: "No piket data or empty response"
+  ✅ Sesudah: "✅ Piket hari ini: { ... }"
+
+CONSOLE LOG (Klik HADIR - Jam 03:06):
+  💾 saveAttendance called: { ... }
+  ✅ Status is hadir, checking late and piket...
+  📋 Piket check - isPiketToday: true
+  🔍 Checking piket late: { ... }
+  ⏰ Piket time comparison: {
+    jamPiketStr: "02:00",
+    waktuPiket: 120,
+    waktuPresensi: 186,
+    isLate: true
+  }
+  ⚠️ Piket warning: ⚠️ Anda terlambat hadir piket 66 menit...
+
+PERBEDAAN:
+  ❌ Sebelum: "No piket check: Object" (isPiketToday: false)
+  ✅ Sesudah: "⚠️ Piket warning: ..." (isPiketToday: true)
+
+UI:
+  ✅ Message background ORANGE (warning)
+  ✅ Text: "Presensi hadir berhasil disimpan!
+           ⚠️ Anda terlambat hadir piket 66 menit..."
+
+───────────────────────────────────────────────────────────────
+  🔍 TEST API LANGSUNG
+───────────────────────────────────────────────────────────────
+
+Buka: https://kelolasekolah.web.id/api/jadwal_piket.php?today=1
+
+SEBELUM FIX:
+  {
+    "success": false,
+    "message": "Error: Unknown column 'is_active'..."
+  }
+
+SETELAH FIX:
+  {
+    "success": true,
+    "message": "Jadwal piket hari ini berhasil diambil",
+    "data": {
+      "hari": "Jumat",
+      "jadwal": [
+        {
+          "id": 1,
+          "user_id": X,
+          "nama_guru": "Pandu",
+          "jam_piket": "02:00:00",
+          ...
+        }
+      ]
+    }
+  }
+
+───────────────────────────────────────────────────────────────
+  📚 DOKUMENTASI LENGKAP
+───────────────────────────────────────────────────────────────
+
+Baca file: FIX_CRITICAL_JADWAL_PIKET_API.md
+Untuk penjelasan detail root cause dan solusi.
+
+═══════════════════════════════════════════════════════════════
+  ⚡ PENTING: UPLOAD API DULU, BARU TEST!
+═══════════════════════════════════════════════════════════════
+
+Urutan:
+  1. Upload api/jadwal_piket.php (CRITICAL!)
+  2. Test API langsung (harus return JSON valid)
+  3. Reset presensi Pandu (jika perlu)
+  4. Clear cache
+  5. Login Pandu
+  6. F12 → Buka Console
+  7. Refresh halaman
+  8. Lihat log "✅ Piket hari ini: ..."
+  9. Klik HADIR
+  10. Lihat warning muncul
+
+═══════════════════════════════════════════════════════════════
+  Dibuat: 26 Desember 2025
+  Status: ✅ ROOT CAUSE FIXED
+═══════════════════════════════════════════════════════════════

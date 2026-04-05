@@ -1,0 +1,314 @@
+{
+  "name": "Reminder Presensi Guru",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reminder-presensi",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "reminder-presensi"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse data dari webhook PHP\nconst data = $input.item.json.body || $input.item.json;\n\nreturn {\n  json: {\n    timestamp: data.timestamp,\n    reminderType: data.reminder_type,\n    totalGuru: data.total_belum_presensi,\n    guruList: data.guru_list,\n    adminAlert: data.admin_alert,\n    adminPhone: data.admin_phone\n  }\n};"
+      },
+      "id": "parse-data",
+      "name": "Parse Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": true
+        }
+      },
+      "id": "split-batches",
+      "name": "Loop Guru",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Ambil data guru dari loop\nconst allData = $input.first().json;\nconst guruList = allData.guruList;\nconst currentIndex = $input.context.noItemsLeft ? 0 : $input.context.currentRunIndex;\nconst guru = guruList[currentIndex];\nconst reminderType = allData.reminderType;\n\n// Template pesan berdasarkan jenis reminder\nlet message = '';\n\nif (reminderType === 'first') {\n  // Pengingat pertama (08:00)\n  message = `🔔 *Pengingat Presensi*\n\nHalo *${guru.nama}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem GeoPresensi Sekolah_`;\n  \n} else if (reminderType === 'second') {\n  // Pengingat kedua (09:00)\n  message = `⚠️ *Pengingat Presensi (Kedua)*\n\nHalo *${guru.nama}*,\n\nAnda masih belum melakukan presensi hari ini.\nMohon segera isi presensi:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem GeoPresensi Sekolah_`;\n  \n} else if (reminderType === 'final') {\n  // Pengingat terakhir (10:00)\n  message = `🚨 *Pengingat Presensi (Terakhir)*\n\nHalo *${guru.nama}*,\n\nIni adalah pengingat terakhir.\nAnda belum melakukan presensi hari ini.\n\nMohon SEGERA isi presensi:\n👉 https://kelolasekolah.web.id\n\nJika ada kendala, hubungi admin.\n_Sistem GeoPresensi Sekolah_`;\n} else {\n  // Manual atau default\n  message = `🔔 *Pengingat Presensi*\n\nHalo *${guru.nama}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem GeoPresensi Sekolah_`;\n}\n\n// Format nomor HP (konversi 08xxx ke 628xxx jika perlu)\nlet phone = guru.no_hp;\nif (phone.startsWith('0')) {\n  phone = '62' + phone.substring(1);\n}\n\nreturn {\n  json: {\n    phone: phone,\n    message: message,\n    nama: guru.nama,\n    reminderType: reminderType\n  }\n};"
+      },
+      "id": "format-pesan-guru",
+      "name": "Format Pesan Guru",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.gowa.id/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GOWA_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "target",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "kirim-wa-guru",
+      "name": "Kirim WhatsApp ke Guru",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Cek apakah perlu kirim notifikasi ke admin (jam 10:00)\nconst firstItem = $input.first().json;\nconst adminAlert = firstItem.adminAlert;\nconst adminPhone = firstItem.adminPhone;\n\nif (adminAlert && adminPhone) {\n  return {\n    json: {\n      sendToAdmin: true,\n      adminPhone: adminPhone,\n      totalGuru: firstItem.totalGuru,\n      guruList: firstItem.guruList,\n      timestamp: firstItem.timestamp\n    }\n  };\n} else {\n  return {\n    json: {\n      sendToAdmin: false,\n      message: 'Admin alert not needed (not 10:00 or no admin phone)'\n    }\n  };\n}"
+      },
+      "id": "check-admin-alert",
+      "name": "Check Admin Alert",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.sendToAdmin }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-admin-alert",
+      "name": "IF Admin Alert",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format pesan untuk admin\nconst totalGuru = $json.totalGuru;\nconst guruList = $json.guruList;\nconst timestamp = $json.timestamp;\n\n// Buat list nama guru\nlet namaGuru = guruList.map((g, i) => `${i+1}. ${g.nama}`).join('\\n');\n\nconst message = `📊 *Laporan Presensi - 10:00 WIB*\n\n⚠️ Total guru belum presensi: *${totalGuru} orang*\n\nDaftar guru:\n${namaGuru}\n\nPengingat terakhir telah dikirim.\nMohon tindak lanjut.\n\n_Sistem GeoPresensi Sekolah_\n_${timestamp}_`;\n\n// Format nomor HP admin\nlet phone = $json.adminPhone;\nif (phone.startsWith('0')) {\n  phone = '62' + phone.substring(1);\n}\n\nreturn {\n  json: {\n    phone: phone,\n    message: message\n  }\n};"
+      },
+      "id": "format-pesan-admin",
+      "name": "Format Pesan Admin",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.gowa.id/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GOWA_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "target",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "kirim-wa-admin",
+      "name": "Kirim WhatsApp ke Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1850, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "message",
+              "value": "Reminder sent successfully"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "response-success",
+      "name": "Response Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Guru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Guru": {
+      "main": [
+        [
+          {
+            "node": "Format Pesan Guru",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Admin Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Pesan Guru": {
+      "main": [
+        [
+          {
+            "node": "Kirim WhatsApp ke Guru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim WhatsApp ke Guru": {
+      "main": [
+        [
+          {
+            "node": "Loop Guru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Admin Alert": {
+      "main": [
+        [
+          {
+            "node": "IF Admin Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Admin Alert": {
+      "main": [
+        [
+          {
+            "node": "Format Pesan Admin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Response Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Pesan Admin": {
+      "main": [
+        [
+          {
+            "node": "Kirim WhatsApp ke Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim WhatsApp ke Admin": {
+      "main": [
+        [
+          {
+            "node": "Response Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "reminder-presensi-guru",
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "tags": []
+}

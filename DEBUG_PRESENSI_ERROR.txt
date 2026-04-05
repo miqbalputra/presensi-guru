@@ -1,0 +1,162 @@
+═══════════════════════════════════════════════════════════════
+  🔧 DEBUG: ERROR SAAT KLIK HADIR
+═══════════════════════════════════════════════════════════════
+
+DARI CONSOLE LOG:
+  ❌ APT Error: Error: Terjadi kesalahan. Silakan coba lagi...
+  
+  Status: "hadir_terlambat"
+  Keterangan: "Terlambat 58 menit (Parah)"
+  
+  → Presensi gagal disimpan ke database!
+
+═══════════════════════════════════════════════════════════════
+  🔍 KEMUNGKINAN PENYEBAB
+═══════════════════════════════════════════════════════════════
+
+1. DUPLICATE ENTRY
+   • Sudah ada presensi hari ini
+   • Database reject karena duplicate
+
+2. KOORDINAT TIDAK VALID
+   • Latitude/Longitude format salah
+   • Validasi koordinat gagal
+
+3. DATABASE CONNECTION ERROR
+   • Koneksi database terputus
+   • Query error
+
+4. SESSION EXPIRED
+   • User tidak terautentikasi
+   • Session timeout
+
+═══════════════════════════════════════════════════════════════
+  ✅ SOLUSI 1: CEK APAKAH SUDAH ADA PRESENSI HARI INI
+═══════════════════════════════════════════════════════════════
+
+1. Login phpMyAdmin
+2. Pilih database: sobataja2_geopresence
+3. Tab SQL, jalankan:
+
+   SELECT * FROM attendance_logs 
+   WHERE nama = 'Siti Nurhaliza' 
+   AND tanggal = '2025-12-26';
+
+4. Jika ADA DATA:
+   → Berarti sudah presensi hari ini
+   → Hapus dulu dengan query:
+   
+   DELETE FROM attendance_logs 
+   WHERE nama = 'Siti Nurhaliza' 
+   AND tanggal = '2025-12-26';
+
+5. Refresh halaman guru
+6. Coba klik HADIR lagi
+
+═══════════════════════════════════════════════════════════════
+  ✅ SOLUSI 2: CEK RESPONSE API
+═══════════════════════════════════════════════════════════════
+
+1. F12 → Tab Network
+2. Klik tombol HADIR
+3. Cari request "presensi.php" (warna merah jika error)
+4. Klik request tersebut
+5. Lihat tab "Response"
+6. Screenshot response-nya
+
+EXPECTED RESPONSE (jika error):
+  {
+    "success": false,
+    "message": "Error: ..."  ← Pesan error detail
+  }
+
+Kirim screenshot response-nya ke saya!
+
+═══════════════════════════════════════════════════════════════
+  ✅ SOLUSI 3: TEST API LANGSUNG
+═══════════════════════════════════════════════════════════════
+
+Buka URL ini di browser:
+  https://kelolasekolah.web.id/api/presensi.php
+
+EXPECTED:
+  {
+    "success": false,
+    "message": "Unauthorized: Silakan login terlebih dahulu"
+  }
+
+Jika muncul error lain, screenshot!
+
+═══════════════════════════════════════════════════════════════
+  ✅ SOLUSI 4: CLEAR SESSION & LOGIN ULANG
+═══════════════════════════════════════════════════════════════
+
+Kemungkinan session bermasalah:
+
+1. Logout dari aplikasi
+2. Clear browser cache (Ctrl+Shift+Del)
+3. Close browser
+4. Buka browser lagi
+5. Login lagi
+6. Coba klik HADIR
+
+═══════════════════════════════════════════════════════════════
+  ✅ SOLUSI 5: AKTIFKAN MODE TESTING (TEMPORARY)
+═══════════════════════════════════════════════════════════════
+
+Untuk bypass GPS validation sementara:
+
+1. Login admin
+2. Pengaturan → Mode Testing GPS → AKTIFKAN
+3. Logout admin
+4. Login guru
+5. Coba klik HADIR
+
+Jika masih error → Bukan masalah GPS, tapi masalah database/API
+
+═══════════════════════════════════════════════════════════════
+  🔍 INFORMASI YANG DIBUTUHKAN
+═══════════════════════════════════════════════════════════════
+
+Tolong kirim screenshot:
+
+1. Tab Network → Request presensi.php → Response
+2. Hasil query SQL (cek apakah sudah ada presensi)
+3. Console log lengkap (scroll ke atas)
+
+Atau kirim informasi:
+  • Apakah Siti Nurhaliza sudah presensi hari ini sebelumnya?
+  • Apakah pernah berhasil presensi sebelumnya?
+  • Apakah error ini baru muncul hari ini?
+
+═══════════════════════════════════════════════════════════════
+  ⚡ QUICK FIX SEMENTARA
+═══════════════════════════════════════════════════════════════
+
+Jika perlu presensi SEKARANG:
+
+OPSI A: Input Manual (Admin)
+1. Login admin
+2. Menu "Data Guru" atau buat menu input manual
+3. Input presensi manual untuk Siti Nurhaliza
+
+OPSI B: Hapus Presensi Lama (jika ada)
+1. phpMyAdmin → SQL
+2. DELETE FROM attendance_logs 
+   WHERE nama = 'Siti Nurhaliza' AND tanggal = '2025-12-26';
+3. Refresh halaman guru
+4. Coba lagi
+
+═══════════════════════════════════════════════════════════════
+  📞 NEXT STEPS
+═══════════════════════════════════════════════════════════════
+
+1. Cek apakah sudah ada presensi hari ini (SQL query)
+2. Screenshot Network → Response
+3. Kirim ke saya untuk analisa lebih lanjut
+
+Atau:
+1. Hapus presensi hari ini (jika ada)
+2. Test lagi
+
+═══════════════════════════════════════════════════════════════

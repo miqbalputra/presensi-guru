@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panduan Presensi Guru - GeoPresensi</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --primary-light: #eff6ff;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #475569;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+            line-height: 1.6;
+            background-color: #f8fafc;
+            padding: 20px 10px;
+        }
+
+        /* Mobile Container Layout */
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        @media print {
+            body { background: none; padding: 0; }
+            .container { box-shadow: none; border-radius: 0; max-width: 100%; border: none; }
+            .no-print { display: none; }
+        }
+
+        .header-banner {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+        }
+
+        .content {
+            padding: 30px 20px;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 26px;
+            color: var(--primary-dark);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        /* Visual Timeline Flow */
+        .timeline {
+            position: relative;
+            margin: 20px 0;
+            padding-left: 45px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--primary-light);
+        }
+
+        .step {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .step-num {
+            position: absolute;
+            left: -40px;
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            z-index: 2;
+            border: 4px solid white;
+        }
+
+        .step-content h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            color: var(--primary-dark);
+            margin-bottom: 5px;
+        }
+
+        .step-content p {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* Action Buttons Grid */
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin: 25px 0;
+        }
+
+        .action-card {
+            text-align: center;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .btn-hadir { background-color: var(--success); color: white; border: none; }
+        .btn-izin { background-color: var(--warning); color: white; border: none; }
+        .btn-sakit { background-color: var(--danger); color: white; border: none; }
+
+        .info-box {
+            background-color: var(--primary-light);
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 13px;
+            border-left: 4px solid var(--primary);
+            margin-bottom: 20px;
+        }
+
+        .trouble-section {
+            background-color: white;
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 25px;
+        }
+
+        .trouble-section h4 {
+            font-family: 'Outfit', sans-serif;
+            color: var(--danger);
+            margin-bottom: 10px;
+        }
+
+        .trouble-item {
+            font-size: 12px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .btn-print {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            margin-top: 30px;
+            cursor: pointer;
+            border: none;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 11px;
+            color: var(--text-muted);
+            padding-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <img src="geopresensi_teacher_banner.png" alt="Banner Guru" class="header-banner">
+        
+        <div class="content">
+            <h1>PANDUAN GURU</h1>
+            <p class="subtitle">Presensi Digital Modern & Mudah dalam 3 Langkah</p>
+
+            <div class="info-box">
+                🔗 <b>Website:</b> geo.griyaquran.web.id/guru <br>
+                💡 <i>Saran: Jadikan shortcut/bookmark di layar HP Bapak/Ibu!</i>
+            </div>
+
+            <!-- Visual Flow Timeline -->
+            <div class="timeline">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h3>Aktifkan Lokasi (GPS)</h3>
+                        <p>Buka browser (Chrome/Safari) dan pastikan GPS HP Anda aktif sebelum masuk gerbang sekolah.</p>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h3>Buka Aplikasi</h3>
+                        <p>Kunjungi website dan Login. Jika muncul pesan "Izinkan Lokasi", klik <b>Allow/Izinkan</b>.</p>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h3>Klik "HADIR" atau "SCAN QR"</h3>
+                        <p>Klik tombol Hijau <b>HADIR</b> atau tombol Biru <b>SCAN QR CODE</b> jika di sekolah tersedia stiker QR.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Buttons Illustration -->
+            <p style="font-weight: 700; font-size: 15px; margin-top: 20px;">Pilihan Metode Presensi:</p>
+            <div class="action-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="action-card" style="background: linear-gradient(to right, #2563eb, #3b82f6); color: white; border: none;">SCAN QR CODE</div>
+                <div class="action-card btn-hadir">TOMBOL HADIR</div>
+            </div>
+            <div class="action-grid">
+                <div class="action-card btn-izin">IZIN</div>
+                <div class="action-card btn-sakit">SAKIT</div>
+                <div class="action-card" style="background-color: var(--primary); color: white; border: none;">PULANG</div>
+            </div>
+
+            <div class="info-box" style="background-color: #f0fdf4; border-left-color: var(--success);">
+                🎯 <b>Penting:</b> Untuk presensi <b>Hadir</b>, harus berada di radius 20m dari sekolah. Untuk <b>Izin/Sakit</b>, bisa dilakukan dari rumah!
+            </div>
+
+            <div class="trouble-section">
+                <h4>🆘 Masalah GPS?</h4>
+                <div class="trouble-item">⚠️ <b>"Gagal mendapatkan lokasi":</b> Coba muat ulang (Refresh) halaman atau pindah ke tempat terbuka.</div>
+                <div class="trouble-item">⚠️ <b>"Di luar jangkauan":</b> Pastikan Anda sudah cukup dekat dengan area sekolah.</div>
+                <div class="trouble-item">⚠️ <b>Lupa Password:</b> Segera hubungi Tim IT untuk reset.</div>
+            </div>
+
+            <button class="btn-print no-print" onclick="window.print()">Simpan Panduan sebagai PDF</button>
+
+            <footer>
+                © 2026 GeoPresensi | geo.griyaquran.web.id <br>
+                Membangun Kedisiplinan dengan Teknologi Modern
+            </footer>
+        </div>
+    </div>
+
+</body>
+</html>

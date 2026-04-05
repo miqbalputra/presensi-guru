@@ -1,0 +1,103 @@
+═══════════════════════════════════════════════════════════════
+  🚨 UPLOAD FILE INI SEKARANG!
+═══════════════════════════════════════════════════════════════
+
+FILE YANG HARUS DIUPLOAD:
+  ✓ api/jadwal_piket.php (CRITICAL!)
+
+KENAPA HARUS UPLOAD:
+  ❌ File di server masih pakai kolom is_active (tidak ada di database)
+  ❌ API return error → jadwal piket tidak ter-load
+  ❌ Warning terlambat piket tidak muncul
+
+───────────────────────────────────────────────────────────────
+  🚀 CARA UPLOAD (5 MENIT)
+───────────────────────────────────────────────────────────────
+
+1. LOGIN CPANEL
+   https://kelolasekolah.web.id/cpanel
+   
+2. BUKA FILE MANAGER
+   Klik icon "File Manager"
+   
+3. MASUK KE FOLDER API
+   Navigasi: public_html → api
+   
+4. BACKUP FILE LAMA
+   • Klik kanan jadwal_piket.php
+   • Rename → jadwal_piket.php.backup
+   
+5. UPLOAD FILE BARU
+   • Klik tombol "Upload" di toolbar
+   • Pilih file: api/jadwal_piket.php (dari komputer Anda)
+   • Tunggu sampai selesai
+   
+6. SET PERMISSION
+   • Klik kanan jadwal_piket.php
+   • Change Permissions → 644
+   • Klik "Change Permissions"
+
+───────────────────────────────────────────────────────────────
+  ✅ TEST SETELAH UPLOAD
+───────────────────────────────────────────────────────────────
+
+1. TEST API LANGSUNG
+   Buka browser, akses:
+   https://kelolasekolah.web.id/api/jadwal_piket.php?today=1
+   
+   HARUS RETURN:
+   {
+     "success": true,
+     "message": "Jadwal piket hari ini berhasil diambil",
+     "data": {
+       "hari": "Jumat",
+       "jadwal": [...]
+     }
+   }
+   
+   JANGAN ADA field "is_active" di response!
+
+2. RESET PRESENSI PANDU (Jika sudah presensi hari ini)
+   • Login phpMyAdmin
+   • Pilih database: sobataja2_geopresence
+   • Tab SQL
+   • Query:
+     DELETE FROM attendance_logs 
+     WHERE nama = 'Pandu' AND tanggal = '2025-12-26';
+   • Klik "Go"
+
+3. TEST DI APLIKASI
+   • Clear browser cache (Ctrl+Shift+Del)
+   • Hard reload (Ctrl+F5)
+   • Login sebagai Pandu
+   • Tekan F12 → Tab Console
+   • Refresh halaman
+   • Lihat log: "✅ Piket hari ini: { ... }"
+   • Klik HADIR (jam 03:06 atau lebih)
+   • Lihat warning: "⚠️ Anda terlambat hadir piket..."
+
+───────────────────────────────────────────────────────────────
+  📊 EXPECTED RESULT
+───────────────────────────────────────────────────────────────
+
+CONSOLE LOG (Load Halaman):
+  ✅ Piket hari ini: { id: 1, user_id: X, jam_piket: "02:00:00", ... }
+
+CONSOLE LOG (Klik HADIR):
+  ⚠️ Piket warning: ⚠️ Anda terlambat hadir piket 66 menit...
+
+UI:
+  ✅ Message background ORANGE (warning)
+  ✅ Text: "Presensi hadir berhasil disimpan!
+           ⚠️ Anda terlambat hadir piket 66 menit. Jam piket: 02:00 WIB"
+
+═══════════════════════════════════════════════════════════════
+  ⚡ PENTING!
+═══════════════════════════════════════════════════════════════
+
+• Upload api/jadwal_piket.php DULU sebelum test!
+• Test API langsung untuk verifikasi (step 1)
+• Buka Console Browser (F12) saat test untuk lihat log
+• Screenshot Console & UI setelah test
+
+═══════════════════════════════════════════════════════════════

@@ -1,0 +1,176 @@
+═══════════════════════════════════════════════════════════════
+  ✅ CHECKLIST PINDAH KE SUBDOMAIN geo.kelolasekolah.web.id
+═══════════════════════════════════════════════════════════════
+
+📋 PERSIAPAN
+═══════════════════════════════════════════════════════════════
+
+□ 1. Buat subdomain di cPanel
+     • Subdomain: geo
+     • Domain: kelolasekolah.web.id
+     • Document Root: public_html/geo
+
+□ 2. Buat database baru (opsional)
+     • Database: sobataja2_geo
+     • User: sobataja2_geo_user
+     • Password: (generate strong)
+     • Assign user ke database
+
+□ 3. Backup data lama
+     • Export database dari phpMyAdmin
+     • Download file dari domain lama (jika perlu)
+
+═══════════════════════════════════════════════════════════════
+📤 UPLOAD FILE
+═══════════════════════════════════════════════════════════════
+
+□ 4. Upload folder dist/
+     • index.html
+     • assets/ (semua file JS, CSS)
+     • Ke folder: public_html/geo/
+
+□ 5. Upload folder api/
+     • Semua file PHP
+     • Ke folder: public_html/geo/api/
+
+□ 6. Upload .htaccess
+     • Ke folder: public_html/geo/
+
+═══════════════════════════════════════════════════════════════
+🔧 EDIT FILE CONFIG
+═══════════════════════════════════════════════════════════════
+
+□ 7. Edit api/config.php
+     • Ubah DB_NAME (jika pakai database baru)
+     • Ubah DB_USER (jika pakai database baru)
+     • Ubah DB_PASS (jika pakai database baru)
+     
+     ATAU gunakan file: api/config_subdomain.php
+     • Rename config_subdomain.php → config.php
+     • Edit sesuai pilihan (database baru atau sama)
+
+□ 8. Edit api/security.php
+     • Tambah 'https://geo.kelolasekolah.web.id' ke allowed_origins
+     • Ubah default origin ke subdomain
+     • Ubah isProduction check ke 'geo.kelolasekolah.web.id'
+     
+     ATAU gunakan file: api/security_subdomain.php
+     • Rename security_subdomain.php → security.php
+
+═══════════════════════════════════════════════════════════════
+🗄️ DATABASE
+═══════════════════════════════════════════════════════════════
+
+□ 9. Import database (jika pakai database baru)
+     • phpMyAdmin → Pilih database baru
+     • Tab Import
+     • Choose file .sql
+     • Klik Go
+
+□ 10. Atau skip jika pakai database yang sama
+
+═══════════════════════════════════════════════════════════════
+🔐 SET PERMISSION
+═══════════════════════════════════════════════════════════════
+
+□ 11. Set permission file
+     • Folder api/: 755
+     • File *.php: 644
+     • File .htaccess: 644
+     • File index.html: 644
+     • Folder assets/: 755
+     • File *.js, *.css: 644
+
+═══════════════════════════════════════════════════════════════
+🧪 TESTING
+═══════════════════════════════════════════════════════════════
+
+□ 12. Test API
+     • Buka: https://geo.kelolasekolah.web.id/api/auth.php
+     • Harus return JSON (bukan 404)
+
+□ 13. Test Frontend
+     • Buka: https://geo.kelolasekolah.web.id
+     • Harus muncul halaman login
+
+□ 14. Test Login Admin
+     • Username: miputra
+     • Password: manduraga
+     • Harus bisa login
+
+□ 15. Test Login Guru
+     • Login dengan akun guru
+     • Harus bisa login
+
+□ 16. Test Presensi
+     • Login guru → Klik HADIR
+     • Harus berhasil (jika GPS aktif dan di sekolah)
+
+□ 17. Test Semua Fitur
+     • Dashboard admin
+     • Data guru
+     • Hari libur
+     • Jadwal piket
+     • Download laporan
+     • Log aktivitas
+     • Pengaturan
+     • Statistik guru
+     • Status rekan
+
+═══════════════════════════════════════════════════════════════
+✅ VERIFIKASI AKHIR
+═══════════════════════════════════════════════════════════════
+
+□ 18. Cek HTTPS
+     • URL harus https:// (bukan http://)
+     • Jika belum, tunggu SSL propagate (1-24 jam)
+
+□ 19. Cek CORS
+     • F12 → Console
+     • Tidak ada error CORS
+
+□ 20. Cek Database Connection
+     • Presensi berhasil tersimpan
+     • Data muncul di dashboard
+
+□ 21. Cek Session
+     • Login berhasil
+     • Tidak auto logout
+     • Session bertahan
+
+□ 22. Cek GPS Validation
+     • Mode testing nonaktif
+     • GPS validation aktif
+     • Presensi hanya bisa di sekolah
+
+═══════════════════════════════════════════════════════════════
+📝 CATATAN PENTING
+═══════════════════════════════════════════════════════════════
+
+⚠️ JANGAN LUPA:
+  • Backup data sebelum pindah
+  • Test di subdomain dulu sebelum hapus domain lama
+  • Catat credentials database baru (jika pakai baru)
+  • Update dokumentasi dengan URL baru
+
+⚠️ JIKA ERROR:
+  • Cek error log di cPanel (Errors → Error Log)
+  • Cek Console Browser (F12)
+  • Cek permission file
+  • Cek credentials database di config.php
+  • Baca file: PANDUAN_PINDAH_KE_SUBDOMAIN.md
+
+═══════════════════════════════════════════════════════════════
+🎉 SELESAI!
+═══════════════════════════════════════════════════════════════
+
+Aplikasi sudah bisa diakses di:
+  https://geo.kelolasekolah.web.id
+
+Login Admin:
+  https://geo.kelolasekolah.web.id/admin
+
+Login Guru:
+  https://geo.kelolasekolah.web.id/guru
+
+═══════════════════════════════════════════════════════════════

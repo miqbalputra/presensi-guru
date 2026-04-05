@@ -1,0 +1,68 @@
+═══════════════════════════════════════════════════════════════
+  🔵 UPLOAD - LOG PASTI MUNCUL!
+═══════════════════════════════════════════════════════════════
+
+FILE BARU:
+  ✓ dist/assets/index-BRX6xoBd.js
+  ✓ dist/assets/index.es-EvZCPPMK.js
+  ✓ dist/index.html
+
+PERUBAHAN:
+  • Log pertama 🔵 di LUAR try-catch → PASTI MUNCUL!
+  • Jika tidak muncul = file belum diupload atau cache belum clear
+
+───────────────────────────────────────────────────────────────
+  🚀 UPLOAD
+───────────────────────────────────────────────────────────────
+
+1. cPanel → File Manager → public_html/assets/
+
+2. HAPUS file lama:
+   ❌ index-CbPVkSWf.js
+   ❌ index.es-DyNHK3wQ.js
+
+3. UPLOAD file baru:
+   ✓ index-BRX6xoBd.js
+   ✓ index.es-EvZCPPMK.js
+
+4. Upload index.html (public_html/)
+
+───────────────────────────────────────────────────────────────
+  ✅ TEST - CLEAR CACHE AGRESIF!
+───────────────────────────────────────────────────────────────
+
+CARA 1: Empty Cache and Hard Reload
+  1. F12 (buka DevTools)
+  2. KLIK KANAN tombol Refresh (di address bar)
+  3. Pilih "Empty Cache and Hard Reload"
+
+CARA 2: Clear All Time
+  1. Ctrl+Shift+Del
+  2. Time range: "All time"
+  3. Centang semua
+  4. Clear
+
+CARA 3: Incognito (PALING AMAN!)
+  1. Ctrl+Shift+N
+  2. Buka: https://kelolasekolah.web.id/guru
+  3. Login Pandu
+  4. F12 → Console
+  5. Screenshot
+
+───────────────────────────────────────────────────────────────
+  📸 EXPECTED LOG (PASTI MUNCUL!)
+───────────────────────────────────────────────────────────────
+
+🔵🔵🔵 CHECKING JADWAL PIKET START 🔵🔵🔵
+🔵 User object: { id: 8, nama: "Pandu", ... }
+🔵 Calling API jadwalPiketAPI.getToday()...
+🔵 API call completed
+🔵 API Response: { ... }
+...
+
+JIKA LOG 🔵 TIDAK MUNCUL SAMA SEKALI:
+  → File JS belum diupload / masih file lama
+  → Cache browser belum clear
+  → Coba Incognito mode!
+
+═══════════════════════════════════════════════════════════════

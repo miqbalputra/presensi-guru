@@ -1,0 +1,90 @@
+═══════════════════════════════════════════════════════════════
+  🔧 UPDATE CEPAT - FIX BUG TAMPILAN HOME
+═══════════════════════════════════════════════════════════════
+
+🐛 BUG: Tampilan Home tidak update setelah klik HADIR
+✅ FIX: UI sekarang update INSTANT (tidak perlu refresh)
+
+───────────────────────────────────────────────────────────────
+  📦 FILE YANG PERLU DIUPLOAD (HANYA FRONTEND)
+───────────────────────────────────────────────────────────────
+
+TIDAK PERLU UPDATE DATABASE ❌
+TIDAK PERLU UPDATE API ❌
+HANYA UPDATE FRONTEND ✅
+
+Upload folder dist ke /public_html/
+
+File baru:
+  ✓ dist/index.html
+  ✓ dist/assets/index-D8_BtCy5.js (NEW)
+  ✓ dist/assets/index.es-BrmJ2z3Z.js (NEW)
+  ✓ dist/assets/index-B2QwBo70.css
+  ✓ dist/assets/purify.es-C_uT9hQ1.js
+  ✓ dist/assets/html2canvas.esm-CBrSDip1.js
+
+File lama yang bisa dihapus:
+  ✗ dist/assets/index-B71MzbRN.js (OLD)
+  ✗ dist/assets/index.es-Bt9NPZ7S.js (OLD)
+
+───────────────────────────────────────────────────────────────
+  🚀 LANGKAH UPDATE (5 MENIT)
+───────────────────────────────────────────────────────────────
+
+1. BACKUP (1 menit)
+   • Login cPanel → File Manager
+   • Masuk ke /public_html/
+   • Rename folder dist → dist_backup_bug_fix
+
+2. UPLOAD (3 menit)
+   • Upload folder dist baru ke /public_html/
+   • Pastikan semua file terupload
+
+3. CLEAR CACHE (1 menit)
+   • Clear browser cache (Ctrl+Shift+Del)
+   • Hard reload (Ctrl+F5)
+
+4. TEST
+   • Login guru → Klik HADIR
+   • Tampilan harus LANGSUNG berubah
+   • Tidak perlu refresh halaman
+
+───────────────────────────────────────────────────────────────
+  ✅ HASIL SETELAH UPDATE
+───────────────────────────────────────────────────────────────
+
+SEBELUM:
+  User klik HADIR → Data masuk → Tampilan tidak berubah ❌
+  Harus refresh manual untuk lihat status
+
+SETELAH:
+  User klik HADIR → Data masuk → Tampilan LANGSUNG berubah ✅
+  Tidak perlu refresh, instant feedback!
+
+───────────────────────────────────────────────────────────────
+  🧪 QUICK TEST
+───────────────────────────────────────────────────────────────
+
+1. Login sebagai guru
+2. Klik tombol "HADIR"
+3. Tunggu loading selesai
+4. ✅ Tampilan LANGSUNG berubah (card hijau muncul)
+5. ✅ Tombol HADIR/IZIN/SAKIT hilang
+6. ✅ Status "Anda Sudah Absen" muncul
+
+Jika masih tidak berubah:
+  • Clear cache lagi (Ctrl+Shift+Del)
+  • Hard reload (Ctrl+F5)
+  • Coba incognito mode
+
+───────────────────────────────────────────────────────────────
+  📚 DOKUMENTASI LENGKAP
+───────────────────────────────────────────────────────────────
+
+Baca file: FIX_TAMPILAN_HOME_TIDAK_UPDATE.md
+Untuk penjelasan detail bug dan solusinya.
+
+═══════════════════════════════════════════════════════════════
+  Dibuat: 26 Desember 2025
+  Status: ✅ READY TO DEPLOY
+═══════════════════════════════════════════════════════════════
