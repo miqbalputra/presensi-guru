@@ -71,7 +71,7 @@ function AdminDashboard({ user, onLogout }) {
             <Route path="/hari-libur" element={<HariLibur user={user} />} />
             <Route path="/log-aktivitas" element={<LogAktivitas />} />
             <Route path="/pengaturan" element={<Pengaturan />} />
-            <Route path="/qr-code" element={<QRCodeGenerator user={user} />} />
+            <Route path="/qr-code" element={<QRCodeGenerator />} />
             <Route path="/manual-entry" element={<ManualEntry />} />
             <Route path="/lokasi-geofence" element={<LokasiGeofence user={user} />} />
             <Route path="*" element={<Navigate to="/admin" />} />
