@@ -20,6 +20,7 @@ function EditPresensi({ user }) {
   const [message, setMessage] = useState({ type: '', text: '' })
   const [filterDate, setFilterDate] = useState(formatDateForInput(new Date()))
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     loadData()
@@ -28,6 +29,7 @@ function EditPresensi({ user }) {
   const loadData = async () => {
     try {
       setLoading(true)
+      setLoadError('')
       const [guruResponse, presensiResponse] = await Promise.all([
         guruAPI.getAll(),
         presensiAPI.getAll()
@@ -37,6 +39,7 @@ function EditPresensi({ user }) {
       setAttendanceLogs(presensiResponse.data)
     } catch (error) {
       console.error('Failed to load data:', error)
+      setLoadError(error.message || 'Gagal memuat data. Sesi mungkin telah berakhir.')
     } finally {
       setLoading(false)
     }
@@ -67,11 +70,27 @@ function EditPresensi({ user }) {
         const isHadirType = formData.status === 'hadir' || formData.status === 'hadir_izin_terlambat'
         const jamMasukValue = isHadirType ? (formData.jamMasuk || editingLog.jamMasuk) : '-'
         
+        // Jam pulang: hanya gunakan nilai dari form.
+        // Jika form kosong → null (tidak mengubah/menghapus jam pulang yang sudah ada).
+        // Jika form diisi → gunakan nilai baru dari form.
+        // JANGAN fallback ke editingLog.jamPulang agar tidak memaksa terisi.
+        let jamPulangValue = null
+        if (isHadirType) {
+          if (formData.jamPulang) {
+            // Admin mengisi jam pulang baru
+            jamPulangValue = formData.jamPulang
+          } else if (isValidJamPulang(editingLog.jamPulang)) {
+            // Jam pulang sebelumnya sudah valid (guru memang sudah pulang) → pertahankan
+            jamPulangValue = editingLog.jamPulang
+          }
+          // Jika sebelumnya belum pulang dan form kosong → tetap null
+        }
+        
         const updateData = {
           id: editingLog.id,
           status: formData.status,
           jamMasuk: jamMasukValue,
-          jamPulang: isHadirType ? (formData.jamPulang || editingLog.jamPulang) : null,
+          jamPulang: jamPulangValue,
           jamHadir: isHadirType ? jamMasukValue : null,
           jamIzin: formData.status === 'izin' ? (editingLog.jamIzin || currentTime) : null,
           jamSakit: formData.status === 'sakit' ? (editingLog.jamSakit || currentTime) : null,
@@ -155,6 +174,16 @@ function EditPresensi({ user }) {
     setEditingLog(null)
   }
 
+  // Cek apakah jam pulang valid (tidak null, tidak '00:00:00', tidak '-')
+  const isValidJamPulang = (jamPulang) => {
+    if (!jamPulang) return false
+    if (jamPulang === '-') return false
+    // '00:00:00' atau '00:00' dianggap belum pulang (nilai default kosong)
+    const stripped = jamPulang.substring(0, 5)
+    if (stripped === '00:00') return false
+    return true
+  }
+
   const handleEdit = (log) => {
     setEditingLog(log)
     setFormData({
@@ -162,7 +191,8 @@ function EditPresensi({ user }) {
       tanggal: log.tanggal, // Already in yyyy-mm-dd format from database
       status: log.status,
       jamMasuk: log.jamMasuk !== '-' ? log.jamMasuk.substring(0, 5) : '', // Extract HH:MM from HH:MM:SS
-      jamPulang: log.jamPulang ? log.jamPulang.substring(0, 5) : '', // Extract HH:MM from HH:MM:SS
+      // Hanya isi jamPulang jika benar-benar sudah pulang (nilai valid)
+      jamPulang: isValidJamPulang(log.jamPulang) ? log.jamPulang.substring(0, 5) : '',
       keterangan: log.keterangan || ''
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -199,6 +229,33 @@ function EditPresensi({ user }) {
             <p className="font-semibold text-amber-800 text-sm">Mode Lihat Saja</p>
             <p className="text-xs text-amber-700">Akun Kepala Sekolah hanya dapat melihat data presensi, tidak dapat menambah, mengedit, atau menghapus.</p>
           </div>
+        </div>
+      )}
+
+      {/* Error Banner */}
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <p className="font-semibold text-red-800 text-sm">Gagal Memuat Data</p>
+              <p className="text-xs text-red-700">{loadError}</p>
+            </div>
+          </div>
+          <button
+            onClick={loadData}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium"
+          >
+            🔄 Coba Lagi
+          </button>
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+          <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <p className="text-sm">Memuat data presensi...</p>
         </div>
       )}
 

@@ -154,7 +154,7 @@ if ($method === 'POST') {
         $existing = $stmt->fetch();
         
         if ($existing) {
-            // Jika sudah ada data presensi, cek apakah ini percobaan Pulang (jam_pulang masih kosong)
+            // Cek apakah ini percobaan Pulang (jam_pulang masih kosong) — berlaku untuk semua tipe guru
             if (!$existing['jam_pulang']) {
                 // SMART DETECT: Otomatis anggap pulang jika sudah lewat jam 09:00 WIB
                 // ATAU jika is_pulang dikirim true eksplisit (boolean true ATAU string '1')
@@ -190,28 +190,34 @@ if ($method === 'POST') {
             }
         }
         
-        // Cek keterlambatan
-        $jamMasukNormal = $settings['jam_masuk_normal'] ?? '07:20';
-        $toleransi = intval($settings['toleransi_terlambat'] ?? 15);
-        
-        list($jamNormal, $menitNormal) = explode(':', $jamMasukNormal);
-        list($jamSekarang, $menitSekarang) = explode(':', $currentTime);
-        
-        $waktuNormal = intval($jamNormal) * 60 + intval($menitNormal);
-        $waktuSekarang = intval($jamSekarang) * 60 + intval($menitSekarang);
-        
-        $selisih = $waktuSekarang - $waktuNormal;
-        
-        $status = 'hadir';
-        $keterangan = '';
-        
-        if ($selisih > 0) {
-            if ($selisih <= $toleransi) {
-                $status = 'hadir_terlambat';
-                $keterangan = "Terlambat {$selisih} menit";
-            } else {
-                $status = 'hadir_terlambat';
-                $keterangan = "Terlambat {$selisih} menit (Parah)";
+        // Guru partime: langsung hadir tanpa cek keterlambatan
+        if ($user['tipe_guru'] === 'partime') {
+            $status = 'hadir';
+            $keterangan = 'Guru Partime';
+        } else {
+            // Guru full_time: cek keterlambatan seperti biasa
+            $jamMasukNormal = $settings['jam_masuk_normal'] ?? '07:20';
+            $toleransi = intval($settings['toleransi_terlambat'] ?? 15);
+            
+            list($jamNormal, $menitNormal) = explode(':', $jamMasukNormal);
+            list($jamSekarang, $menitSekarang) = explode(':', $currentTime);
+            
+            $waktuNormal = intval($jamNormal) * 60 + intval($menitNormal);
+            $waktuSekarang = intval($jamSekarang) * 60 + intval($menitSekarang);
+            
+            $selisih = $waktuSekarang - $waktuNormal;
+            
+            $status = 'hadir';
+            $keterangan = '';
+            
+            if ($selisih > 0) {
+                if ($selisih <= $toleransi) {
+                    $status = 'hadir_terlambat';
+                    $keterangan = "Terlambat {$selisih} menit";
+                } else {
+                    $status = 'hadir_terlambat';
+                    $keterangan = "Terlambat {$selisih} menit (Parah)";
+                }
             }
         }
         

@@ -24,17 +24,25 @@ try {
     $stmt->execute([$kepsekPassword]);
     $kepsekUpdated = $stmt->rowCount();
     
-    // Update password semua guru
-    $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE role = 'guru'");
-    $stmt->execute([$guruPassword]);
-    $guruUpdated = $stmt->rowCount();
+    // Update password semua guru ke Tanggal Lahir (DDMMYYYY)
+    $stmt = $pdo->query("SELECT id, tanggal_lahir FROM users WHERE role = 'guru' AND (tanggal_lahir IS NOT NULL AND tanggal_lahir != '0000-00-00')");
+    $gurus = $stmt->fetchAll();
+    $guruUpdated = 0;
+    foreach ($gurus as $guru) {
+        $date = new DateTime($guru['tanggal_lahir']);
+        $newPass = $date->format('dmY'); // Format DDMMYYYY
+        $newHash = password_hash($newPass, PASSWORD_DEFAULT);
+        $upd = $pdo->prepare("UPDATE users SET password = ?, username = ? WHERE id = ?");
+        $upd->execute([$newHash, $newPass, $guru['id']]);
+        $guruUpdated++;
+    }
     
     echo "<h2>✅ Password Berhasil Direset!</h2>";
     echo "<table border='1' cellpadding='10' style='border-collapse: collapse;'>";
     echo "<tr><th>Username</th><th>Password Baru</th><th>Status</th></tr>";
     echo "<tr><td><strong>admin</strong></td><td>admin123</td><td>" . ($adminUpdated > 0 ? '✅ Updated' : '❌ Not Found') . "</td></tr>";
     echo "<tr><td><strong>kepsek</strong></td><td>kepsek123</td><td>" . ($kepsekUpdated > 0 ? '✅ Updated' : '❌ Not Found') . "</td></tr>";
-    echo "<tr><td><strong>guru1, guru2, dll</strong></td><td>guru123</td><td>✅ Updated ($guruUpdated guru)</td></tr>";
+    echo "<tr><td><strong>Guru</strong></td><td>Tgl Lahir (DDMMYYYY)</td><td>✅ Updated ($guruUpdated guru)</td></tr>";
     echo "</table>";
     
     echo "<hr>";

@@ -5,6 +5,7 @@ import { guruAPI, presensiAPI } from '../../services/api'
 import TrenKehadiran from './TrenKehadiran'
 import PersentaseKehadiran from './PersentaseKehadiran'
 import LeaderboardGuru from './LeaderboardGuru'
+import TrenKeterlambatan from './TrenKeterlambatan'
 
 function DashboardHome() {
   const [filter, setFilter] = useState('today')
@@ -226,6 +227,9 @@ function DashboardHome() {
 
         {/* Persentase Kehadiran - Radial Progress */}
         <PersentaseKehadiran />
+
+        {/* Tren Keterlambatan - Full width dengan perbandingan periode */}
+        <TrenKeterlambatan />
       </div>
 
       {/* Leaderboard Guru - Gamifikasi */}

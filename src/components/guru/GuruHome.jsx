@@ -617,159 +617,168 @@ function GuruHome({ user }) {
 
   return (
     <div className="space-y-4">
-      {/* Welcome Card — Nama Guru Jelas & Bold */}
-      <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl shadow-lg p-5 text-white">
-        <div className="flex items-center gap-4">
-          {/* Avatar inisial */}
-          <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center shrink-0 border-2 border-white/40">
-            <span className="text-2xl font-black text-white">
-              {(user?.nama || '').charAt(0)?.toUpperCase() || '👋'}
+      {/* Welcome Card */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-2xl" />
+        <div className="flex items-center gap-3 pl-2">
+          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
+            <span className="text-xl font-black text-indigo-500">
+              {(user?.nama || '').charAt(0)?.toUpperCase() || '\ud83d\udc4b'}
             </span>
           </div>
-          {/* Info guru */}
           <div className="flex-1 min-w-0">
-            <p className="text-blue-100 text-xs font-medium uppercase tracking-widest">Selamat Datang</p>
-            <h2 className="text-xl sm:text-2xl font-black text-white leading-tight truncate">
+            <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">Selamat Datang</p>
+            <h2 className="text-base font-bold text-slate-800 leading-tight truncate">
               {user?.nama || 'Guru'}
             </h2>
-            <p className="text-blue-200 text-sm mt-0.5 font-medium">{formatFullDate(new Date())}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{formatFullDate(new Date())}</p>
           </div>
         </div>
-
-        {/* Info jam masuk */}
-        <div className="mt-4 pt-4 border-t border-white/20 flex flex-wrap gap-x-4 gap-y-1 text-xs text-blue-100">
-          <span>⏰ Jam masuk: <strong className="text-white">{settings.jam_masuk_normal} WIB</strong></span>
-          <span>⚡ Toleransi: <strong className="text-white">{settings.toleransi_terlambat} menit</strong></span>
-        </div>
-
-        {/* Badges */}
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mt-3 pl-2">
+          <span className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-600 font-medium">
+            ⏰ Masuk {settings.jam_masuk_normal} WIB
+          </span>
+          <span className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-600 font-medium">
+            ⚡ Toleransi {settings.toleransi_terlambat} mnt
+          </span>
           {settings.mode_testing == '1' && (
-            <div className="px-3 py-1 bg-orange-400/30 border border-orange-300/40 text-orange-100 text-xs font-semibold rounded-full">
-              🧪 Mode Testing - GPS Nonaktif
-            </div>
+            <span className="px-2.5 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs text-orange-600 font-medium">
+              🧪 Mode Testing
+            </span>
           )}
           {isPiketToday && jadwalPiketHariIni && (
-            <div className="px-3 py-1 bg-white/20 border border-white/30 text-white text-xs font-semibold rounded-full">
-              📋 Piket hari ini — Maks: {jadwalPiketHariIni.jam_piket} WIB
-            </div>
+            <span className="px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-600 font-medium">
+              📋 Piket — Maks {jadwalPiketHariIni.jam_piket} WIB
+            </span>
           )}
         </div>
       </div>
 
       {/* Holiday Message */}
       {isHoliday && holidayInfo && (
-        <div className={`rounded-lg shadow p-6 text-center ${holidayInfo.type === 'weekend' ? 'bg-blue-50 border-2 border-blue-200' : 'bg-yellow-50 border-2 border-yellow-200'
-          }`}>
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <AlertCircle className={`w-8 h-8 ${holidayInfo.type === 'weekend' ? 'text-blue-600' : 'text-yellow-600'}`} />
-            <h3 className={`text-xl font-bold ${holidayInfo.type === 'weekend' ? 'text-blue-800' : 'text-yellow-800'}`}>
-              {holidayInfo.message}
-            </h3>
-          </div>
-          <p className={`text-sm ${holidayInfo.type === 'weekend' ? 'text-blue-600' : 'text-yellow-600'}`}>
-            Tidak perlu melakukan presensi hari ini
-          </p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden text-center">
+          <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${holidayInfo.type === 'weekend' ? 'bg-indigo-400' : 'bg-violet-400'}`} />
+          <div className="text-3xl mb-2">{holidayInfo.type === 'weekend' ? '😴' : '🎉'}</div>
+          <h3 className="text-base font-bold text-slate-800">{holidayInfo.message}</h3>
+          <p className="text-xs text-slate-500 mt-1">Tidak perlu melakukan presensi hari ini</p>
         </div>
       )}
 
-      {/* Status Display - Jika sudah presensi hari ini */}
+      {/* Status Display */}
       {todayAttendance && !isHoliday ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {(() => {
             const status = todayAttendance.status
             const isIzinSakit = status === 'izin' || status === 'sakit'
             const isHadirTerlambat = status === 'hadir_terlambat'
             const isIzinTerlambat = status === 'hadir_izin_terlambat'
-
-            // Warna berdasarkan status
-            let bgColor, borderColor, textColor, subtextColor, iconColor, badgeColor
+            let accentColor, dotColor, badgeBg, badgeText, badgeLabel, headerText
             if (status === 'izin') {
-              bgColor = 'bg-amber-50'; borderColor = 'border-amber-200'; textColor = 'text-amber-800'; subtextColor = 'text-amber-700'; iconColor = 'text-amber-600'; badgeColor = 'bg-amber-200 text-amber-800'
+              accentColor = 'bg-amber-400'; dotColor = 'bg-amber-400'
+              badgeBg = 'bg-amber-50'; badgeText = 'text-amber-700'
+              badgeLabel = 'IZIN'; headerText = 'Anda Izin Hari Ini'
             } else if (status === 'sakit') {
-              bgColor = 'bg-red-50'; borderColor = 'border-red-200'; textColor = 'text-red-800'; subtextColor = 'text-red-700'; iconColor = 'text-red-600'; badgeColor = 'bg-red-200 text-red-800'
+              accentColor = 'bg-rose-400'; dotColor = 'bg-rose-400'
+              badgeBg = 'bg-rose-50'; badgeText = 'text-rose-700'
+              badgeLabel = 'SAKIT'; headerText = 'Anda Sakit Hari Ini'
             } else if (isHadirTerlambat) {
-              bgColor = 'bg-yellow-50'; borderColor = 'border-yellow-200'; textColor = 'text-yellow-800'; subtextColor = 'text-yellow-700'; iconColor = 'text-yellow-600'; badgeColor = 'bg-yellow-200 text-yellow-800'
+              accentColor = 'bg-amber-400'; dotColor = 'bg-amber-400'
+              badgeBg = 'bg-yellow-50'; badgeText = 'text-yellow-700'
+              badgeLabel = 'TERLAMBAT'; headerText = 'Anda Sudah Absen'
             } else if (isIzinTerlambat) {
-              bgColor = 'bg-blue-50'; borderColor = 'border-blue-200'; textColor = 'text-blue-800'; subtextColor = 'text-blue-700'; iconColor = 'text-blue-600'; badgeColor = 'bg-blue-200 text-blue-800'
+              accentColor = 'bg-blue-400'; dotColor = 'bg-blue-400'
+              badgeBg = 'bg-blue-50'; badgeText = 'text-blue-700'
+              badgeLabel = 'IZIN TERLAMBAT'; headerText = 'Anda Sudah Absen'
             } else {
-              bgColor = 'bg-green-50'; borderColor = 'border-green-200'; textColor = 'text-green-800'; subtextColor = 'text-green-700'; iconColor = 'text-green-600'; badgeColor = 'bg-green-200 text-green-800'
+              accentColor = 'bg-emerald-400'; dotColor = 'bg-emerald-400'
+              badgeBg = 'bg-emerald-50'; badgeText = 'text-emerald-700'
+              badgeLabel = 'HADIR'; headerText = 'Anda Sudah Absen'
             }
-
-            const statusLabel = status === 'izin' ? 'IZIN' : status === 'sakit' ? 'SAKIT' : isHadirTerlambat ? 'HADIR (TERLAMBAT)' : isIzinTerlambat ? 'HADIR - IZIN TERLAMBAT' : status.toUpperCase()
-            const headerText = isIzinSakit ? `Anda ${status === 'izin' ? 'Izin' : 'Sakit'} Hari Ini` : 'Anda Sudah Absen'
-
             return (
               <>
-                <div className={`border-2 rounded-lg p-6 ${bgColor} ${borderColor}`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    {isIzinSakit ? (
-                      status === 'sakit'
-                        ? <AlertCircle className={`w-8 h-8 ${iconColor}`} />
-                        : <FileText className={`w-8 h-8 ${iconColor}`} />
-                    ) : isHadirTerlambat ? (
-                      <Clock className={`w-8 h-8 ${iconColor}`} />
-                    ) : (
-                      <CheckCircle className={`w-8 h-8 ${iconColor}`} />
-                    )}
-                    <div className="flex-1">
-                      <h3 className={`text-lg font-bold ${textColor}`}>
-                        {headerText}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className={subtextColor}>Status: {statusLabel}</p>
-                        <span className={`px-2 py-1 text-xs font-bold rounded ${badgeColor}`}>
-                          {statusLabel}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 relative overflow-hidden">
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${accentColor}`} />
+                  <div className="pl-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+                        <span className="text-sm font-bold text-slate-800">{headerText}</span>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeBg} ${badgeText}`}>
+                        {badgeLabel}
+                      </span>
+                    </div>
+                    <div className="space-y-0">
+                      {todayAttendance.jamHadir && (
+                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                          <span className="text-xs text-slate-400 font-medium">Jam Masuk</span>
+                          <span className="text-xs font-semibold text-slate-700">{todayAttendance.jamHadir}</span>
+                        </div>
+                      )}
+                      {todayAttendance.jamIzin && (
+                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                          <span className="text-xs text-slate-400 font-medium">Jam Izin</span>
+                          <span className="text-xs font-semibold text-slate-700">{todayAttendance.jamIzin}</span>
+                        </div>
+                      )}
+                      {todayAttendance.jamSakit && (
+                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                          <span className="text-xs text-slate-400 font-medium">Jam Sakit</span>
+                          <span className="text-xs font-semibold text-slate-700">{todayAttendance.jamSakit}</span>
+                        </div>
+                      )}
+                      {isHadirTerlambat && todayAttendance.keterangan && (
+                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                          <span className="text-xs text-slate-400 font-medium">Terlambat</span>
+                          <span className="text-xs font-semibold text-amber-600">{todayAttendance.keterangan}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-xs text-slate-400 font-medium">Jam Pulang</span>
+                        <span className={`text-xs font-semibold ${(todayAttendance.jamPulang || todayAttendance.jam_pulang) ? "text-slate-700" : "text-slate-300"}`}>
+                          {todayAttendance.jamPulang || todayAttendance.jam_pulang || 'Belum tercatat'}
                         </span>
                       </div>
+                      {todayAttendance.keterangan && !isHadirTerlambat && (
+                        <div className="flex justify-between items-center py-2 border-t border-slate-50">
+                          <span className="text-xs text-slate-400 font-medium">Keterangan</span>
+                          <span className="text-xs font-medium text-slate-600 text-right max-w-xs">{todayAttendance.keterangan}</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className={`space-y-2 text-sm ${subtextColor}`}>
-                    {todayAttendance.jamHadir && <p>Jam Hadir: {todayAttendance.jamHadir}</p>}
-                    {todayAttendance.jamIzin && <p>Jam Izin: {todayAttendance.jamIzin}</p>}
-                    {todayAttendance.jamSakit && <p>Jam Sakit: {todayAttendance.jamSakit}</p>}
-                    {(todayAttendance.jamPulang || todayAttendance.jam_pulang) && (
-                      <p className="font-semibold">Jam Pulang: {todayAttendance.jamPulang || todayAttendance.jam_pulang}</p>
-                    )}
-                    {todayAttendance.keterangan && (
-                      <p className="font-medium">Keterangan: {todayAttendance.keterangan}</p>
+                    {isIzinSakit && (
+                      <div className="mt-3 px-3 py-2 bg-slate-50 rounded-xl">
+                        <p className="text-xs text-slate-500">
+                          ℹ️ Tidak perlu presensi pulang untuk status {status === 'izin' ? 'izin' : 'sakit'}.
+                        </p>
+                      </div>
                     )}
                   </div>
-
-                  {/* Pesan khusus izin/sakit */}
-                  {isIzinSakit && (
-                    <div className={`mt-4 pt-3 border-t ${borderColor}`}>
-                      <p className={`text-xs ${subtextColor}`}>
-                        ℹ️ Anda tidak perlu melakukan presensi pulang karena status {status === 'izin' ? 'izin' : 'sakit'}.
-                      </p>
-                    </div>
-                  )}
                 </div>
 
-                {/* Tombol Presensi Pulang - HANYA untuk status hadir (BUKAN izin/sakit) */}
                 {!isIzinSakit && settings.button_enabled == '1' && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && !todayAttendance.jamPulang && !todayAttendance.jam_pulang && (
                   <>
                     {canShowPulangButton() ? (
                       <button
                         onClick={handlePulang}
                         disabled={loading}
-                        className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center justify-center gap-3"
+                        className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-base hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 flex items-center justify-center gap-3 shadow-sm transition-all"
                       >
-                        <CheckCircle className="w-6 h-6" />
+                        <CheckCircle className="w-5 h-5" />
                         {loading ? 'Memproses...' : 'PRESENSI PULANG'}
                       </button>
                     ) : (
-                      <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4 text-center">
-                        <p className="text-gray-600 font-semibold">⏰ Presensi pulang tersedia mulai pukul 09:00 WIB</p>
-                        <p className="text-sm text-gray-500 mt-1">Silakan tunggu hingga jam 09:00 untuk melakukan presensi pulang</p>
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
+                        <p className="text-slate-600 font-semibold text-sm">⏰ Presensi pulang tersedia mulai 09:00 WIB</p>
+                        <p className="text-xs text-slate-400 mt-1">Silakan tunggu hingga jam 09:00</p>
                       </div>
                     )}
                   </>
                 )}
 
                 {!isIzinSakit && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && (todayAttendance.jamPulang || todayAttendance.jam_pulang) && (
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 text-center">
-                    <p className="text-blue-800 font-semibold">✓ Presensi pulang sudah tercatat</p>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-center">
+                    <p className="text-emerald-700 font-semibold text-sm">\u2713 Presensi pulang sudah tercatat</p>
                   </div>
                 )}
               </>
@@ -778,42 +787,37 @@ function GuruHome({ user }) {
         </div>
       ) : null}
 
-      {/* Action Buttons - Unified Scan & Fallbacks */}
+      {/* Action Buttons */}
       {(() => {
         const sudahPulang = todayAttendance && (todayAttendance.jam_pulang || todayAttendance.jamPulang)
         const isIzinSakit = todayAttendance && (todayAttendance.status === 'izin' || todayAttendance.status === 'sakit')
         if (isHoliday || sudahPulang || isIzinSakit) return null
         return (
-        <div className="space-y-4 mb-6">
-          {/* QR Scan Button - Unified Action */}
+        <div className="space-y-3 mb-6">
           <button
             onClick={() => setShowQRScanner(true)}
             disabled={loading}
-            className={`w-full py-5 rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02] ${
-              !todayAttendance 
-              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-500/30 font-bold" 
-              : "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-orange-500/30"
+            className={`w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-sm transition-all hover:opacity-90 active:scale-[0.99] disabled:bg-slate-300 disabled:text-slate-500 ${
+              !todayAttendance ? 'bg-indigo-600 text-white' : 'bg-violet-600 text-white'
             }`}
           >
-            <QrCode className="w-7 h-7" />
+            <QrCode className="w-6 h-6" />
             <span>{!todayAttendance ? 'SCAN PRESENSI MASUK' : settings.qr_enabled == '1' ? 'SCAN PRESENSI PULANG' : 'PRESENSI PULANG'}</span>
           </button>
 
-          {/* Separator */}
           {settings.button_enabled == '1' && (
             <>
-              <div className="flex items-center gap-4 py-2">
-                <div className="flex-1 h-px bg-gray-300"></div>
-                <span className="text-gray-500 text-sm font-medium">atau presensi manual</span>
-                <div className="flex-1 h-px bg-gray-300"></div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-slate-400 text-xs font-medium">atau presensi manual</span>
+                <div className="flex-1 h-px bg-slate-200" />
               </div>
-
               <button
                 onClick={handleHadir}
                 disabled={loading}
-                className="w-full bg-green-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center justify-center gap-3"
+                className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold text-base hover:bg-emerald-600 disabled:bg-slate-300 disabled:text-slate-500 flex items-center justify-center gap-3 shadow-sm transition-all"
               >
-                <CheckCircle className="w-6 h-6" />
+                <CheckCircle className="w-5 h-5" />
                 {loading ? 'Memproses...' : 'HADIR'}
               </button>
             </>
@@ -823,16 +827,15 @@ function GuruHome({ user }) {
             <button
               onClick={() => handleIzinSakit('izin')}
               disabled={loading}
-              className="bg-yellow-500 text-white py-4 rounded-lg font-bold text-lg hover:bg-yellow-600 disabled:bg-gray-400 flex items-center justify-center gap-2"
+              className="bg-amber-400 text-white py-4 rounded-2xl font-bold text-base hover:bg-amber-500 disabled:bg-slate-300 disabled:text-slate-500 flex items-center justify-center gap-2 shadow-sm transition-all"
             >
               <FileText className="w-5 h-5" />
               IZIN
             </button>
-
             <button
               onClick={() => handleIzinSakit('sakit')}
               disabled={loading}
-              className="bg-red-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-red-700 disabled:bg-gray-400 flex items-center justify-center gap-2"
+              className="bg-rose-400 text-white py-4 rounded-2xl font-bold text-base hover:bg-rose-500 disabled:bg-slate-300 disabled:text-slate-500 flex items-center justify-center gap-2 shadow-sm transition-all"
             >
               <AlertCircle className="w-5 h-5" />
               SAKIT
@@ -853,51 +856,50 @@ function GuruHome({ user }) {
           }}
           onClose={() => setShowQRScanner(false)}
           onSuccess={() => {
-            // Scanner sudah menampilkan success screen 1.5 detik sebelum memanggil ini
-            // Tutup scanner, tampilkan pesan, lalu refresh data
             setShowQRScanner(false)
-            setMessage({ type: 'success', text: '✅ Presensi berhasil dicatat!' })
-            // Refresh data setelah scanner tertutup
+            setMessage({ type: 'success', text: '\u2705 Presensi berhasil dicatat!' })
             checkTodayAttendance()
-            setTimeout(() => setMessage({ type: '', text: '' }), 4000)
+            setTimeout(() => setMessage({ type: "", text: "" }), 4000)
           }}
         />
       )}
 
       {/* Message */}
       {message.text && (
-        <div className={`p-4 rounded-lg whitespace-pre-line ${message.type === 'success' ? 'bg-green-50 text-green-800' :
-            message.type === 'warning' ? 'bg-orange-50 text-orange-800' :
-              'bg-red-50 text-red-800'
-          }`}>
+        <div className={`p-4 rounded-2xl whitespace-pre-line text-sm font-medium ${
+          message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+          message.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+          'bg-rose-50 text-rose-700 border border-rose-200'
+        }`}>
           {message.text}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal Izin/Sakit */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-slate-800 mb-1">
               Keterangan {modalType === 'izin' ? 'Izin' : 'Sakit'}
             </h3>
+            <p className="text-xs text-slate-400 mb-4">Masukkan alasan {modalType === 'izin' ? 'izin' : 'sakit'} Anda</p>
             <textarea
               value={keterangan}
               onChange={(e) => setKeterangan(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4"
-              rows="4"
-              placeholder="Masukkan keterangan..."
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm text-slate-700 placeholder:text-slate-300 mb-4 resize-none"
+              rows="3"
+              placeholder="Contoh: Keperluan keluarga mendesak..."
             />
             <div className="flex gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-semibold text-sm transition-colors"
               >
                 Batal
               </button>
               <button
                 onClick={submitIzinSakit}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-semibold text-sm transition-colors"
               >
                 Simpan
               </button>

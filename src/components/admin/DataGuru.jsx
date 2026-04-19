@@ -162,27 +162,55 @@ function DataGuru() {
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const bstr = evt.target.result
       const wb = XLSX.read(bstr, { type: 'binary' })
       const wsname = wb.SheetNames[0]
       const ws = wb.Sheets[wsname]
       const data = XLSX.utils.sheet_to_json(ws)
 
-      const importedData = data.map((row, index) => ({
-        id: dataGuru.length + index + 1,
-        nama: row['Nama'],
-        jenisKelamin: row['Jenis Kelamin'],
-        alamat: row['Alamat'],
-        jabatan: row['Jabatan'],
-        tanggalBertugas: row['Tanggal Bertugas'],
-        username: `guru${dataGuru.length + index + 1}`,
-        password: 'guru123',
-        role: 'guru'
-      }))
+      const importedData = data.map((row, index) => {
+        const tglLahir = row['Tanggal Lahir'] || row['tanggal lahir'] || row['Tanggal lahir'] || '';
+        let generatedUserPass = `guru${dataGuru.length + index + 1}`;
+        
+        if (tglLahir) {
+          const date = new Date(tglLahir);
+          if (!isNaN(date.getTime())) {
+            const d = String(date.getDate()).padStart(2, '0');
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const y = date.getFullYear();
+            generatedUserPass = `${d}${m}${y}`;
+          }
+        }
 
-      saveData([...dataGuru, ...importedData])
-      alert('Data berhasil diimport!')
+        return {
+          nama: row['Nama'] || row['Nama Lengkap'] || row['nama'] || '',
+          jenisKelamin: row['Jenis Kelamin'] || row['jenis kelamin'] || 'Laki-laki',
+          alamat: row['Alamat'] || row['alamat'] || '',
+          jabatan: row['Jabatan'] || row['jabatan'] || '',
+          tanggalBertugas: row['Tanggal Bertugas'] || row['tanggal bertugas'] || '',
+          tanggalLahir: tglLahir,
+          noHP: row['Nomor HP'] || row['no hp'] || '',
+          idGuru: row['ID Guru'] || row['id guru'] || `GQ${String(dataGuru.length + index + 1).padStart(3, '0')}`,
+          username: generatedUserPass,
+          password: generatedUserPass,
+          role: 'guru'
+        };
+      });
+
+      // Simpan satu per satu ke API
+      let successCount = 0;
+      for (const guru of importedData) {
+        try {
+          await guruAPI.create(guru);
+          successCount++;
+        } catch (err) {
+          console.error('Gagal import guru:', guru.nama, err);
+        }
+      }
+      
+      showNotification(`${successCount} data guru berhasil diimport!`);
+      loadDataGuru();
     }
     reader.readAsBinaryString(file)
     e.target.value = ''

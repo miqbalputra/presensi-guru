@@ -1,10 +1,26 @@
 <?php
 require_once 'config.php';
 
-// Admin dan Guru bisa akses endpoint ini
-requireAuth(['admin', 'guru']);
+// Semua role yang valid bisa akses endpoint ini (filtering per-role dilakukan di dalam)
+requireAuth(['admin', 'kepala_sekolah', 'guru']);
 
 $method = $_SERVER['REQUEST_METHOD'];
+
+// Kontrol akses per method:
+// - GET     : semua role (admin, kepala_sekolah, guru)
+// - PUT     : admin dan guru (guru hanya untuk presensi pulang milik sendiri)
+// - POST    : hanya admin
+// - DELETE  : hanya admin
+$role = $_SESSION['role'] ?? '';
+if ($method === 'POST' && $role !== 'admin') {
+    sendResponse(false, 'Forbidden: Hanya admin yang dapat menambah data presensi');
+}
+if ($method === 'DELETE' && $role !== 'admin') {
+    sendResponse(false, 'Forbidden: Hanya admin yang dapat menghapus data presensi');
+}
+if ($method === 'PUT' && !in_array($role, ['admin', 'guru'])) {
+    sendResponse(false, 'Forbidden: Anda tidak memiliki akses untuk mengubah data presensi');
+}
 
 // GET ALL PRESENSI (dengan filter optional)
 if ($method === 'GET' && !isset($_GET['id'])) {

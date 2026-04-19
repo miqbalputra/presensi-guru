@@ -7,14 +7,33 @@ function GuruModal({ guru, onClose, onSave }) {
     nama: '',
     tanggalLahir: '',
     jenisKelamin: 'Laki-laki',
+    tipeGuru: 'full_time',
     alamat: '',
     noHP: '',
     jabatan: [''],
     tanggalBertugas: '',
     username: '',
-    password: 'guru123',
+    password: '',
     role: 'guru'
   })
+
+  // Auto-fill username dan password jika tanggal lahir diisi (untuk guru baru)
+  useEffect(() => {
+    if (!guru && formData.tanggalLahir) {
+      const date = new Date(formData.tanggalLahir);
+      if (!isNaN(date.getTime())) {
+        const d = String(date.getDate()).padStart(2, '0');
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const y = date.getFullYear();
+        const formattedDate = `${d}${m}${y}`;
+        setFormData(prev => ({
+          ...prev,
+          username: formattedDate,
+          password: formattedDate
+        }));
+      }
+    }
+  }, [formData.tanggalLahir, guru]);
 
   useEffect(() => {
     if (guru) {
@@ -111,6 +130,23 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Guru</label>
+            <select
+              value={formData.tipeGuru}
+              onChange={(e) => setFormData({ ...formData, tipeGuru: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="full_time">Full Time (Hadir setiap hari kerja)</option>
+              <option value="partime">Partime (Scan = Hadir, tanpa status terlambat)</option>
+            </select>
+            {formData.tipeGuru === 'partime' && (
+              <p className="mt-1 text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg">
+                ⚡ Guru partime hanya perlu scan 1x. Langsung tercatat <strong>Hadir</strong> tanpa cek jam.
+              </p>
+            )}
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Alamat</label>
             <textarea
               value={formData.alamat}
@@ -203,7 +239,7 @@ function GuruModal({ guru, onClose, onSave }) {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder={guru ? "Biarkan kosong untuk tidak mengubah" : "guru123"}
+              placeholder={guru ? "Kosongkan jika tidak ingin mengubah" : "Otomatis dari Tgl Lahir"}
               required={!guru}
             />
           </div>

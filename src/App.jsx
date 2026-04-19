@@ -60,6 +60,19 @@ function App() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const INACTIVITY_TIMEOUT = 30 * 60 * 1000 // 30 menit dalam milidetik
+  const GURU_30_DAYS_MS = 30 * 24 * 60 * 60 * 1000 // 30 hari dalam milidetik
+
+  // Didefinisikan sebelum useEffect agar bisa dipakai di dalam syncSession
+  const handleLogin = (userData) => {
+    setUser(userData)
+    const userWithTimestamp = { ...userData, loginAt: Date.now() }
+    localStorage.setItem('user', JSON.stringify(userWithTimestamp))
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    localStorage.removeItem('user')
+  }
 
   useEffect(() => {
     // Initialize users in localStorage if not exists
@@ -78,7 +91,25 @@ function App() {
             setUser(localUser)
           }
 
-          // 2. Verifikasi sesi dengan backend di background
+          // Jika guru, cek apakah 30 hari belum lewat sebelum panggil backend
+          if (localUser && localUser.role === 'guru') {
+            const loginAt = localUser.loginAt
+            if (loginAt && (Date.now() - loginAt) >= GURU_30_DAYS_MS) {
+              // 30 hari sudah lewat, paksa logout
+              handleLogout()
+              return
+            }
+            // Masih dalam 30 hari: tidak perlu cek backend session, langsung biarkan login
+            // (session PHP di server mungkin sudah expire, tapi localStorage masih valid)
+            if (!localUser.loginAt) {
+              // Jika belum ada loginAt (user lama), tambahkan sekarang agar periodenya terhitung
+              const updated = { ...localUser, loginAt: Date.now() }
+              localStorage.setItem('user', JSON.stringify(updated))
+            }
+            return
+          }
+
+          // 2. Untuk Admin/Kepala Sekolah: Verifikasi sesi dengan backend
           const response = await authAPI.checkSession()
           if (response.success && response.data) {
             // Merge: prioritaskan data API, tapi fallback ke localStorage untuk field yang mungkin kosong
@@ -160,16 +191,6 @@ function App() {
       })
     }
   }, [user])
-
-  const handleLogin = (userData) => {
-    setUser(userData)
-    localStorage.setItem('user', JSON.stringify(userData))
-  }
-
-  const handleLogout = () => {
-    setUser(null)
-    localStorage.removeItem('user')
-  }
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;

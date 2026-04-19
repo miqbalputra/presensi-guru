@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preview Design - Guru Presensi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 80px;
+    }
+
+    /* ── Label banner ── */
+    .banner {
+      background: #1e293b;
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      opacity: .85;
+    }
+
+    /* ── Phone frame ── */
+    .phone {
+      width: 100%;
+      max-width: 400px;
+      background: #f8fafc;
+      border-radius: 32px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.14), 0 4px 12px rgba(0,0,0,.08);
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* ── Status bar ── */
+    .status-bar {
+      background: #4f6ef0;
+      padding: 10px 20px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+    }
+
+    /* ── Header / Topbar ── */
+    .topbar {
+      background: #4f6ef0;
+      padding: 0 20px 18px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 800; }
+    .topbar p  { font-size: 12px; color: rgba(255,255,255,.75); margin-top: 2px; }
+    .topbar-logout {
+      width: 36px; height: 36px;
+      background: rgba(255,255,255,.15);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+
+    /* ── Content area ── */
+    .content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
+    }
+
+    /* ── Welcome card ── */
+    .welcome-card {
+      background: white;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .welcome-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: #4f6ef0;
+      border-radius: 4px 0 0 4px;
+    }
+    .avatar {
+      width: 48px; height: 48px;
+      background: #eff2ff;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800;
+      color: #4f6ef0;
+      flex-shrink: 0;
+    }
+    .welcome-info { flex: 1; min-width: 0; }
+    .welcome-greeting {
+      font-size: 11px; color: #94a3b8; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .welcome-name {
+      font-size: 16px; font-weight: 700; color: #1e293b;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .welcome-date { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .info-pills {
+      display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .pill {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 11px; color: #475569; font-weight: 500;
+    }
+    .pill.testing {
+      background: #fff7ed;
+      border-color: #fed7aa;
+      color: #c2410c;
+    }
+
+    /* ── Section tabs for toggling previews ── */
+    .tabs {
+      display: flex; gap: 0;
+      background: white;
+      border-radius: 12px;
+      padding: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
+    }
+    .tab {
+      flex: 1; padding: 7px 0; text-align: center;
+      font-size: 11px; font-weight: 600; color: #94a3b8;
+      border-radius: 8px; cursor: pointer;
+      transition: all .2s;
+    }
+    .tab.active {
+      background: #4f6ef0;
+      color: white;
+    }
+
+    /* Screens */
+    .screen { display: none; }
+    .screen.active { display: contents; }
+
+    /* ── Status card ── */
+    .status-card {
+      background: white;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
+      position: relative;
+      overflow: hidden;
+    }
+    .status-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+    }
+    .status-card.hadir::before  { background: #22c55e; }
+    .status-card.terlambat::before { background: #f59e0b; }
+    .status-card.izin::before   { background: #f59e0b; }
+    .status-card.sakit::before  { background: #f87171; }
+
+    .status-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-green  { background: #22c55e; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-red    { background: #f87171; }
+
+    .status-title { font-size: 14px; font-weight: 700; color: #1e293b; flex: 1; }
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: .03em;
+    }
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-yellow { background: #fef9c3; color: #854d0e; }
+    .badge-amber  { background: #fef3c7; color: #92400e; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+
+    .info-table { margin-top: 4px; }
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 13px;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #94a3b8; font-weight: 500; }
+    .info-value { color: #1e293b; font-weight: 600; }
+    .info-value.empty { color: #cbd5e1; }
+
+    .status-note {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      border-radius: 8px;
+      font-size: 11px; color: #64748b;
+    }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      width: 100%;
+      background: #4f6ef0;
+      color: white;
+      border: none;
+      border-radius: 14px;
+      padding: 15px;
+      font-size: 15px; font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      box-shadow: 0 4px 12px rgba(79,110,240,.3);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(79,110,240,.35);
+    }
+    .btn-primary.pulang {
+      background: #6366f1;
+      box-shadow: 0 4px 12px rgba(99,102,241,.3);
+    }
+
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .btn-secondary {
+      border: none;
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: transform .15s, opacity .15s;
+    }
+    .btn-secondary:hover { transform: translateY(-1px); opacity: .9; }
+    .btn-izin  { background: #fbbf24; color: white; }
+    .btn-sakit { background: #f87171; color: white; }
+
+    /* ── Bottom nav ── */
+    .bottom-nav {
+      background: white;
+      display: flex;
+      border-top: 1px solid #f1f5f9;
+      padding: 8px 0 12px;
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      padding: 6px 0;
+      font-size: 10px; font-weight: 600; color: #94a3b8;
+      cursor: pointer;
+    }
+    .nav-item.active { color: #4f6ef0; }
+    .nav-icon { font-size: 20px; }
+
+    /* ── SVG icons ── */
+    svg { display: inline-block; vertical-align: middle; }
+
+    /* ── Divider ── */
+    .divider {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 11px; color: #94a3b8; font-weight: 500;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: #e2e8f0;
+    }
+
+    /* ── Holiday card ── */
+    .holiday-card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .holiday-card::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      background: #818cf8;
+    }
+    .holiday-emoji { font-size: 36px; margin-bottom: 8px; }
+    .holiday-title { font-size: 16px; font-weight: 700; color: #1e293b; }
+    .holiday-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+  <div class="banner">🎨 Preview Desain Baru • Hanya Tampilan</div>
+
+  <!-- Tabs to switch between states -->
+  <div style="max-width:400px; width:100%; margin-bottom:12px;">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('belum')">Belum Absen</div>
+      <div class="tab" onclick="switchTab('hadir')">Sudah Hadir</div>
+      <div class="tab" onclick="switchTab('terlambat')">Terlambat</div>
+      <div class="tab" onclick="switchTab('izin')">Izin/Sakit</div>
+      <div class="tab" onclick="switchTab('libur')">Hari Libur</div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span>09:15</span>
+      <span>📶 🔋</span>
+    </div>
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div>
+        <h1>Geo-Presensi GQ</h1>
+        <p>Ahmad Fauzi, S.Pd</p>
+      </div>
+      <div class="topbar-logout">
+        <svg width="16" height="16" fill="none" stroke="white" stroke-width="2.2" viewBox="0 0 24 24">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- Welcome Card (always shown) -->
+      <div class="welcome-card">
+        <div class="avatar">A</div>
+        <div class="welcome-info">
+          <div class="welcome-greeting">Selamat Datang</div>
+          <div class="welcome-name">Ahmad Fauzi, S.Pd</div>
+          <div class="welcome-date">Selasa, 08 April 2026</div>
+          <div class="info-pills">
+            <span class="pill">⏰ Masuk 07:20 WIB</span>
+            <span class="pill">⚡ Toleransi 15 mnt</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── STATE: Belum Absen ─── -->
+      <div class="screen active" id="screen-belum">
+        <div class="card" style="background:#f0f4ff; border: none; text-align:center; padding: 20px;">
+          <div style="font-size:32px; margin-bottom:8px;">🕐</div>
+          <div style="font-size:14px; font-weight:700; color:#1e293b;">Belum Presensi Hari Ini</div>
+          <div style="font-size:12px; color:#64748b; margin-top:4px;">Silakan lakukan presensi masuk</div>
+        </div>
+
+        <button class="btn-primary" onclick="void(0)">
+          <svg width="22" height="22" fill="none" stroke="white" stroke-width="2.2" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="4" height="4" rx=".5"/>
+            <rect x="9" y="14" width="4" height="4" rx=".5"/><rect x="3" y="20" width="4" height="1" rx=".5"/>
+          </svg>
+          SCAN PRESENSI MASUK
+        </button>
+
+        <div class="divider">atau</div>
+
+        <div class="btn-row">
+          <button class="btn-secondary btn-izin">
+            <svg width="16" height="16" fill="none" stroke="white" stroke-width="2.2" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke-linecap="round"/>
+              <polyline points="14 2 14 8 20 8" stroke-linecap="round"/>
+            </svg>
+            IZIN
+          </button>
+          <button class="btn-secondary btn-sakit">
+            <svg width="16" height="16" fill="none" stroke="white" stroke-width="2.2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12" stroke-linecap="round"/>
+              <line x1="12" y1="16" x2="12.01" y2="16" stroke-linecap="round"/>
+            </svg>
+            SAKIT
+          </button>
+        </div>
+      </div>
+
+      <!-- ─── STATE: Sudah Hadir ─── -->
+      <div class="screen" id="screen-hadir">
+        <div class="status-card hadir">
+          <div class="status-header">
+            <div class="status-dot dot-green"></div>
+            <div class="status-title">Anda Sudah Absen</div>
+            <span class="badge badge-green">HADIR</span>
+          </div>
+          <div class="info-table">
+            <div class="info-row">
+              <span class="info-label">Jam Masuk</span>
+              <span class="info-value">07:15 WIB</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Jam Pulang</span>
+              <span class="info-value empty">Belum tercatat</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Status</span>
+              <span class="info-value" style="color:#16a34a;">Tepat Waktu ✓</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-primary pulang">
+          <svg width="20" height="20" fill="none" stroke="white" stroke-width="2.2" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="4" height="4" rx=".5"/>
+          </svg>
+          SCAN PRESENSI PULANG
+        </button>
+      </div>
+
+      <!-- ─── STATE: Terlambat ─── -->
+      <div class="screen" id="screen-terlambat">
+        <div class="status-card terlambat">
+          <div class="status-header">
+            <div class="status-dot dot-yellow"></div>
+            <div class="status-title">Anda Sudah Absen</div>
+            <span class="badge badge-yellow">TERLAMBAT</span>
+          </div>
+          <div class="info-table">
+            <div class="info-row">
+              <span class="info-label">Jam Masuk</span>
+              <span class="info-value">07:42 WIB</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Terlambat</span>
+              <span class="info-value" style="color:#d97706;">22 menit</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Jam Pulang</span>
+              <span class="info-value empty">Belum tercatat</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Keterangan</span>
+              <span class="info-value" style="font-size:12px;">Terlambat 22 menit</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-primary pulang">
+          <svg width="20" height="20" fill="none" stroke="white" stroke-width="2.2" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="4" height="4" rx=".5"/>
+          </svg>
+          SCAN PRESENSI PULANG
+        </button>
+      </div>
+
+      <!-- ─── STATE: Izin / Sakit ─── -->
+      <div class="screen" id="screen-izin">
+        <div class="card" style="display:flex; gap:8px; margin-bottom:0;">
+          <div style="flex:1;">
+            <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-bottom:6px;">Pilih tampilan:</div>
+            <div style="display:flex; gap:6px;">
+              <button onclick="showIzinState('izin')" id="btn-show-izin"
+                style="flex:1; padding:6px; border:1.5px solid #fbbf24; border-radius:8px; background:#fef3c7; color:#92400e; font-size:11px; font-weight:700; cursor:pointer;">
+                📝 Izin
+              </button>
+              <button onclick="showIzinState('sakit')" id="btn-show-sakit"
+                style="flex:1; padding:6px; border:1.5px solid #fca5a5; border-radius:8px; background:#fee2e2; color:#991b1b; font-size:11px; font-weight:700; cursor:pointer;">
+                🤒 Sakit
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Izin card -->
+        <div id="izin-card" class="status-card izin">
+          <div class="status-header">
+            <div class="status-dot dot-yellow"></div>
+            <div class="status-title">Anda Izin Hari Ini</div>
+            <span class="badge badge-amber">IZIN</span>
+          </div>
+          <div class="info-table">
+            <div class="info-row">
+              <span class="info-label">Jam Izin</span>
+              <span class="info-value">07:05 WIB</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Keterangan</span>
+              <span class="info-value" style="font-size:12px; text-align:right; max-width:60%;">Keperluan keluarga mendesak</span>
+            </div>
+          </div>
+          <div class="status-note">
+            ℹ️ Tidak perlu presensi pulang untuk status izin.
+          </div>
+        </div>
+
+        <!-- Sakit card (hidden by default) -->
+        <div id="sakit-card" class="status-card sakit" style="display:none;">
+          <div class="status-header">
+            <div class="status-dot dot-red"></div>
+            <div class="status-title">Anda Sakit Hari Ini</div>
+            <span class="badge badge-red">SAKIT</span>
+          </div>
+          <div class="info-table">
+            <div class="info-row">
+              <span class="info-label">Jam</span>
+              <span class="info-value">06:58 WIB</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Keterangan</span>
+              <span class="info-value" style="font-size:12px; text-align:right; max-width:60%;">Demam tinggi, perlu istirahat</span>
+            </div>
+          </div>
+          <div class="status-note">
+            ℹ️ Tidak perlu presensi pulang untuk status sakit.
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── STATE: Hari Libur ─── -->
+      <div class="screen" id="screen-libur">
+        <div class="holiday-card">
+          <div class="holiday-emoji">🎉</div>
+          <div class="holiday-title">Hari Libur Nasional</div>
+          <div style="margin-top:6px;">
+            <span class="badge badge-blue">Idul Fitri 1 Syawal 1447 H</span>
+          </div>
+          <div class="holiday-sub" style="margin-top:10px;">Tidak perlu melakukan presensi hari ini</div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+
+    <!-- Bottom nav -->
+    <div class="bottom-nav">
+      <div class="nav-item active">
+        <div class="nav-icon">🏠</div>
+        <span>Home</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">📋</div>
+        <span>Riwayat</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">👥</div>
+        <span>Status Rekan</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">📊</div>
+        <span>Statistik</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:16px; font-size:11px; color:#94a3b8; text-align:center; max-width:400px; line-height:1.6;">
+    File ini hanya untuk preview desain — tidak mempengaruhi kode aplikasi apapun.<br>
+    Klik tab di atas untuk melihat berbagai kondisi tampilan.
+  </div>
+
+  <script>
+    function switchTab(state) {
+      // Update tabs
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // Hide all screens
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+
+      // Show target
+      const screen = document.getElementById('screen-' + state);
+      if (screen) screen.classList.add('active');
+    }
+
+    function showIzinState(type) {
+      const izinCard = document.getElementById('izin-card');
+      const sakitCard = document.getElementById('sakit-card');
+      if (type === 'izin') {
+        izinCard.style.display = '';
+        sakitCard.style.display = 'none';
+      } else {
+        izinCard.style.display = 'none';
+        sakitCard.style.display = '';
+      }
+    }
+  </script>
+</body>
+</html>

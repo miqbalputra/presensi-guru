@@ -21,6 +21,7 @@ if ($method === 'GET' && !isset($_GET['id'])) {
             $g['jenisKelamin'] = $g['jenis_kelamin'];
             $g['tanggalBertugas'] = $g['tanggal_bertugas'];
             $g['tanggalLahir'] = $g['tanggal_lahir'];
+            $g['tipeGuru'] = $g['tipe_guru'];
             
             unset($g['password']); // Hapus password dari response
         }
@@ -49,6 +50,7 @@ if ($method === 'GET' && isset($_GET['id'])) {
             $guru['jenisKelamin'] = $guru['jenis_kelamin'];
             $guru['tanggalBertugas'] = $guru['tanggal_bertugas'];
             $guru['tanggalLahir'] = $guru['tanggal_lahir'];
+            $guru['tipeGuru'] = $guru['tipe_guru'];
             
             unset($guru['password']);
             sendResponse(true, 'Data guru ditemukan', $guru);
@@ -89,8 +91,8 @@ if ($method === 'POST') {
         $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
         
         $stmt = $pdo->prepare("
-            INSERT INTO users (id_guru, username, password, role, nama, tanggal_lahir, jenis_kelamin, alamat, no_hp, jabatan, tanggal_bertugas)
-            VALUES (?, ?, ?, 'guru', ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id_guru, username, password, role, nama, tanggal_lahir, jenis_kelamin, alamat, no_hp, jabatan, tanggal_bertugas, tipe_guru)
+            VALUES (?, ?, ?, 'guru', ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
         $stmt->execute([
@@ -103,7 +105,8 @@ if ($method === 'POST') {
             $data['alamat'],
             $data['noHP'],
             $jabatan,
-            $data['tanggalBertugas']
+            $data['tanggalBertugas'],
+            $data['tipeGuru'] ?? 'full_time'
         ]);
         
         sendResponse(true, 'Guru berhasil ditambahkan', ['id' => $pdo->lastInsertId()]);
@@ -150,7 +153,7 @@ if ($method === 'PUT') {
                 UPDATE users SET 
                     id_guru = ?, username = ?, password = ?, nama = ?, 
                     tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?, 
-                    jabatan = ?, tanggal_bertugas = ?
+                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -164,6 +167,7 @@ if ($method === 'PUT') {
                 $data['noHP'],
                 $jabatan,
                 $data['tanggalBertugas'],
+                $data['tipeGuru'] ?? 'full_time',
                 $data['id']
             ]);
         } else {
@@ -172,7 +176,7 @@ if ($method === 'PUT') {
                 UPDATE users SET 
                     id_guru = ?, username = ?, nama = ?, 
                     tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?, 
-                    jabatan = ?, tanggal_bertugas = ?
+                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -185,6 +189,7 @@ if ($method === 'PUT') {
                 $data['noHP'],
                 $jabatan,
                 $data['tanggalBertugas'],
+                $data['tipeGuru'] ?? 'full_time',
                 $data['id']
             ]);
         }
