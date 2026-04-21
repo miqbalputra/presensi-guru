@@ -134,6 +134,48 @@ if ($method === 'POST') {
         $today = date('Y-m-d');
         $currentTime = date('H:i:s');
         
+        // CEK JADWAL PIKET HARI INI
+        $hariInggris = date('l');
+        $hariIndonesia = [
+            'Monday' => 'Senin', 'Tuesday' => 'Selasa', 'Wednesday' => 'Rabu',
+            'Thursday' => 'Kamis', 'Friday' => 'Jumat', 'Saturday' => 'Sabtu', 'Sunday' => 'Minggu'
+        ];
+        $hariIni = $hariIndonesia[$hariInggris];
+
+        $stmtPiket = $pdo->prepare("SELECT jam_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
+        $stmtPiket->execute([$userId, $hariIni]);
+        $piket = $stmtPiket->fetch();
+
+        $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
+        $piketLabel = "";
+        
+        // LOGIKA HARI SENIN & APEL
+        if ($hariIni === 'Senin') {
+            if (($settings['apel_senin_enabled'] ?? '0') == '1') {
+                if ($piket) {
+                    $jamMasukTarget = $piket['jam_piket']; // 06:40
+                    $piketLabel = " (Piket Apel)";
+                } else {
+                    $jamMasukTarget = '07:00'; // Guru non-piket saat apel
+                    $piketLabel = " (Apel Senin)";
+                }
+            } else {
+                // MODE APEL MATI (UAS/Lainnya)
+                if ($piket) {
+                    $jamMasukTarget = '07:00'; // Override 06:40 -> 07:00
+                    $piketLabel = " (Piket)";
+                } else {
+                    $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
+                }
+            }
+        } else {
+            // HARI SELAIN SENIN
+            if ($piket) {
+                $jamMasukTarget = $piket['jam_piket'];
+                $piketLabel = " (Piket)";
+            }
+        }
+
         // Cek apakah hari libur
         $stmt = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
         $stmt->execute([$today]);
@@ -168,9 +210,33 @@ if ($method === 'POST') {
                         sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul 09:00 WIB');
                     }
 
+                    // VALIDASI JAM PULANG PIKET
+                    $stmtPiketCheckout = $pdo->prepare("SELECT jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
+                    $stmtPiketCheckout->execute([$userId, $hariIni]);
+                    $piketCheckout = $stmtPiketCheckout->fetch();
+
+                    if ($piketCheckout && !empty($piketCheckout['jam_pulang_piket'])) {
+                        list($piketHour, $piketMinute) = explode(':', $piketCheckout['jam_pulang_piket']);
+                        $piketTimeInMinutes = (intval($piketHour) * 60) + intval($piketMinute);
+                        $currentTimeInMinutes = (intval(date('H')) * 60) + intval(date('i'));
+
+                        if ($currentTimeInMinutes < $piketTimeInMinutes && empty($data['izin_pulang_awal'])) {
+                            $jamPulangPiketStr = substr($piketCheckout['jam_pulang_piket'], 0, 5);
+                            sendResponse(false, "PIKET_RESTRICTION|{$jamPulangPiketStr}");
+                        }
+
+                        // Jika izin_pulang_awal ada, tambahkan info ke activity log atau keterangan jika memungkinkan
+                        // Tapi di qr_scan.php kita tidak mengupdate keterangan di sini, hanya jam_pulang.
+                    }
+
                     // Update jam pulang
-                    $stmt = $pdo->prepare("UPDATE attendance_logs SET jam_pulang = ?, updated_at = NOW() WHERE id = ?");
-                    $stmt->execute([$currentTime, $existing['id']]);
+                    $keterangan = $existing['keterangan'] ?? '';
+                    if (!empty($data['izin_pulang_awal'])) {
+                        $keterangan = ($keterangan ? $keterangan . " " : "") . "(Izin Pulang Awal Piket)";
+                    }
+                    
+                    $stmt = $pdo->prepare("UPDATE attendance_logs SET jam_pulang = ?, keterangan = ?, updated_at = NOW() WHERE id = ?");
+                    $stmt->execute([$currentTime, $keterangan, $existing['id']]);
                     
                     // Log activity untuk pulang
                     try {
@@ -196,10 +262,9 @@ if ($method === 'POST') {
             $keterangan = 'Guru Partime';
         } else {
             // Guru full_time: cek keterlambatan seperti biasa
-            $jamMasukNormal = $settings['jam_masuk_normal'] ?? '07:20';
             $toleransi = intval($settings['toleransi_terlambat'] ?? 15);
             
-            list($jamNormal, $menitNormal) = explode(':', $jamMasukNormal);
+            list($jamNormal, $menitNormal) = explode(':', $jamMasukTarget);
             list($jamSekarang, $menitSekarang) = explode(':', $currentTime);
             
             $waktuNormal = intval($jamNormal) * 60 + intval($menitNormal);
@@ -213,10 +278,10 @@ if ($method === 'POST') {
             if ($selisih > 0) {
                 if ($selisih <= $toleransi) {
                     $status = 'hadir_terlambat';
-                    $keterangan = "Terlambat {$selisih} menit";
+                    $keterangan = "Terlambat {$selisih} menit" . $piketLabel;
                 } else {
                     $status = 'hadir_terlambat';
-                    $keterangan = "Terlambat {$selisih} menit (Parah)";
+                    $keterangan = "Terlambat {$selisih} menit (Parah)" . $piketLabel;
                 }
             }
         }

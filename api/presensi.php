@@ -12,8 +12,8 @@ $method = $_SERVER['REQUEST_METHOD'];
 // - POST    : hanya admin
 // - DELETE  : hanya admin
 $role = $_SESSION['role'] ?? '';
-if ($method === 'POST' && $role !== 'admin') {
-    sendResponse(false, 'Forbidden: Hanya admin yang dapat menambah data presensi');
+if ($method === 'POST' && !in_array($role, ['admin', 'guru'])) {
+    sendResponse(false, 'Forbidden: Anda tidak memiliki akses untuk menambah data presensi');
 }
 if ($method === 'DELETE' && $role !== 'admin') {
     sendResponse(false, 'Forbidden: Hanya admin yang dapat menghapus data presensi');
@@ -102,7 +102,20 @@ if ($method === 'GET' && !isset($_GET['id'])) {
 if ($method === 'POST') {
     $data = getRequestData();
     
+    // SECURITY: Jika guru, paksa pakai ID dan Nama sendiri dari session
+    if ($_SESSION['role'] === 'guru') {
+        $data['userId'] = $_SESSION['user_id'];
+        $data['nama'] = $_SESSION['nama'] ?? $_SESSION['user']['nama'] ?? 'Guru';
+    }
+
     try {
+        // Cek apakah sudah ada presensi hari ini untuk user ini
+        $stmt_check = $pdo->prepare("SELECT id FROM attendance_logs WHERE user_id = ? AND tanggal = ?");
+        $stmt_check->execute([$data['userId'], $data['tanggal']]);
+        if ($stmt_check->fetch()) {
+            sendResponse(false, 'Anda sudah melakukan presensi hari ini.');
+        }
+
         // Validasi tanggal
         if (!validateDate($data['tanggal'])) {
             sendResponse(false, 'Format tanggal tidak valid');
@@ -132,23 +145,89 @@ if ($method === 'POST') {
             }
         }
         
+        // GET SETTINGS for validation
+        $stmt_settings = $pdo->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('jam_masuk_normal', 'apel_senin_enabled')");
+        $stmt_settings->execute();
+        $settings_res = $stmt_settings->fetchAll();
+        $app_settings = [];
+        foreach ($settings_res as $s) {
+            $app_settings[$s['setting_key']] = $s['setting_value'];
+        }
+
+        // Tentukan target jam masuk: 
+        $jamMasukTarget = $app_settings['jam_masuk_normal'] ?? '07:20';
+        $piketLabel = "";
+        $hariInggris = date('l', strtotime($data['tanggal']));
+        $hariIndonesia = [
+            'Monday' => 'Senin', 'Tuesday' => 'Selasa', 'Wednesday' => 'Rabu',
+            'Thursday' => 'Kamis', 'Friday' => 'Jumat', 'Saturday' => 'Sabtu', 'Sunday' => 'Minggu'
+        ];
+        $hariIni = $hariIndonesia[$hariInggris];
+
+        // Cek Jadwal Piket
+        $stmtPiket = $pdo->prepare("SELECT jam_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
+        $stmtPiket->execute([$data['userId'], $hariIni]);
+        $piket = $stmtPiket->fetch();
+
+        if ($hariIni === 'Senin') {
+            if (($app_settings['apel_senin_enabled'] ?? '0') == '1') {
+                // MODE APEL AKTIF
+                if ($piket) {
+                    $jamMasukTarget = $piket['jam_piket']; // 06:40
+                    $piketLabel = " (Piket Apel)";
+                } else {
+                    $jamMasukTarget = '07:00'; // Guru non-piket saat apel
+                    $piketLabel = " (Apel Senin)";
+                }
+            } else {
+                // MODE APEL MATI (UAS/Lainnya)
+                if ($piket) {
+                    $jamMasukTarget = '07:00'; // Override 06:40 -> 07:00
+                    $piketLabel = " (Piket)";
+                } else {
+                    $jamMasukTarget = $app_settings['jam_masuk_normal'] ?? '07:20';
+                }
+            }
+        } else {
+            // HARI SELAIN SENIN
+            if ($piket) {
+                $jamMasukTarget = $piket['jam_piket'];
+                $piketLabel = " (Piket)";
+            }
+        }
+
+        // Simpan presensi dengan pengecekan keterlambatan manual di sini
+        // (Catatan: Frontend biasanya mengirim jamMasuk, tapi kita validasi ulang di server)
+        $jamPresensi = !empty($data['jamMasuk']) ? $data['jamMasuk'] : date('H:i:s');
+        
         $stmt = $pdo->prepare("
             INSERT INTO attendance_logs 
             (user_id, nama, tanggal, status, jam_masuk, jam_pulang, jam_hadir, jam_izin, jam_sakit, keterangan, latitude, longitude)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
+        // Tambahkan info keterlambatan ke keterangan jika perlu
+        $keteranganFix = $data['keterangan'] ?? '';
+        if ($data['status'] === 'hadir') {
+            $waktuTarget = strtotime($data['tanggal'] . ' ' . $jamMasukTarget);
+            $waktuPresensi = strtotime($data['tanggal'] . ' ' . $jamPresensi);
+            if ($waktuPresensi > $waktuTarget) {
+                $diff = round(($waktuPresensi - $waktuTarget) / 60);
+                $keteranganFix = "Terlambat $diff menit$piketLabel";
+            }
+        }
+
         $stmt->execute([
             $data['userId'],
             $data['nama'],
             $data['tanggal'],
             $data['status'],
-            !empty($data['jamMasuk']) ? $data['jamMasuk'] : null,
-            !empty($data['jamPulang']) ? $data['jamPulang'] : null,
-            !empty($data['jamHadir']) ? $data['jamHadir'] : null,
-            !empty($data['jamIzin']) ? $data['jamIzin'] : null,
-            !empty($data['jamSakit']) ? $data['jamSakit'] : null,
-            $data['keterangan'] ?? '',
+            $jamPresensi,
+            null,
+            $jamPresensi,
+            null,
+            null,
+            $keteranganFix,
             $data['latitude'] ?? null,
             $data['longitude'] ?? null
         ]);
@@ -159,16 +238,59 @@ if ($method === 'POST') {
     }
 }
 
-// UPDATE PRESENSI (untuk presensi pulang atau edit admin)
 if ($method === 'PUT') {
     $data = getRequestData();
     
+    // SECURITY: Jika guru, pastikan mereka hanya mengupdate data mereka sendiri
+    if ($_SESSION['role'] === 'guru') {
+        $stmt_verify = $pdo->prepare("SELECT user_id FROM attendance_logs WHERE id = ?");
+        $stmt_verify->execute([$data['id']]);
+        $record = $stmt_verify->fetch();
+        
+        if (!$record || $record['user_id'] != $_SESSION['user_id']) {
+            sendResponse(false, 'Forbidden: Anda hanya dapat mengubah data presensi Anda sendiri');
+        }
+    }
+
     try {
+
         // VALIDASI JAM PULANG - Minimal Jam 09:00 WIB (Hanya untuk Guru)
         if ($_SESSION['role'] === 'guru' && !empty($data['jamPulang'])) {
             $currentHour = intval(date('H'));
+            $currentMinute = intval(date('i'));
+            $currentTimeInMinutes = ($currentHour * 60) + $currentMinute;
+
+            // 1. Cek Waktu Minimal Umum (09:00)
             if ($currentHour < 9) {
                 sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul 09:00 WIB');
+            }
+
+            // 2. Cek Jadwal Piket
+            $hariInggris = date('l');
+            $hariIndonesia = [
+                'Monday' => 'Senin', 'Tuesday' => 'Selasa', 'Wednesday' => 'Rabu',
+                'Thursday' => 'Kamis', 'Friday' => 'Jumat', 'Saturday' => 'Sabtu', 'Sunday' => 'Minggu'
+            ];
+            $hariIni = $hariIndonesia[$hariInggris];
+
+            $stmtPiket = $pdo->prepare("SELECT jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
+            $stmtPiket->execute([$_SESSION['user_id'], $hariIni]);
+            $piket = $stmtPiket->fetch();
+
+            if ($piket && !empty($piket['jam_pulang_piket'])) {
+                list($piketHour, $piketMinute) = explode(':', $piket['jam_pulang_piket']);
+                $piketTimeInMinutes = (intval($piketHour) * 60) + intval($piketMinute);
+
+                // Jika belum waktunya pulang piket DAN tidak ada flag izin_pulang_awal
+                if ($currentTimeInMinutes < $piketTimeInMinutes && empty($data['izin_pulang_awal'])) {
+                    $jamPulangPiketStr = substr($piket['jam_pulang_piket'], 0, 5);
+                    sendResponse(false, "PIKET_RESTRICTION|{$jamPulangPiketStr}");
+                }
+
+                // Jika izin_pulang_awal ada, tambahkan info ke keterangan
+                if (!empty($data['izin_pulang_awal'])) {
+                    $data['keterangan'] = ($data['keterangan'] ? $data['keterangan'] . " " : "") . "(Izin Pulang Awal Piket)";
+                }
             }
         }
 

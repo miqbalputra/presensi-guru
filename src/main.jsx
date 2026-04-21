@@ -9,10 +9,34 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then(registration => {
         console.log('SW registered: ', registration);
+        
+        // Cek update secara berkala
+        registration.onupdatefound = () => {
+          const installingWorker = registration.installing;
+          installingWorker.onstatechange = () => {
+            if (installingWorker.state === 'installed') {
+              if (navigator.serviceWorker.controller) {
+                // Ada versi baru, beritahu user atau auto reload
+                console.log('New content is available; please refresh.');
+                // Kita bisa memaksa reload jika diinginkan:
+                // window.location.reload();
+              }
+            }
+          };
+        };
       })
       .catch(registrationError => {
         console.log('SW registration failed: ', registrationError);
       });
+  });
+
+  // Handle pergantian controller (ketika SW baru aktif)
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      window.location.reload();
+      refreshing = true;
+    }
   });
 }
 

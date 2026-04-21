@@ -3,7 +3,7 @@ import { QrCode, Camera, X, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-
 import { Html5Qrcode } from 'html5-qrcode'
 import { qrScanAPI } from '../../services/api'
 
-function QRScanner({ onClose, onSuccess, attendanceStatus, settings }) {
+function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, settings }) {
     const [error, setError] = useState('')
     const [scanning, setScanning] = useState(false)
     const [processing, setProcessing] = useState(false)
@@ -215,6 +215,15 @@ function QRScanner({ onClose, onSuccess, attendanceStatus, settings }) {
 
         } catch (err) {
             if (!isMounted.current) return
+
+            // KHUSUS: Cek apakah error karena batasan piket
+            if (err.message && err.message.startsWith('PIKET_RESTRICTION|')) {
+                const jam = err.message.split('|')[1]
+                if (onPiketRestriction) {
+                    onPiketRestriction(jam, qrData)
+                    return // Jangan reset scanning dulu, parent akan handle
+                }
+            }
 
             isProcessing.current = false // reset agar bisa scan lagi
             safeSetProcessing(false)

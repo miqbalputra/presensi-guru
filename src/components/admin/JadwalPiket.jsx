@@ -18,6 +18,7 @@ function JadwalPiket() {
     nama_guru: '',
     hari: 'Senin',
     jam_piket: '07:00',
+    jam_pulang_piket: '13:00',
     keterangan: '',
     is_active: 1
   })
@@ -55,6 +56,7 @@ function JadwalPiket() {
       nama_guru: '',
       hari: 'Senin',
       jam_piket: '07:00',
+      jam_pulang_piket: '13:00',
       keterangan: '',
       is_active: 1
     })
@@ -68,6 +70,7 @@ function JadwalPiket() {
       nama_guru: jadwal.nama_guru,
       hari: jadwal.hari,
       jam_piket: jadwal.jam_piket.substring(0, 5), // HH:MM
+      jam_pulang_piket: (jadwal.jam_pulang_piket || '13:00:00').substring(0, 5),
       keterangan: jadwal.keterangan || '',
       is_active: jadwal.is_active
     })
@@ -119,6 +122,25 @@ function JadwalPiket() {
         nama_guru: guru.nama
       })
     }
+  }
+
+  const handleHariChange = (e) => {
+    const newHari = e.target.value
+    let newJamPulang = formData.jam_pulang_piket
+    
+    // Jika ganti ke Jumat, set default 10:15
+    if (newHari === 'Jumat') {
+      newJamPulang = '10:15'
+    } else if (formData.hari === 'Jumat') {
+      // Jika sebelumnya Jumat dan ganti ke hari lain, set kembali ke 13:00
+      newJamPulang = '13:00'
+    }
+
+    setFormData({ 
+      ...formData, 
+      hari: newHari,
+      jam_pulang_piket: newJamPulang
+    })
   }
 
   const getFilteredJadwal = () => {
@@ -194,11 +216,19 @@ function JadwalPiket() {
                             <User className="w-4 h-4 text-gray-500" />
                             <p className="font-semibold text-gray-800">{jadwal.nama_guru}</p>
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Clock className="w-3 h-3 text-gray-400" />
-                            <p className="text-xs text-gray-600">
-                              Maksimal: {jadwal.jam_piket.substring(0, 5)} WIB
-                            </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3 h-3 text-emerald-500" />
+                              <p className="text-[10px] text-gray-600">
+                                Datang: {jadwal.jam_piket.substring(0, 5)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3 h-3 text-rose-500" />
+                              <p className="text-[10px] text-gray-600">
+                                Pulang: {(jadwal.jam_pulang_piket || '16:00:00').substring(0, 5)}
+                              </p>
+                            </div>
                           </div>
                           {jadwal.keterangan && (
                             <p className="text-xs text-gray-500 mt-1">{jadwal.keterangan}</p>
@@ -264,7 +294,7 @@ function JadwalPiket() {
                 </label>
                 <select
                   value={formData.hari}
-                  onChange={(e) => setFormData({ ...formData, hari: e.target.value })}
+                  onChange={handleHariChange}
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
@@ -274,20 +304,31 @@ function JadwalPiket() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Jam Piket Maksimal
-                </label>
-                <input
-                  type="time"
-                  value={formData.jam_piket}
-                  onChange={(e) => setFormData({ ...formData, jam_piket: e.target.value })}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Guru harus hadir sebelum jam ini
-                </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                    Jam Datang
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.jam_piket}
+                    onChange={(e) => setFormData({ ...formData, jam_piket: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                    Jam Pulang
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.jam_pulang_piket}
+                    onChange={(e) => setFormData({ ...formData, jam_pulang_piket: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <div>

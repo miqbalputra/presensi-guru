@@ -29,9 +29,26 @@ function GuruHome({ user }) {
   const [jadwalPiketHariIni, setJadwalPiketHariIni] = useState(null)
   const [isPiketToday, setIsPiketToday] = useState(false)
   const [showQRScanner, setShowQRScanner] = useState(false)
+  const [showPiketModal, setShowPiketModal] = useState(false)
+  const [piketCheckoutTime, setPiketCheckoutTime] = useState('')
+  const [pendingQRData, setPendingQRData] = useState(null)
 
   useEffect(() => {
     loadInitialData()
+    
+    // HEARTBEAT: Ping server setiap 10 menit untuk menjaga session tetap aktif
+    const heartbeat = setInterval(() => {
+      console.log('💓 Heartbeat: Keeping session alive...')
+      authAPI.checkSession().catch(err => {
+        console.error('Heartbeat failed:', err)
+        // Jika benar-benar Unauthorized, mungkin perlu redirect ke login
+        if (err.message?.includes('Unauthorized')) {
+          window.location.reload() 
+        }
+      })
+    }, 10 * 60 * 1000)
+
+    return () => clearInterval(heartbeat)
   }, [])
 
   const loadInitialData = async () => {
@@ -132,8 +149,9 @@ function GuruHome({ user }) {
   }
 
   // Fungsi untuk cek apakah terlambat
-  const checkIfLate = (jamPresensi) => {
-    const [jamMasuk, menitMasuk] = settings.jam_masuk_normal.split(':').map(Number)
+  const checkIfLate = (jamPresensi, jamMasukTarget = null) => {
+    const jamMasukRef = jamMasukTarget || settings.jam_masuk_normal
+    const [jamMasuk, menitMasuk] = jamMasukRef.split(':').map(Number)
     const [jamPresensiH, menitPresensiH] = jamPresensi.split(':').map(Number)
 
     const waktuMasuk = jamMasuk * 60 + menitMasuk
@@ -295,67 +313,56 @@ function GuruHome({ user }) {
       if (status === 'hadir') {
         console.log('✅ Status is hadir, checking late and piket...')
 
-        const lateCheck = checkIfLate(currentTime)
-        console.log('⏰ Late check result:', lateCheck)
+        // Tentukan target jam masuk
+        let targetJamMasuk = settings.jam_masuk_normal
+        const today = new Date()
+        const isMonday = today.getDay() === 1 // 1 = Monday
+        const isApelEnabled = settings.apel_senin_enabled == '1'
+
+        if (isMonday) {
+          if (isApelEnabled) {
+            if (isPiketToday && jadwalPiketHariIni) {
+              targetJamMasuk = jadwalPiketHariIni.jam_piket.substring(0, 5) // 06:40
+            } else {
+              targetJamMasuk = '07:00' // Guru non-piket saat apel
+            }
+          } else {
+            // MODE APEL MATI
+            if (isPiketToday) {
+              targetJamMasuk = '07:00' // Override 06:40 -> 07:00
+            } else {
+              targetJamMasuk = settings.jam_masuk_normal // 07:20
+            }
+          }
+        } else if (isPiketToday && jadwalPiketHariIni) {
+          targetJamMasuk = jadwalPiketHariIni.jam_piket.substring(0, 5)
+        }
+
+        const lateCheck = checkIfLate(currentTime, targetJamMasuk)
+        console.log('⏰ Late check result:', lateCheck, 'Target:', targetJamMasuk)
 
         if (lateCheck.isLate) {
+          finalStatus = 'hadir_terlambat'
+          const labelPiket = isPiketToday ? ' (Piket)' : ''
+          
           if (lateCheck.severity === 'late') {
-            finalStatus = 'hadir_terlambat'
-            finalKeterangan = `Terlambat ${lateCheck.minutes} menit`
+            finalKeterangan = `Terlambat ${lateCheck.minutes} menit${labelPiket}`
           } else if (lateCheck.severity === 'very_late') {
-            finalStatus = 'hadir_terlambat'
-            finalKeterangan = `Terlambat ${lateCheck.minutes} menit (Parah)`
+            finalKeterangan = `Terlambat ${lateCheck.minutes} menit (Parah)${labelPiket}`
           }
           console.log('🔴 User is late:', { finalStatus, finalKeterangan })
         } else {
           console.log('✅ User is on time')
         }
 
-        // Cek apakah terlambat piket
-        console.log('📋 Piket check - isPiketToday:', isPiketToday, 'jadwalPiketHariIni:', jadwalPiketHariIni)
-
+        // Jika piket, tambahkan info di pesan sukses
         if (isPiketToday && jadwalPiketHariIni) {
-          console.log('🔍 Checking piket late:', {
-            isPiketToday,
-            jadwalPiketHariIni,
-            currentTime
-          })
-
-          // Format jam_piket bisa HH:MM:SS atau HH:MM, ambil HH:MM saja
           const jamPiketStr = jadwalPiketHariIni.jam_piket.substring(0, 5)
-          const [jamPiket, menitPiket] = jamPiketStr.split(':').map(Number)
-          const [jamPresensi, menitPresensi] = currentTime.split(':').map(Number)
-
-          const waktuPiket = jamPiket * 60 + menitPiket
-          const waktuPresensi = jamPresensi * 60 + menitPresensi
-
-          console.log('⏰ Piket time comparison:', {
-            jamPiketStr,
-            waktuPiket,
-            waktuPresensi,
-            isLate: waktuPresensi > waktuPiket
-          })
-
-          if (waktuPresensi > waktuPiket) {
-            const selisihMenitPiket = waktuPresensi - waktuPiket
-            piketWarning = `⚠️ Anda terlambat hadir piket ${selisihMenitPiket} menit. Jam piket: ${jamPiketStr} WIB`
-            console.log('⚠️ Piket warning:', piketWarning)
-
-            // Cek setting: apakah terlambat piket dianggap hadir terlambat?
-            if (settings.piket_terlambat_adalah_terlambat === '1') {
-              finalStatus = 'hadir_terlambat'
-              if (finalKeterangan) {
-                finalKeterangan += ` | Terlambat piket ${selisihMenitPiket} menit`
-              } else {
-                finalKeterangan = `Terlambat piket ${selisihMenitPiket} menit`
-              }
-              console.log('🔴 Status changed to hadir_terlambat due to piket late')
-            }
+          if (lateCheck.isLate) {
+            piketWarning = `⚠️ Anda terlambat hadir piket. Jam piket: ${jamPiketStr} WIB`
           } else {
-            console.log('✅ Tidak terlambat piket')
+            console.log('✅ Tepat waktu hadir piket')
           }
-        } else {
-          console.log('ℹ️ No piket check:', { isPiketToday, jadwalPiketHariIni })
         }
       }
 
@@ -473,7 +480,7 @@ function GuruHome({ user }) {
     return currentTimeInMinutes >= minTimeInMinutes
   }
 
-  const handlePulang = async () => {
+  const handlePulang = async (izinPulangAwal = false) => {
     if (!todayAttendance || (todayAttendance.status !== 'hadir' && todayAttendance.status !== 'hadir_terlambat' && todayAttendance.status !== 'hadir_izin_terlambat')) return
 
     // Cek apakah sudah presensi pulang (cek kedua field untuk compatibility)
@@ -498,6 +505,7 @@ function GuruHome({ user }) {
 
     setLoading(true)
     setMessage({ type: '', text: '' })
+    setShowPiketModal(false)
 
     // MODE TESTING dari settings (bukan hardcoded)
     const TESTING_MODE = settings.mode_testing == '1' // Gunakan == agar int(1) tetap true sebagai '1'
@@ -538,7 +546,8 @@ function GuruHome({ user }) {
         jamSakit: todayAttendance.jam_sakit,
         keterangan: todayAttendance.keterangan,
         latitude: todayAttendance.latitude,
-        longitude: todayAttendance.longitude
+        longitude: todayAttendance.longitude,
+        izin_pulang_awal: izinPulangAwal
       }
 
       await presensiAPI.update(updatedData)
@@ -548,7 +557,7 @@ function GuruHome({ user }) {
         await activityAPI.create({
           user: user.nama,
           aktivitas: 'Presensi Pulang',
-          status: 'Pulang'
+          status: 'Pulang' + (izinPulangAwal ? ' (Izin Awal)' : '')
         })
       } catch (logError) {
         console.error('Failed to log activity:', logError)
@@ -573,11 +582,53 @@ function GuruHome({ user }) {
         checkTodayAttendance()
       }, 500)
     } catch (error) {
-      setMessage({
-        type: 'error',
-        text: 'Gagal menyimpan presensi pulang: ' + error.message
-      })
+      if (error.message.startsWith('PIKET_RESTRICTION|')) {
+        const jam = error.message.split('|')[1]
+        setPiketCheckoutTime(jam)
+        setShowPiketModal(true)
+        setPendingQRData(null) // Reset QR data if any
+      } else {
+        setMessage({
+          type: 'error',
+          text: 'Gagal menyimpan presensi pulang: ' + error.message
+        })
+      }
       setLoading(false)
+    }
+  }
+
+  const handleQRScanPiketRestriction = (jam, qrData) => {
+    setPiketCheckoutTime(jam)
+    setPendingQRData(qrData)
+    setShowQRScanner(false)
+    setShowPiketModal(true)
+  }
+
+  const handleIzinPulangAwal = async () => {
+    if (pendingQRData) {
+      // Jika dari QR Scan
+      setLoading(true)
+      try {
+        const location = await getUserLocation()
+        const response = await qrScanAPI.submit(
+          pendingQRData,
+          location.latitude,
+          location.longitude,
+          true, // isPulang
+          true  // izin_pulang_awal (I need to update qrScanAPI.submit if I haven't)
+        )
+        setShowPiketModal(false)
+        setPendingQRData(null)
+        setMessage({ type: 'success', text: '\u2705 Presensi pulang (izin awal) berhasil!' })
+        checkTodayAttendance()
+      } catch (error) {
+        setMessage({ type: 'error', text: error.message })
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      // Jika dari tombol manual
+      handlePulang(true)
     }
   }
 
@@ -636,7 +687,19 @@ function GuruHome({ user }) {
         </div>
         <div className="flex flex-wrap gap-2 mt-3 pl-2">
           <span className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-600 font-medium">
-            ⏰ Masuk {settings.jam_masuk_normal} WIB
+            ⏰ {(() => {
+              const today = new Date()
+              const isMonday = today.getDay() === 1
+              const isApel = settings.apel_senin_enabled == '1'
+              if (isMonday) {
+                if (isApel) {
+                  return isPiketToday ? `Apel & Piket ${jadwalPiketHariIni?.jam_piket?.substring(0, 5)}` : 'Apel Senin 07:00'
+                } else {
+                  return isPiketToday ? 'Piket Senin 07:00' : `Masuk ${settings.jam_masuk_normal}`
+                }
+              }
+              return `Masuk ${isPiketToday ? jadwalPiketHariIni?.jam_piket?.substring(0, 5) : settings.jam_masuk_normal}`
+            })()} WIB
           </span>
           <span className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-600 font-medium">
             ⚡ Toleransi {settings.toleransi_terlambat} mnt
@@ -778,7 +841,7 @@ function GuruHome({ user }) {
 
                 {!isIzinSakit && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && (todayAttendance.jamPulang || todayAttendance.jam_pulang) && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-center">
-                    <p className="text-emerald-700 font-semibold text-sm">\u2713 Presensi pulang sudah tercatat</p>
+                    <p className="text-emerald-700 font-semibold text-sm">✓ Presensi pulang sudah tercatat</p>
                   </div>
                 )}
               </>
@@ -855,6 +918,7 @@ function GuruHome({ user }) {
             has_checked_out: !!(todayAttendance?.jam_pulang || todayAttendance?.jamPulang)
           }}
           onClose={() => setShowQRScanner(false)}
+          onPiketRestriction={handleQRScanPiketRestriction}
           onSuccess={() => {
             setShowQRScanner(false)
             setMessage({ type: 'success', text: '\u2705 Presensi berhasil dicatat!' })
@@ -902,6 +966,42 @@ function GuruHome({ user }) {
                 className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-semibold text-sm transition-colors"
               >
                 Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Piket Restriction */}
+      {showPiketModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[70]">
+          <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl transform transition-all animate-in fade-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Clock className="w-10 h-10 text-amber-500" />
+            </div>
+            
+            <h3 className="text-xl font-black text-slate-800 text-center mb-3">
+              Belum Waktunya Pulang
+            </h3>
+            
+            <p className="text-slate-600 text-center text-sm leading-relaxed mb-8">
+              Mohon maaf, jam pulang untuk petugas piket adalah pukul <span className="font-bold text-amber-600">{piketCheckoutTime} WIB</span>. 
+              Apabila perlu pulang lebih awal, hal tersebut diperbolehkan asalkan sudah meminta izin.
+            </p>
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleIzinPulangAwal}
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]"
+              >
+                SAYA SUDAH IZIN PULANG AWAL
+              </button>
+              
+              <button
+                onClick={() => setShowPiketModal(false)}
+                className="w-full py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-bold text-sm transition-all"
+              >
+                KEMBALI
               </button>
             </div>
           </div>

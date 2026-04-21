@@ -15,7 +15,7 @@ if (in_array($method, ['POST', 'PUT', 'DELETE'])) {
 // GET ALL JADWAL PIKET
 if ($method === 'GET' && !isset($_GET['id']) && !isset($_GET['today'])) {
     try {
-        $query = "SELECT jp.id, jp.user_id, jp.nama_guru, jp.hari, jp.jam_piket, 
+        $query = "SELECT jp.id, jp.user_id, jp.nama_guru, jp.hari, jp.jam_piket, jp.jam_pulang_piket, 
                          jp.keterangan, jp.created_at, jp.updated_at, u.username 
                   FROM jadwal_piket jp 
                   LEFT JOIN users u ON jp.user_id = u.id 
@@ -68,7 +68,7 @@ if ($method === 'GET' && isset($_GET['today'])) {
         $hari = $hariIndonesia[$hariInggris];
         
         $stmt = $pdo->prepare("
-            SELECT jp.id, jp.user_id, jp.nama_guru, jp.hari, jp.jam_piket, 
+            SELECT jp.id, jp.user_id, jp.nama_guru, jp.hari, jp.jam_piket, jp.jam_pulang_piket, 
                    jp.keterangan, jp.created_at, jp.updated_at, u.username 
             FROM jadwal_piket jp 
             LEFT JOIN users u ON jp.user_id = u.id 
@@ -109,9 +109,16 @@ if ($method === 'POST') {
             $jamPiket .= ':00'; // Tambah detik jika format HH:MM
         }
         
+        // Validasi jam pulang piket (format HH:MM:SS atau HH:MM)
+        $defaultPulang = ($data['hari'] === 'Jumat') ? '10:15:00' : '13:00:00';
+        $jamPulangPiket = $data['jam_pulang_piket'] ?? $defaultPulang;
+        if (strlen($jamPulangPiket) === 5) {
+            $jamPulangPiket .= ':00'; // Tambah detik jika format HH:MM
+        }
+        
         $stmt = $pdo->prepare("
-            INSERT INTO jadwal_piket (user_id, nama_guru, hari, jam_piket, keterangan)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO jadwal_piket (user_id, nama_guru, hari, jam_piket, jam_pulang_piket, keterangan)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
         
         $stmt->execute([
@@ -119,6 +126,7 @@ if ($method === 'POST') {
             $data['nama_guru'],
             $data['hari'],
             $jamPiket,
+            $jamPulangPiket,
             $data['keterangan'] ?? null
         ]);
         
@@ -147,12 +155,20 @@ if ($method === 'PUT') {
             $jamPiket .= ':00'; // Tambah detik jika format HH:MM
         }
         
+        // Validasi jam pulang piket (format HH:MM:SS atau HH:MM)
+        $defaultPulang = ($data['hari'] === 'Jumat') ? '10:15:00' : '13:00:00';
+        $jamPulangPiket = $data['jam_pulang_piket'] ?? $defaultPulang;
+        if (strlen($jamPulangPiket) === 5) {
+            $jamPulangPiket .= ':00'; // Tambah detik jika format HH:MM
+        }
+        
         $stmt = $pdo->prepare("
             UPDATE jadwal_piket SET 
                 user_id = ?, 
                 nama_guru = ?, 
                 hari = ?, 
                 jam_piket = ?, 
+                jam_pulang_piket = ?,
                 keterangan = ?
             WHERE id = ?
         ");
@@ -162,6 +178,7 @@ if ($method === 'PUT') {
             $data['nama_guru'],
             $data['hari'],
             $jamPiket,
+            $jamPulangPiket,
             $data['keterangan'] ?? null,
             $data['id']
         ]);

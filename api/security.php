@@ -315,11 +315,23 @@ function setupSecureSession()
         || $_SERVER['SERVER_PORT'] == 443
         || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
+    // Create a dedicated session directory to prevent GC from other apps
+    $sessionPath = dirname(__DIR__) . '/sessions';
+    if (!file_exists($sessionPath)) {
+        @mkdir($sessionPath, 0755, true);
+    }
+    if (is_writable($sessionPath)) {
+        session_save_path($sessionPath);
+    }
+
+    // Set session lifetime (30 hari)
+    $oneMonth = 30 * 24 * 60 * 60;
+    
     // Session configuration
+    ini_set('session.gc_maxlifetime', $oneMonth);
+    ini_set('session.cookie_lifetime', $oneMonth);
     ini_set('session.cookie_httponly', 1);
     ini_set('session.use_only_cookies', 1);
-
-    // Gunakan Lax untuk compatibility yang lebih baik
     ini_set('session.cookie_samesite', 'Lax');
 
     // Hanya set secure flag jika menggunakan HTTPS
@@ -329,11 +341,6 @@ function setupSecureSession()
 
     // Session name yang unik
     session_name('GEOPRESENSI_SESSION');
-
-    // Set session lifetime (30 hari)
-    $oneMonth = 30 * 24 * 60 * 60;
-    ini_set('session.gc_maxlifetime', $oneMonth);
-    ini_set('session.cookie_lifetime', $oneMonth);
 
     // Start session jika belum
     if (session_status() === PHP_SESSION_NONE) {

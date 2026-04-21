@@ -12,7 +12,8 @@ function Pengaturan() {
     sekolah_nama: 'Sekolah',
     mode_testing: '1',
     piket_terlambat_adalah_terlambat: '0',
-    button_enabled: '1'
+    button_enabled: '1',
+    apel_senin_enabled: '1'
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -147,6 +148,51 @@ function Pengaturan() {
             <p className="text-xs text-gray-500 mt-2">
               Contoh: 07:20 berarti guru yang presensi jam 07:21 atau lebih akan dianggap terlambat
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Toggle Apel Senin */}
+      <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+        <div className="flex items-start gap-4">
+          <div className={`p-3 rounded-lg ${settings.apel_senin_enabled == '1' ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+            <Save className={`w-6 h-6 ${settings.apel_senin_enabled == '1' ? 'text-indigo-600' : 'text-gray-600'}`} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Status Apel Senin</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Aktifkan ini jika hari Senin besok ada Apel Pagi. Jika dinonaktifkan (misal saat UAS), batas masuk semua guru akan kembali ke jam normal.
+            </p>
+            
+            <div className="flex items-center gap-4 mb-2">
+              <button
+                onClick={() => {
+                  const newValue = settings.apel_senin_enabled == '1' ? '0' : '1'
+                  handleChange('apel_senin_enabled', newValue)
+                  handleSave('apel_senin_enabled', newValue)
+                }}
+                disabled={saving}
+                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  settings.apel_senin_enabled == '1' ? 'bg-indigo-600' : 'bg-gray-400'
+                }`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                    settings.apel_senin_enabled == '1' ? 'translate-x-9' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <div>
+                <p className={`font-bold ${settings.apel_senin_enabled == '1' ? 'text-indigo-600' : 'text-gray-600'}`}>
+                  {settings.apel_senin_enabled == '1' ? 'APEL SENIN AKTIF' : 'APEL SENIN DITIADAKAN'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {settings.apel_senin_enabled == '1' 
+                    ? 'Batas masuk: Piket 06:40, Non-Piket 07:00' 
+                    : 'Batas masuk: Piket 07:00, Non-Piket 07:20'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
