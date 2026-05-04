@@ -134,7 +134,23 @@ if ($method === 'POST') {
         $today = date('Y-m-d');
         $currentTime = date('H:i:s');
         
-        // CEK JADWAL PIKET HARI INI
+        // 1. CEK APAKAH HARI LIBUR / SPECIAL WORKDAY
+        $stmt_holiday = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
+        $stmt_holiday->execute([$today]);
+        $holiday = $stmt_holiday->fetch();
+        
+        $dayOfWeek = date('w');
+        $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
+        
+        // LOGIKA BARU: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR (untuk Guru)
+        $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
+        
+        if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
+            $message = $holiday ? 'Tidak dapat melakukan presensi pada hari libur: ' . $holiday['nama'] : 'Tidak dapat melakukan presensi pada hari weekend';
+            sendResponse(false, $message);
+        }
+
+        // 2. CEK JADWAL PIKET HARI INI
         $hariInggris = date('l');
         $hariIndonesia = [
             'Monday' => 'Senin', 'Tuesday' => 'Selasa', 'Wednesday' => 'Rabu',
@@ -149,45 +165,38 @@ if ($method === 'POST') {
         $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
         $piketLabel = "";
         
-        // LOGIKA HARI SENIN & APEL
-        if ($hariIni === 'Senin') {
-            if (($settings['apel_senin_enabled'] ?? '0') == '1') {
-                if ($piket) {
-                    $jamMasukTarget = $piket['jam_piket']; // 06:40
-                    $piketLabel = " (Piket Apel)";
+        if ($isSpecialWorkday && !empty($holiday['jam_masuk_khusus'])) {
+            // MODE EVENT KHUSUS/RAPAT: Gunakan jam khusus dari tabel holidays
+            $jamMasukTarget = substr($holiday['jam_masuk_khusus'], 0, 5);
+            $piketLabel = " (Event: " . $holiday['nama'] . ")";
+            // Lewati pengecekan piket rutin
+        } else {
+            // LOGIKA HARI SENIN & APEL
+            if ($hariIni === 'Senin') {
+                if (($settings['apel_senin_enabled'] ?? '0') == '1') {
+                    if ($piket) {
+                        $jamMasukTarget = $piket['jam_piket']; // 06:40
+                        $piketLabel = " (Piket Apel)";
+                    } else {
+                        $jamMasukTarget = '07:00'; // Guru non-piket saat apel
+                        $piketLabel = " (Apel Senin)";
+                    }
                 } else {
-                    $jamMasukTarget = '07:00'; // Guru non-piket saat apel
-                    $piketLabel = " (Apel Senin)";
+                    // MODE APEL MATI (UAS/Lainnya)
+                    if ($piket) {
+                        $jamMasukTarget = '07:00'; // Override 06:40 -> 07:00
+                        $piketLabel = " (Piket)";
+                    } else {
+                        $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
+                    }
                 }
             } else {
-                // MODE APEL MATI (UAS/Lainnya)
+                // HARI SELAIN SENIN
                 if ($piket) {
-                    $jamMasukTarget = '07:00'; // Override 06:40 -> 07:00
+                    $jamMasukTarget = $piket['jam_piket'];
                     $piketLabel = " (Piket)";
-                } else {
-                    $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
                 }
             }
-        } else {
-            // HARI SELAIN SENIN
-            if ($piket) {
-                $jamMasukTarget = $piket['jam_piket'];
-                $piketLabel = " (Piket)";
-            }
-        }
-
-        // Cek apakah hari libur
-        $stmt = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
-        $stmt->execute([$today]);
-        $holiday = $stmt->fetch();
-        
-        // Cek weekend
-        $dayOfWeek = date('w');
-        $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
-        
-        if ($holiday || $isWeekend) {
-            $message = $holiday ? 'Tidak dapat melakukan presensi pada hari libur: ' . $holiday['nama'] : 'Tidak dapat melakukan presensi pada hari weekend';
-            sendResponse(false, $message);
         }
         
         // Cek apakah sudah presensi hari ini
@@ -232,7 +241,8 @@ if ($method === 'POST') {
                     // Update jam pulang
                     $keterangan = $existing['keterangan'] ?? '';
                     if (!empty($data['izin_pulang_awal'])) {
-                        $keterangan = ($keterangan ? $keterangan . " " : "") . "(Izin Pulang Awal Piket)";
+                        $reason = !empty($data['keterangan']) ? " | Alasan: " . $data['keterangan'] : "";
+                        $keterangan = ($keterangan ? $keterangan . " " : "") . "(Izin Pulang Awal Piket{$reason})";
                     }
                     
                     $stmt = $pdo->prepare("UPDATE attendance_logs SET jam_pulang = ?, keterangan = ?, updated_at = NOW() WHERE id = ?");

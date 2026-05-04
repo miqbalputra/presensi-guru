@@ -4,7 +4,7 @@ import { formatDate, formatDateForInput } from '../../utils/dateUtils'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { guruAPI, presensiAPI } from '../../services/api'
+import { guruAPI, presensiAPI, jadwalPiketAPI } from '../../services/api'
 
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
@@ -13,6 +13,7 @@ function DownloadLaporan() {
   const [selectedGuru, setSelectedGuru] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [jadwalPiket, setJadwalPiket] = useState([])
   const [notification, setNotification] = useState({ show: false, message: '' })
   const [loading, setLoading] = useState(true)
 
@@ -23,13 +24,15 @@ function DownloadLaporan() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [guruResponse, presensiResponse] = await Promise.all([
+      const [guruResponse, presensiResponse, piketResponse] = await Promise.all([
         guruAPI.getAll(),
-        presensiAPI.getAll()
+        presensiAPI.getAll(),
+        jadwalPiketAPI.getAll()
       ])
       
       setDataGuru(guruResponse.data)
       setAttendanceLogs(presensiResponse.data)
+      setJadwalPiket(piketResponse.data)
     } catch (error) {
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message)
@@ -300,7 +303,66 @@ function DownloadLaporan() {
     })
 
     const wsSummary = XLSX.utils.json_to_sheet(summaryData)
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan')
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Kehadiran')
+
+    // 2. Terlambat Piket Sheet
+    const rangeLogs = attendanceLogs.filter(log => log.tanggal >= startDate && log.tanggal <= endDate)
+    const hariMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+    
+    const latePiketData = rangeLogs.filter(log => {
+      const logDate = new Date(log.tanggal)
+      const hariIni = hariMap[logDate.getDay()]
+      const isPiket = jadwalPiket.some(p => p.user_id === log.userId && p.hari === hariIni)
+      return isPiket && (log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat')
+    }).map(l => ({
+      'Nama Guru': l.nama,
+      'Tanggal': l.tanggal,
+      'Jam Masuk': l.jamMasuk,
+      'Status': l.status.toUpperCase(),
+      'Keterangan': l.keterangan || '-'
+    }))
+    if (latePiketData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(latePiketData), 'Terlambat Piket')
+    }
+
+    // 3. Pulang Awal Piket Sheet
+    const earlyData = rangeLogs.filter(log => log.keterangan && log.keterangan.includes('Izin Pulang Awal Piket'))
+      .map(l => ({
+        'Nama Guru': l.nama,
+        'Tanggal': l.tanggal,
+        'Jam Pulang': l.jamPulang,
+        'Alasan': l.keterangan.replace('(Izin Pulang Awal Piket)', '').replace(' | Alasan: ', '').trim() || 'Tanpa alasan detail'
+      }))
+    if (earlyData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(earlyData), 'Pulang Awal Piket')
+    }
+
+    // 4. Alasan Izin & Sakit Sheet
+    const izinSakitData = rangeLogs.filter(log => log.status === 'izin' || log.status === 'sakit')
+      .map(l => ({
+        'Nama Guru': l.nama,
+        'Tanggal': l.tanggal,
+        'Status': l.status.toUpperCase(),
+        'Keterangan/Alasan': l.keterangan || '-'
+      }))
+    if (izinSakitData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(izinSakitData), 'Alasan Izin Sakit')
+    }
+
+    // 5. Lupa Checkout Sheet
+    const todayStr = new Date().toISOString().split('T')[0]
+    const forgottenData = rangeLogs.filter(log => 
+      log.tanggal < todayStr && 
+      log.status.startsWith('hadir') && 
+      (!log.jamPulang || log.jamPulang === '-')
+    ).map(l => ({
+      'Nama Guru': l.nama,
+      'Tanggal': l.tanggal,
+      'Jam Masuk': l.jamMasuk
+    }))
+    if (forgottenData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(forgottenData), 'Lupa Checkout')
+    }
 
     // Detail sheet for each guru (gunakan string comparison)
     dataGuru.forEach(guru => {

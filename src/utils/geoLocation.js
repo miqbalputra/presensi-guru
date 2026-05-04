@@ -22,15 +22,27 @@ export const getUserLocation = () => {
       return
     }
 
+    // Set timeout 10 detik agar tidak hang lama
+    const timeout = setTimeout(() => {
+      reject(new Error('Gagal mendapatkan lokasi: Timeout (GPS lemah)'))
+    }, 10000)
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        clearTimeout(timeout)
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
         })
       },
       (error) => {
+        clearTimeout(timeout)
         reject(error)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
       }
     )
   })

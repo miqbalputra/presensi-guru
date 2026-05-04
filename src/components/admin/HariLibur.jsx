@@ -15,7 +15,9 @@ function HariLibur({ user }) {
     tanggal: '',
     nama: '',
     jenis: 'nasional',
-    keterangan: ''
+    keterangan: '',
+    isWorkday: 0,
+    jamMasukKhusus: ''
   })
 
   useEffect(() => {
@@ -40,7 +42,9 @@ function HariLibur({ user }) {
       tanggal: '',
       nama: '',
       jenis: 'nasional',
-      keterangan: ''
+      keterangan: '',
+      isWorkday: 0,
+      jamMasukKhusus: ''
     })
     setShowModal(true)
   }
@@ -52,7 +56,9 @@ function HariLibur({ user }) {
       tanggal: holiday.tanggal,
       nama: holiday.nama,
       jenis: holiday.jenis,
-      keterangan: holiday.keterangan || ''
+      keterangan: holiday.keterangan || '',
+      isWorkday: holiday.is_workday || 0,
+      jamMasukKhusus: holiday.jam_masuk_khusus || ''
     })
     setShowModal(true)
   }
@@ -236,6 +242,7 @@ function HariLibur({ user }) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Libur</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status Kerja</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
                 </tr>
               </thead>
@@ -256,6 +263,16 @@ function HariLibur({ user }) {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {holiday.keterangan || '-'}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      {holiday.is_workday == 1 ? (
+                        <div className="flex flex-col">
+                          <span className="text-blue-600 font-bold">Tetap Masuk</span>
+                          <span className="text-xs text-gray-500">Jam: {holiday.jam_masuk_khusus?.substring(0, 5) || '-'}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic text-xs">Libur Total</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
@@ -346,6 +363,37 @@ function HariLibur({ user }) {
                   rows="3"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              {/* Special Workday Section */}
+              <div className="bg-blue-50 p-4 rounded-lg space-y-3 border border-blue-100">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isWorkday == 1}
+                    onChange={(e) => setFormData({ ...formData, isWorkday: e.target.checked ? 1 : 0 })}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-semibold text-blue-800">Guru Tetap Masuk (Event/Rapat)</span>
+                </label>
+                
+                {formData.isWorkday == 1 && (
+                  <div className="pl-7 space-y-2">
+                    <label className="block text-xs font-medium text-blue-700">
+                      Jam Masuk Khusus (Contoh: 07:30)
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.jamMasukKhusus}
+                      onChange={(e) => setFormData({ ...formData, jamMasukKhusus: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
+                      required={formData.isWorkday == 1}
+                    />
+                    <p className="text-[10px] text-blue-600 italic">
+                      * Jadwal piket rutin akan diabaikan pada hari ini.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 pt-4">

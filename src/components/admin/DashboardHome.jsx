@@ -6,6 +6,8 @@ import TrenKehadiran from './TrenKehadiran'
 import PersentaseKehadiran from './PersentaseKehadiran'
 import LeaderboardGuru from './LeaderboardGuru'
 import TrenKeterlambatan from './TrenKeterlambatan'
+import TrenJamPulang from './TrenJamPulang'
+import StatistikLengkap from './StatistikLengkap'
 
 function DashboardHome() {
   const [filter, setFilter] = useState('today')
@@ -230,6 +232,14 @@ function DashboardHome() {
 
         {/* Tren Keterlambatan - Full width dengan perbandingan periode */}
         <TrenKeterlambatan />
+
+        {/* Tren Jam Pulang - Analisis Checkout, Lupa Pulang & Alasan */}
+        <TrenJamPulang />
+
+        {/* Statistik Lengkap - Analisis Mendalam */}
+        <div className="col-span-full">
+          <StatistikLengkap />
+        </div>
       </div>
 
       {/* Leaderboard Guru - Gamifikasi */}

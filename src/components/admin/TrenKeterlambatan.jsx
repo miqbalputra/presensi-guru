@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine
+  Tooltip, Legend, ResponsiveContainer, ReferenceLine, Line
 } from 'recharts'
-import { TrendingUp, TrendingDown, Minus, GitCompare, BarChart2, Calendar } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, GitCompare, BarChart2, Calendar, Clock } from 'lucide-react'
 import { presensiAPI } from '../../services/api'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -32,27 +32,59 @@ const buildDateRange = (startStr, endStr) => {
   return result
 }
 
+const timeToMinutes = (timeStr) => {
+  if (!timeStr || timeStr === '-' || timeStr === '00:00:00') return null
+  const [h, m] = timeStr.split(':').map(Number)
+  return h * 60 + m
+}
+
+const minutesToTime = (mins) => {
+  if (mins === null) return '-'
+  const h = Math.floor(mins / 60)
+  const m = Math.floor(mins % 60)
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
 // Hitung statistik dari array log untuk rentang tanggal tertentu
 const computeStats = (logs, startStr, endStr) => {
   const dates = buildDateRange(startStr, endStr)
   const byDate = {}
   dates.forEach(d => {
-    byDate[d] = { hadir: 0, terlambat: 0, tidakHadir: 0, tanggal: d }
+    byDate[d] = { hadir: 0, terlambat: 0, tidakHadir: 0, totalMins: 0, countMins: 0, tanggal: d }
   })
   logs.forEach(log => {
     if (!byDate[log.tanggal]) return
     const s = log.status
-    if (s === 'hadir' || s === 'hadir_izin_terlambat') byDate[log.tanggal].hadir++
-    else if (s === 'hadir_terlambat') byDate[log.tanggal].terlambat++
-    else byDate[log.tanggal].tidakHadir++
+    if (s === 'hadir' || s === 'hadir_izin_terlambat') {
+      byDate[log.tanggal].hadir++
+      const mins = timeToMinutes(log.jamMasuk)
+      if (mins !== null) {
+        byDate[log.tanggal].totalMins += mins
+        byDate[log.tanggal].countMins++
+      }
+    } else if (s === 'hadir_terlambat') {
+      byDate[log.tanggal].terlambat++
+      const mins = timeToMinutes(log.jamMasuk)
+      if (mins !== null) {
+        byDate[log.tanggal].totalMins += mins
+        byDate[log.tanggal].countMins++
+      }
+    } else {
+      byDate[log.tanggal].tidakHadir++
+    }
   })
-  return Object.values(byDate)
+  return Object.values(byDate).map(r => ({
+    ...r,
+    avgMinutes: r.countMins > 0 ? Math.round(r.totalMins / r.countMins) : null
+  }))
 }
 
 const aggregateStats = (rows) => {
   const totalHadir = rows.reduce((s, r) => s + r.hadir, 0)
   const totalTerlambat = rows.reduce((s, r) => s + r.terlambat, 0)
   const totalTidak = rows.reduce((s, r) => s + r.tidakHadir, 0)
+  const allCountMins = rows.reduce((s, r) => s + r.countMins, 0)
+  const allTotalMins = rows.reduce((s, r) => s + r.totalMins, 0)
   const totalScan = totalHadir + totalTerlambat + totalTidak
   return {
     hadir: totalHadir,
@@ -60,6 +92,7 @@ const aggregateStats = (rows) => {
     tidakHadir: totalTidak,
     pctTerlambat: totalScan > 0 ? ((totalTerlambat / totalScan) * 100).toFixed(1) : '0.0',
     pctHadir: totalScan > 0 ? ((totalHadir / totalScan) * 100).toFixed(1) : '0.0',
+    avgMins: allCountMins > 0 ? Math.round(allTotalMins / allCountMins) : null
   }
 }
 
@@ -76,7 +109,9 @@ const CustomTooltip = ({ active, payload, label }) => {
             <div className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }}/>
             <span className="text-gray-600">{p.name}</span>
           </div>
-          <span className="font-bold text-gray-800">{p.value}</span>
+          <span className="font-bold text-gray-800">
+            {p.dataKey === 'avgMinutes' ? minutesToTime(p.value) : p.value}
+          </span>
         </div>
       ))}
     </div>
@@ -107,8 +142,6 @@ const CompareTooltip = ({ active, payload, label }) => {
 
 function TrenKeterlambatan() {
   const todayStr = toDateStr(new Date())
-  const thirtyAgo = addDays(todayStr, -29)
-  const fifteenAgo = addDays(todayStr, -14)
 
   // Mode: 'trend' | 'compare'
   const [mode, setMode] = useState('trend')
@@ -124,8 +157,8 @@ function TrenKeterlambatan() {
   // Chart data
   const [trendData, setTrendData] = useState([])
   const [compareData, setCompareData] = useState([])
-  const [statsA, setStatsA] = useState({ hadir: 0, terlambat: 0, tidakHadir: 0, pctTerlambat: '0.0', pctHadir: '0.0' })
-  const [statsB, setStatsB] = useState({ hadir: 0, terlambat: 0, tidakHadir: 0, pctTerlambat: '0.0', pctHadir: '0.0' })
+  const [statsA, setStatsA] = useState({ hadir: 0, terlambat: 0, tidakHadir: 0, pctTerlambat: '0.0', pctHadir: '0.0', avgMins: null })
+  const [statsB, setStatsB] = useState({ hadir: 0, terlambat: 0, tidakHadir: 0, pctTerlambat: '0.0', pctHadir: '0.0', avgMins: null })
 
   useEffect(() => { loadData() }, [])
 
@@ -265,29 +298,33 @@ function TrenKeterlambatan() {
       {mode === 'trend' && (
         <>
           {/* Stat pills */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
             <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-              <p className="text-xs text-gray-500 mb-0.5">Tepat Waktu</p>
+              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Tepat Waktu</p>
               <p className="text-xl font-bold text-emerald-600">{statsA.hadir}</p>
-              <p className="text-xs text-emerald-500">{statsA.pctHadir}%</p>
+              <p className="text-[10px] text-emerald-500 font-bold">{statsA.pctHadir}%</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-              <p className="text-xs text-gray-500 mb-0.5">Terlambat</p>
+              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Terlambat</p>
               <p className="text-xl font-bold text-amber-600">{statsA.terlambat}</p>
-              <p className="text-xs text-amber-500">{statsA.pctTerlambat}%</p>
+              <p className="text-[10px] text-amber-500 font-bold">{statsA.pctTerlambat}%</p>
             </div>
             <div className="bg-rose-50 rounded-xl p-3 text-center border border-rose-100">
-              <p className="text-xs text-gray-500 mb-0.5">Tidak Hadir</p>
+              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Tidak Hadir</p>
               <p className="text-xl font-bold text-rose-600">{statsA.tidakHadir}</p>
             </div>
-            <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-100">
-              <p className="text-xs text-gray-500 mb-0.5">% Terlambat</p>
-              <p className="text-2xl font-bold text-orange-600">{statsA.pctTerlambat}%</p>
+            <div className="bg-indigo-50 rounded-xl p-3 text-center border border-indigo-100">
+              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Avg Masuk</p>
+              <p className="text-xl font-bold text-indigo-600">{minutesToTime(statsA.avgMins)}</p>
+            </div>
+            <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-100 hidden sm:block">
+              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">% Terlambat</p>
+              <p className="text-xl font-bold text-orange-600">{statsA.pctTerlambat}%</p>
             </div>
           </div>
 
           {/* Chart */}
-          <div className="h-72">
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <defs>
@@ -305,16 +342,18 @@ function TrenKeterlambatan() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
-                <XAxis dataKey="tanggal" tickFormatter={formatLabel} style={{ fontSize: 11 }} stroke="#9ca3af"/>
-                <YAxis allowDecimals={false} style={{ fontSize: 11 }} stroke="#9ca3af"/>
+                <XAxis dataKey="tanggal" tickFormatter={formatLabel} style={{ fontSize: 10 }} stroke="#9ca3af"/>
+                <YAxis yAxisId="left" allowDecimals={false} style={{ fontSize: 10 }} stroke="#9ca3af"/>
+                <YAxis yAxisId="right" orientation="right" domain={[0, 720]} tickFormatter={minutesToTime} style={{ fontSize: 10 }} stroke="#6366f1"/>
                 <Tooltip content={<CustomTooltip/>}/>
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }}/>
-                <Area type="monotone" dataKey="hadir" name="Hadir Tepat Waktu"
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }}/>
+                <Area yAxisId="left" type="monotone" dataKey="hadir" name="Hadir"
                   stroke="#10b981" strokeWidth={2} fill="url(#gHadir)" dot={{ r: 3, fill: '#10b981' }}/>
-                <Area type="monotone" dataKey="terlambat" name="Hadir Terlambat"
+                <Area yAxisId="left" type="monotone" dataKey="terlambat" name="Terlambat"
                   stroke="#f59e0b" strokeWidth={2} fill="url(#gTerlambat)" dot={{ r: 3, fill: '#f59e0b' }}/>
-                <Area type="monotone" dataKey="tidakHadir" name="Tidak Hadir"
+                <Area yAxisId="left" type="monotone" dataKey="tidakHadir" name="Absen"
                   stroke="#f43f5e" strokeWidth={2} fill="url(#gTidak)" dot={{ r: 3, fill: '#f43f5e' }}/>
+                <Line yAxisId="right" type="monotone" dataKey="avgMinutes" name="Avg Masuk" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }}/>
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -340,27 +379,27 @@ function TrenKeterlambatan() {
             {/* A */}
             <div className="border border-blue-200 rounded-xl p-3 bg-blue-50">
               <p className="text-xs font-bold text-blue-700 mb-2">Periode A</p>
-              <p className="text-xs text-gray-500">{periodeA.start} → {periodeA.end}</p>
-              <div className="mt-2 grid grid-cols-3 gap-1 text-center">
-                <div><p className="text-xs text-gray-500">Tepat</p><p className="font-bold text-emerald-600">{statsA.hadir}</p></div>
-                <div><p className="text-xs text-gray-500">Lambat</p><p className="font-bold text-amber-600">{statsA.terlambat}</p></div>
-                <div><p className="text-xs text-gray-500">Absen</p><p className="font-bold text-rose-600">{statsA.tidakHadir}</p></div>
+              <div className="grid grid-cols-2 gap-1 mb-2">
+                <div><p className="text-[10px] text-gray-500 uppercase">Avg Masuk</p><p className="font-bold text-blue-700">{minutesToTime(statsA.avgMins)}</p></div>
+                <div><p className="text-[10px] text-gray-500 uppercase">Terlambat</p><p className="font-bold text-amber-600">{statsA.pctTerlambat}%</p></div>
               </div>
-              <div className="mt-2 text-center">
-                <span className="text-sm font-bold text-blue-700">% Terlambat: {statsA.pctTerlambat}%</span>
+              <div className="mt-2 grid grid-cols-3 gap-1 text-center border-t border-blue-100 pt-2">
+                <div><p className="text-[9px] text-gray-500 uppercase">Tepat</p><p className="font-bold text-emerald-600 text-xs">{statsA.hadir}</p></div>
+                <div><p className="text-[9px] text-gray-500 uppercase">Lambat</p><p className="font-bold text-amber-600 text-xs">{statsA.terlambat}</p></div>
+                <div><p className="text-[9px] text-gray-500 uppercase">Absen</p><p className="font-bold text-rose-600 text-xs">{statsA.tidakHadir}</p></div>
               </div>
             </div>
             {/* B */}
             <div className="border border-purple-200 rounded-xl p-3 bg-purple-50">
               <p className="text-xs font-bold text-purple-700 mb-2">Periode B</p>
-              <p className="text-xs text-gray-500">{periodeB.start} → {periodeB.end}</p>
-              <div className="mt-2 grid grid-cols-3 gap-1 text-center">
-                <div><p className="text-xs text-gray-500">Tepat</p><p className="font-bold text-emerald-600">{statsB.hadir}</p></div>
-                <div><p className="text-xs text-gray-500">Lambat</p><p className="font-bold text-amber-600">{statsB.terlambat}</p></div>
-                <div><p className="text-xs text-gray-500">Absen</p><p className="font-bold text-rose-600">{statsB.tidakHadir}</p></div>
+              <div className="grid grid-cols-2 gap-1 mb-2">
+                <div><p className="text-[10px] text-gray-500 uppercase">Avg Masuk</p><p className="font-bold text-purple-700">{minutesToTime(statsB.avgMins)}</p></div>
+                <div><p className="text-[10px] text-gray-500 uppercase">Terlambat</p><p className="font-bold text-amber-600">{statsB.pctTerlambat}%</p></div>
               </div>
-              <div className="mt-2 text-center">
-                <span className="text-sm font-bold text-purple-700">% Terlambat: {statsB.pctTerlambat}%</span>
+              <div className="mt-2 grid grid-cols-3 gap-1 text-center border-t border-purple-100 pt-2">
+                <div><p className="text-[9px] text-gray-500 uppercase">Tepat</p><p className="font-bold text-emerald-600 text-xs">{statsB.hadir}</p></div>
+                <div><p className="text-[9px] text-gray-500 uppercase">Lambat</p><p className="font-bold text-amber-600 text-xs">{statsB.terlambat}</p></div>
+                <div><p className="text-[9px] text-gray-500 uppercase">Absen</p><p className="font-bold text-rose-600 text-xs">{statsB.tidakHadir}</p></div>
               </div>
             </div>
           </div>
@@ -371,22 +410,14 @@ function TrenKeterlambatan() {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={compareData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
-                <XAxis dataKey="day" label={{ value: 'Hari ke-', position: 'insideBottom', offset: -2, style: { fontSize: 10 } }} style={{ fontSize: 11 }} stroke="#9ca3af"/>
-                <YAxis tickFormatter={v => `${v}%`} domain={[0, 'auto']} style={{ fontSize: 11 }} stroke="#9ca3af"/>
+                <XAxis dataKey="day" style={{ fontSize: 10 }} stroke="#9ca3af"/>
+                <YAxis tickFormatter={v => `${v}%`} domain={[0, 'auto']} style={{ fontSize: 10 }} stroke="#9ca3af"/>
                 <Tooltip content={<CompareTooltip/>}/>
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }}/>
-                <ReferenceLine y={0} stroke="#e5e7eb"/>
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }}/>
                 <Bar dataKey="Terlambat A" fill="#3b82f6" radius={[3,3,0,0]} opacity={0.85}/>
                 <Bar dataKey="Terlambat B" fill="#a855f7" radius={[3,3,0,0]} opacity={0.85}/>
               </ComposedChart>
             </ResponsiveContainer>
-          </div>
-
-          {/* Legend delta warna */}
-          <div className="flex items-center justify-center gap-6 mt-3 text-xs text-gray-500">
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-blue-500"/><span>Periode A</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-purple-500"/><span>Periode B</span></div>
-            <div className="flex items-center gap-1.5 text-gray-400">(Bar lebih tinggi = lebih banyak terlambat)</div>
           </div>
         </>
       )}

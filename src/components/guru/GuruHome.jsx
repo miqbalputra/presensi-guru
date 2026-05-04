@@ -3,7 +3,7 @@ import { CheckCircle, FileText, AlertCircle, Clock, QrCode } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { getUserLocation, validateLocation } from '../../utils/geoLocation'
 import { SCHOOL_LOCATION } from '../../data/dummyData'
-import { presensiAPI, activityAPI, holidaysAPI, settingsAPI, jadwalPiketAPI } from '../../services/api'
+import { presensiAPI, activityAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
 import QRScanner from './QRScanner'
 
 function GuruHome({ user }) {
@@ -32,6 +32,8 @@ function GuruHome({ user }) {
   const [showPiketModal, setShowPiketModal] = useState(false)
   const [piketCheckoutTime, setPiketCheckoutTime] = useState('')
   const [pendingQRData, setPendingQRData] = useState(null)
+  const [keteranganPiket, setKeteranganPiket] = useState('')
+  const [piketStep, setPiketStep] = useState(1) // 1: Info, 2: Input Alasan
 
   useEffect(() => {
     loadInitialData()
@@ -480,7 +482,7 @@ function GuruHome({ user }) {
     return currentTimeInMinutes >= minTimeInMinutes
   }
 
-  const handlePulang = async (izinPulangAwal = false) => {
+  const handlePulang = async (izinPulangAwal = false, keteranganCustom = '') => {
     if (!todayAttendance || (todayAttendance.status !== 'hadir' && todayAttendance.status !== 'hadir_terlambat' && todayAttendance.status !== 'hadir_izin_terlambat')) return
 
     // Cek apakah sudah presensi pulang (cek kedua field untuk compatibility)
@@ -544,7 +546,7 @@ function GuruHome({ user }) {
         jamHadir: todayAttendance.jam_hadir,
         jamIzin: todayAttendance.jam_izin,
         jamSakit: todayAttendance.jam_sakit,
-        keterangan: todayAttendance.keterangan,
+        keterangan: keteranganCustom ? `${todayAttendance.keterangan || ''} | Alasan Pulang Awal: ${keteranganCustom}`.trim() : todayAttendance.keterangan,
         latitude: todayAttendance.latitude,
         longitude: todayAttendance.longitude,
         izin_pulang_awal: izinPulangAwal
@@ -585,6 +587,7 @@ function GuruHome({ user }) {
       if (error.message.startsWith('PIKET_RESTRICTION|')) {
         const jam = error.message.split('|')[1]
         setPiketCheckoutTime(jam)
+        setPiketStep(1)
         setShowPiketModal(true)
         setPendingQRData(null) // Reset QR data if any
       } else {
@@ -600,11 +603,18 @@ function GuruHome({ user }) {
   const handleQRScanPiketRestriction = (jam, qrData) => {
     setPiketCheckoutTime(jam)
     setPendingQRData(qrData)
+    setKeteranganPiket('')
+    setPiketStep(1) // Start at step 1
     setShowQRScanner(false)
     setShowPiketModal(true)
   }
 
   const handleIzinPulangAwal = async () => {
+    if (!keteranganPiket.trim()) {
+      alert('Mohon isi keterangan/alasan pulang lebih awal')
+      return
+    }
+
     if (pendingQRData) {
       // Jika dari QR Scan
       setLoading(true)
@@ -615,11 +625,13 @@ function GuruHome({ user }) {
           location.latitude,
           location.longitude,
           true, // isPulang
-          true  // izin_pulang_awal (I need to update qrScanAPI.submit if I haven't)
+          true, // izin_pulang_awal
+          keteranganPiket // pass the reason
         )
         setShowPiketModal(false)
         setPendingQRData(null)
-        setMessage({ type: 'success', text: '\u2705 Presensi pulang (izin awal) berhasil!' })
+        setKeteranganPiket('')
+        setMessage({ type: 'success', text: '✅ Presensi pulang (izin awal) berhasil!' })
         checkTodayAttendance()
       } catch (error) {
         setMessage({ type: 'error', text: error.message })
@@ -628,7 +640,16 @@ function GuruHome({ user }) {
       }
     } else {
       // Jika dari tombol manual
-      handlePulang(true)
+      setLoading(true)
+      try {
+        await handlePulang(true, keteranganPiket)
+        setShowPiketModal(false)
+        setKeteranganPiket('')
+      } catch (error) {
+        console.error('Error early checkout manual:', error)
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -976,34 +997,80 @@ function GuruHome({ user }) {
       {showPiketModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[70]">
           <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl transform transition-all animate-in fade-in zoom-in duration-300">
-            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Clock className="w-10 h-10 text-amber-500" />
+            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Clock className="w-8 h-8 text-amber-500" />
             </div>
             
-            <h3 className="text-xl font-black text-slate-800 text-center mb-3">
+            <h3 className="text-lg font-black text-slate-800 text-center mb-2">
               Belum Waktunya Pulang
             </h3>
             
-            <p className="text-slate-600 text-center text-sm leading-relaxed mb-8">
-              Mohon maaf, jam pulang untuk petugas piket adalah pukul <span className="font-bold text-amber-600">{piketCheckoutTime} WIB</span>. 
-              Apabila perlu pulang lebih awal, hal tersebut diperbolehkan asalkan sudah meminta izin.
-            </p>
-            
-            <div className="space-y-3">
-              <button
-                onClick={handleIzinPulangAwal}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]"
-              >
-                SAYA SUDAH IZIN PULANG AWAL
-              </button>
-              
-              <button
-                onClick={() => setShowPiketModal(false)}
-                className="w-full py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-bold text-sm transition-all"
-              >
-                KEMBALI
-              </button>
-            </div>
+            {piketStep === 1 ? (
+              <>
+                <p className="text-slate-600 text-center text-xs leading-relaxed mb-8">
+                  Jam pulang untuk petugas piket adalah pukul <span className="font-bold text-amber-600">{piketCheckoutTime} WIB</span> (sesuai aturan). 
+                  Jika Anda pulang lebih awal maka <span className="font-bold">harus izin kepada atasan</span>.
+                </p>
+                
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setPiketStep(2)}
+                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]"
+                  >
+                    SAYA SUDAH IZIN
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowPiketModal(false)
+                      setKeteranganPiket('')
+                    }}
+                    className="w-full py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-bold text-sm transition-all"
+                  >
+                    KEMBALI
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-slate-500 text-center text-[11px] leading-relaxed mb-6">
+                  Silakan isi alasan izin yang telah Anda sampaikan kepada atasan.
+                </p>
+
+                <div className="mb-6">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Alasan Izin</label>
+                  <textarea
+                    value={keteranganPiket}
+                    onChange={(e) => setKeteranganPiket(e.target.value)}
+                    placeholder="Tulis alasan izin yang sudah disampaikan ke atasan..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all resize-none"
+                    rows="3"
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <button
+                    onClick={handleIzinPulangAwal}
+                    disabled={loading}
+                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>MEMPROSES...</span>
+                      </div>
+                    ) : 'KIRIM'}
+                  </button>
+                  
+                  <button
+                    onClick={() => setPiketStep(1)}
+                    className="w-full py-3 text-slate-400 font-bold text-xs hover:text-slate-600 transition-all"
+                  >
+                    KEMBALI KE INFO
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

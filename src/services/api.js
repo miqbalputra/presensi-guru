@@ -221,7 +221,7 @@ export const jadwalPiketAPI = {
 // QR Scan API
 export const qrScanAPI = {
   // Submit QR scan attendance
-  submit: async (qrData, latitude, longitude, isPulang = false, izinPulangAwal = false) => {
+  submit: async (qrData, latitude, longitude, isPulang = false, izinPulangAwal = false, keterangan = '') => {
     return fetchAPI('/qr_scan.php', {
       method: 'POST',
       body: JSON.stringify({ 
@@ -229,7 +229,8 @@ export const qrScanAPI = {
         latitude, 
         longitude,
         is_pulang: isPulang,
-        izin_pulang_awal: izinPulangAwal
+        izin_pulang_awal: izinPulangAwal,
+        keterangan: keterangan
       }),
     })
   },

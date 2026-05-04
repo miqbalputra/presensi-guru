@@ -71,16 +71,17 @@ try {
     $stmt->execute([$today]);
     $holiday = $stmt->fetch();
     
-    if ($holiday) {
-        logSuccess('Hari ini libur: ' . $holiday['nama_hari_libur'] . '. Skip reminder.');
-        exit('Hari libur, skip reminder');
-    }
-    
     // Cek apakah hari ini weekend
-    $dayOfWeek = date('N');
-    if ($dayOfWeek >= 6) {
-        logSuccess('Hari ini weekend. Skip reminder.');
-        exit('Weekend, skip reminder');
+    $dayOfWeek = date('N'); // 1 (Senin) - 7 (Minggu)
+    $isWeekend = ($dayOfWeek >= 6);
+    
+    // LOGIKA BARU: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR (untuk Guru)
+    $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
+    
+    if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
+        $reason = $holiday ? 'Hari libur: ' . $holiday['nama'] : 'Weekend';
+        logSuccess($reason . '. Skip reminder.');
+        exit($reason . ', skip reminder');
     }
     
     // 3. Ambil daftar guru yang belum presensi

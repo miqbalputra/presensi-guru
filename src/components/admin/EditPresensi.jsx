@@ -57,60 +57,51 @@ function EditPresensi({ user }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    const guru = dataGuru.find(g => g.id === parseInt(formData.guruId))
-    if (!guru) return
 
-    const targetDate = formData.tanggal // Sudah format yyyy-mm-dd dari input
-    const currentTime = formatTimeForDB() // Format HH:MM:SS untuk database
-    
+    const currentTime = formatTimeForDB()
+
     try {
       if (editingLog) {
-        // Update existing log via API
-        const isHadirType = formData.status === 'hadir' || formData.status === 'hadir_izin_terlambat'
-        const jamMasukValue = isHadirType ? (formData.jamMasuk || editingLog.jamMasuk) : '-'
-        
-        // Jam pulang: hanya gunakan nilai dari form.
-        // Jika form kosong → null (tidak mengubah/menghapus jam pulang yang sudah ada).
-        // Jika form diisi → gunakan nilai baru dari form.
-        // JANGAN fallback ke editingLog.jamPulang agar tidak memaksa terisi.
-        let jamPulangValue = null
-        if (isHadirType) {
-          if (formData.jamPulang) {
-            // Admin mengisi jam pulang baru
-            jamPulangValue = formData.jamPulang
-          } else if (isValidJamPulang(editingLog.jamPulang)) {
-            // Jam pulang sebelumnya sudah valid (guru memang sudah pulang) → pertahankan
-            jamPulangValue = editingLog.jamPulang
-          }
-          // Jika sebelumnya belum pulang dan form kosong → tetap null
-        }
-        
+        // ===== MODE EDIT =====
+        const isHadirType = formData.status === 'hadir' || formData.status === 'hadir_terlambat' || formData.status === 'hadir_izin_terlambat'
+
         const updateData = {
           id: editingLog.id,
           status: formData.status,
-          jamMasuk: jamMasukValue,
-          jamPulang: jamPulangValue,
-          jamHadir: isHadirType ? jamMasukValue : null,
-          jamIzin: formData.status === 'izin' ? (editingLog.jamIzin || currentTime) : null,
-          jamSakit: formData.status === 'sakit' ? (editingLog.jamSakit || currentTime) : null,
           keterangan: formData.keterangan
         }
-        
-        // Only include coordinates if status is hadir or hadir_izin_terlambat
+
         if (isHadirType) {
-          updateData.latitude = editingLog.latitude || 0
+          // Kirim jamMasuk jika diisi
+          if (formData.jamMasuk) {
+            updateData.jamMasuk = formData.jamMasuk
+          }
+          // Kirim jamPulang hanya jika diisi
+          if (formData.jamPulang) {
+            updateData.jamPulang = formData.jamPulang
+          }
+          updateData.latitude  = editingLog.latitude  || 0
           updateData.longitude = editingLog.longitude || 0
         } else {
-          updateData.latitude = 0
+          updateData.latitude  = 0
           updateData.longitude = 0
         }
-        
+
+        console.log('Update payload:', updateData)
         await presensiAPI.update(updateData)
-        
+
         setMessage({ type: 'success', text: 'Presensi berhasil diupdate!' })
         showNotification('Data berhasil diupdate!')
       } else {
+        // ===== MODE TAMBAH =====
+        const guru = dataGuru.find(g => g.id === parseInt(formData.guruId))
+        if (!guru) {
+          setMessage({ type: 'error', text: 'Pilih guru terlebih dahulu' })
+          return
+        }
+
+        const targetDate = formData.tanggal
+
         // Check if already exists
         const existingLog = attendanceLogs.find(log => log.userId === guru.id && log.tanggal === targetDate)
         if (existingLog) {
@@ -119,9 +110,9 @@ function EditPresensi({ user }) {
         }
 
         // Add new log via API
-        const isHadirType = formData.status === 'hadir' || formData.status === 'hadir_izin_terlambat'
+        const isHadirType = formData.status === 'hadir' || formData.status === 'hadir_terlambat' || formData.status === 'hadir_izin_terlambat'
         const jamMasukValue = isHadirType ? (formData.jamMasuk || currentTime) : '-'
-        
+
         const createData = {
           userId: guru.id,
           nama: guru.nama,
@@ -134,8 +125,7 @@ function EditPresensi({ user }) {
           jamSakit: formData.status === 'sakit' ? currentTime : null,
           keterangan: formData.keterangan
         }
-        
-        // Only include coordinates if status is hadir or hadir_izin_terlambat
+
         if (isHadirType) {
           createData.latitude = -6.2088
           createData.longitude = 106.8456
@@ -143,9 +133,9 @@ function EditPresensi({ user }) {
           createData.latitude = 0
           createData.longitude = 0
         }
-        
+
         await presensiAPI.create(createData)
-        
+
         setMessage({ type: 'success', text: 'Presensi berhasil ditambahkan!' })
         showNotification('Data berhasil disimpan!')
       }
@@ -321,13 +311,14 @@ function EditPresensi({ user }) {
                   required
                 >
                   <option value="hadir">Hadir</option>
+                  <option value="hadir_terlambat">Hadir - Terlambat</option>
                   <option value="hadir_izin_terlambat">Hadir - Izin Terlambat</option>
                   <option value="izin">Izin</option>
                   <option value="sakit">Sakit</option>
                 </select>
               </div>
 
-              {(formData.status === 'hadir' || formData.status === 'hadir_izin_terlambat') && (
+              {(formData.status === 'hadir' || formData.status === 'hadir_terlambat' || formData.status === 'hadir_izin_terlambat') && (
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

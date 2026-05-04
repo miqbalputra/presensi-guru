@@ -37,35 +37,26 @@ try {
     
     // CEK HARI LIBUR
     // 1. Cek weekend (Sabtu=6, Minggu=7)
-    if ($dayOfWeek == 6 || $dayOfWeek == 7) {
-        echo json_encode([
-            'success' => true,
-            'message' => 'Hari ini adalah hari libur (Weekend)',
-            'data' => [],
-            'tanggal' => $today,
-            'total' => 0,
-            'isHoliday' => true,
-            'holidayType' => 'weekend',
-            'holidayName' => $dayOfWeek == 6 ? 'Sabtu' : 'Minggu'
-        ]);
-        exit();
-    }
+    $isWeekend = ($dayOfWeek == 6 || $dayOfWeek == 7);
     
     // 2. Cek hari libur nasional dari database
     $holidayStmt = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
     $holidayStmt->execute([$today]);
     $holiday = $holidayStmt->fetch(PDO::FETCH_ASSOC);
     
-    if ($holiday) {
+    // LOGIKA BARU: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR (untuk Guru)
+    $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
+    
+    if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
         echo json_encode([
             'success' => true,
-            'message' => 'Hari ini adalah hari libur: ' . $holiday['nama'],
+            'message' => $holiday ? 'Hari ini adalah hari libur: ' . $holiday['nama'] : 'Hari ini adalah hari libur (Weekend)',
             'data' => [],
             'tanggal' => $today,
             'total' => 0,
             'isHoliday' => true,
-            'holidayType' => $holiday['jenis'],
-            'holidayName' => $holiday['nama']
+            'holidayType' => $holiday ? $holiday['jenis'] : 'weekend',
+            'holidayName' => $holiday ? $holiday['nama'] : ($dayOfWeek == 6 ? 'Sabtu' : 'Minggu')
         ]);
         exit();
     }

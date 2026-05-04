@@ -37,7 +37,8 @@ if ($method === 'GET' && isset($_GET['check'])) {
             'tanggal' => $tanggal,
             'isHoliday' => $holiday ? true : false,
             'isWeekend' => $isWeekend,
-            'isWorkday' => !$holiday && !$isWeekend,
+            'isWorkday' => $holiday ? ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah') : (!$isWeekend),
+            'jamMasukKhusus' => $holiday ? $holiday['jam_masuk_khusus'] : null,
             'holidayName' => $holiday ? $holiday['nama'] : null,
             'holidayType' => $holiday ? $holiday['jenis'] : null,
             'dayName' => ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][$dayOfWeek]
@@ -109,15 +110,17 @@ if ($method === 'POST') {
         }
         
         $stmt = $pdo->prepare("
-            INSERT INTO holidays (tanggal, nama, jenis, keterangan)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO holidays (tanggal, nama, jenis, keterangan, is_workday, jam_masuk_khusus)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
         
         $stmt->execute([
             $data['tanggal'],
             $data['nama'],
             $jenis,
-            $data['keterangan'] ?? null
+            $data['keterangan'] ?? null,
+            $data['isWorkday'] ?? 0,
+            $data['jamMasukKhusus'] ?? null
         ]);
         
         sendResponse(true, 'Hari libur berhasil ditambahkan', ['id' => $pdo->lastInsertId()]);
@@ -137,7 +140,8 @@ if ($method === 'PUT') {
     try {
         $stmt = $pdo->prepare("
             UPDATE holidays SET 
-                tanggal = ?, nama = ?, jenis = ?, keterangan = ?
+                tanggal = ?, nama = ?, jenis = ?, keterangan = ?,
+                is_workday = ?, jam_masuk_khusus = ?
             WHERE id = ?
         ");
         
@@ -146,6 +150,8 @@ if ($method === 'PUT') {
             $data['nama'],
             $data['jenis'],
             $data['keterangan'],
+            $data['isWorkday'] ?? 0,
+            $data['jamMasukKhusus'] ?? null,
             $data['id']
         ]);
         
