@@ -76,3 +76,13 @@ Jika menjalankan dari SQL console Coolify/MySQL, copy isi file `migrations/2026-
 Endpoint debug/reset/import lama sudah dikeluarkan dari image production. Credential database dan API key harus disimpan di environment variable Coolify, bukan di file PHP.
 
 Runtime production memakai FrankenPHP classic mode dengan OPcache aktif. Worker mode belum dipakai supaya tetap aman untuk struktur PHP procedural saat ini.
+
+## 7. Healthcheck
+
+Image Docker sudah punya healthcheck bawaan ke:
+
+```bash
+/api/health.php
+```
+
+Endpoint ini mengecek runtime FrankenPHP/PHP dan koneksi MySQL ringan (`SELECT 1`). Jika Coolify menampilkan container unhealthy, cek env database (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`) dan pastikan service MySQL berjalan.

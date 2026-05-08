@@ -15,7 +15,7 @@ RUN npm run build
 FROM dunglas/frankenphp:1-php8.2 AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libcurl4-openssl-dev \
+    && apt-get install -y --no-install-recommends curl libcurl4-openssl-dev \
     && docker-php-ext-install pdo_mysql curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -41,3 +41,6 @@ RUN rm -f \
     && chown -R www-data:www-data /var/www/html/sessions /var/www/html/logs
 
 EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://127.0.0.1/api/health.php >/dev/null || exit 1
