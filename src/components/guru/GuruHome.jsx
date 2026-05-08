@@ -1087,7 +1087,7 @@ function GuruHome({ user }) {
               onChange={(e) => setKeterangan(e.target.value)}
               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm text-slate-700 placeholder:text-slate-300 mb-4 resize-none"
               rows="3"
-              placeholder="Contoh: Keperluan keluarga mendesak..."
+              placeholder={modalType === 'izin' ? 'Contoh: Keperluan keluarga mendesak...' : 'Contoh: Sakit kepala, demam, flu...'}
             />
             <div className="flex gap-3">
               <button
