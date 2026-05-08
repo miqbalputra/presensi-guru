@@ -12,19 +12,20 @@ COPY public ./public
 COPY src ./src
 RUN npm run build
 
-FROM php:8.2-apache AS runtime
+FROM dunglas/frankenphp:1-php8.2 AS runtime
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libcurl4-openssl-dev \
     && docker-php-ext-install pdo_mysql curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && a2enmod rewrite headers expires deflate
+    && rm -rf /var/lib/apt/lists/*
 
 ENV APP_ENV=production \
-    APP_TIMEZONE=Asia/Jakarta \
-    APACHE_DOCUMENT_ROOT=/var/www/html
+    APP_TIMEZONE=Asia/Jakarta
 
-COPY docker/apache.conf /etc/apache2/sites-available/000-default.conf
+WORKDIR /app/public
+
+COPY docker/Caddyfile /etc/frankenphp/Caddyfile
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/zz-production.ini
 COPY --from=frontend /app/dist /var/www/html
 COPY api /var/www/html/api
 

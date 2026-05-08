@@ -1,0 +1,27 @@
+{
+	auto_https off
+}
+
+:80 {
+	root * /var/www/html
+	encode zstd gzip
+
+	@blockedApiFiles {
+		path /api/config.php /api/security.php /api/security_subdomain.php /api/config_laragon.php /api/config_subdomain.php
+	}
+	respond @blockedApiFiles 404
+
+	handle /api/* {
+		php_server
+	}
+
+	@assets path /assets/* /icon-192.png /icon-512.png
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	header /sw.js Cache-Control "no-cache, no-store, must-revalidate"
+	header /manifest.json Cache-Control "public, max-age=3600"
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

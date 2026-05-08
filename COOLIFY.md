@@ -1,6 +1,6 @@
 # Deploy GeoPresensi di Coolify
 
-Repo ini sudah disiapkan untuk deploy sebagai Docker image. Coolify cukup pull repo GitHub dan build dari `Dockerfile`.
+Repo ini sudah disiapkan untuk deploy sebagai Docker image berbasis **FrankenPHP classic mode**. Coolify cukup pull repo GitHub dan build dari `Dockerfile`.
 
 ## 1. Buat Database
 
@@ -64,3 +64,5 @@ Jalankan pada jam `08:00`, `09:00`, dan `10:00` WIB.
 ## 5. Catatan Keamanan
 
 Endpoint debug/reset/import lama sudah dikeluarkan dari image production. Credential database dan API key harus disimpan di environment variable Coolify, bukan di file PHP.
+
+Runtime production memakai FrankenPHP classic mode dengan OPcache aktif. Worker mode belum dipakai supaya tetap aman untuk struktur PHP procedural saat ini.

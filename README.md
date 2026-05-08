@@ -3,7 +3,7 @@
 
 ## Deploy Cepat ke Coolify
 
-Project ini sudah mendukung deploy via Dockerfile untuk Coolify. Lihat panduan lengkap di [COOLIFY.md](COOLIFY.md).
+Project ini sudah mendukung deploy via Dockerfile berbasis FrankenPHP classic mode untuk Coolify. Lihat panduan lengkap di [COOLIFY.md](COOLIFY.md).
 
 Ringkasnya:
 
