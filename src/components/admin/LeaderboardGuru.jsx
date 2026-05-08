@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Trophy, Award, Star, TrendingUp, Clock, Target } from 'lucide-react'
-import { formatDateForInput } from '../../utils/dateUtils'
-import { guruAPI, presensiAPI } from '../../services/api'
+import { adminChartsAPI } from '../../services/api'
 
 function LeaderboardGuru() {
   const [leaderboardData, setLeaderboardData] = useState([])
@@ -15,114 +14,12 @@ function LeaderboardGuru() {
   const loadLeaderboard = async () => {
     try {
       setLoading(true)
-      const [guruResponse, presensiResponse] = await Promise.all([
-        guruAPI.getAll(),
-        presensiAPI.getAll()
-      ])
-
-      const dataGuru = guruResponse.data
-      const allPresensi = presensiResponse.data
-
-      // Filter presensi berdasarkan periode
-      const filteredPresensi = filterByPeriod(allPresensi)
-
-      // Hitung total hari aktif (hari dimana ada presensi dari semua guru)
-      const uniqueDates = [...new Set(filteredPresensi.map(p => p.tanggal))].sort()
-      const totalHariAktif = uniqueDates.length
-
-      // Hitung statistik per guru
-      const stats = dataGuru.map(guru => {
-        const guruPresensi = filteredPresensi.filter(p => p.user_id === guru.id)
-        
-        // Total hari guru hadir (semua status hadir)
-        const totalHadir = guruPresensi.filter(p => 
-          p.status === 'hadir' || 
-          p.status === 'hadir_terlambat' || 
-          p.status === 'hadir_izin_terlambat'
-        ).length
-        
-        // Hanya yang tepat waktu (status 'hadir' saja)
-        const tepatWaktu = guruPresensi.filter(p => p.status === 'hadir').length
-        
-        // Yang terlambat
-        const terlambat = guruPresensi.filter(p => 
-          p.status === 'hadir_terlambat' || 
-          p.status === 'hadir_izin_terlambat'
-        ).length
-        
-        // Izin + Sakit
-        const izin = guruPresensi.filter(p => p.status === 'izin').length
-        const sakit = guruPresensi.filter(p => p.status === 'sakit').length
-        
-        // Tidak presensi sama sekali
-        const tidakPresensi = totalHariAktif - guruPresensi.length
-        
-        // Persentase kehadiran dari total hari aktif
-        const persentaseKehadiran = totalHariAktif > 0 ? (totalHadir / totalHariAktif) * 100 : 0
-        
-        // Persentase tepat waktu dari total hari hadir
-        const persentaseTepatWaktu = totalHadir > 0 ? (tepatWaktu / totalHadir) * 100 : 0
-        
-        // SKOR BARU: Prioritas untuk yang selalu hadir DAN tepat waktu
-        // - Kehadiran 70% (harus hadir setiap hari)
-        // - Tepat waktu 30% (dari hari hadir, harus tepat waktu)
-        const skor = (persentaseKehadiran * 0.7) + (persentaseTepatWaktu * 0.3)
-
-        return {
-          id: guru.id,
-          nama: guru.nama,
-          jabatan: guru.jabatan,
-          totalHadir,
-          tepatWaktu,
-          terlambat,
-          izin,
-          sakit,
-          tidakPresensi,
-          totalHariAktif,
-          persentaseKehadiran: Math.round(persentaseKehadiran * 10) / 10, // 1 desimal
-          persentaseTepatWaktu: Math.round(persentaseTepatWaktu * 10) / 10, // 1 desimal
-          skor: Math.round(skor * 10) / 10 // 1 desimal
-        }
-      })
-
-      // Sort by skor (descending), jika sama sort by tepatWaktu
-      const sorted = stats.sort((a, b) => {
-        if (b.skor === a.skor) {
-          return b.tepatWaktu - a.tepatWaktu
-        }
-        return b.skor - a.skor
-      })
-      
-      setLeaderboardData(sorted)
+      const response = await adminChartsAPI.getLeaderboard(period)
+      setLeaderboardData(response.data?.items || [])
     } catch (error) {
       console.error('Failed to load leaderboard:', error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const filterByPeriod = (presensi) => {
-    const today = new Date()
-    const todayStr = formatDateForInput(today)
-
-    switch(period) {
-      case 'week':
-        const weekAgo = new Date()
-        weekAgo.setDate(today.getDate() - 6)
-        const weekStr = formatDateForInput(weekAgo)
-        return presensi.filter(p => p.tanggal >= weekStr && p.tanggal <= todayStr)
-      
-      case 'month':
-        const monthAgo = new Date()
-        monthAgo.setDate(today.getDate() - 29)
-        const monthStr = formatDateForInput(monthAgo)
-        return presensi.filter(p => p.tanggal >= monthStr && p.tanggal <= todayStr)
-      
-      case 'all':
-        return presensi
-      
-      default:
-        return presensi
     }
   }
 

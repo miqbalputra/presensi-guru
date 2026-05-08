@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { TrendingUp } from 'lucide-react'
-import { presensiAPI } from '../../services/api'
+import { adminChartsAPI } from '../../services/api'
 
 // Custom Tooltip
 const CustomTooltip = ({ active, payload, label }) => {
@@ -43,41 +43,8 @@ function TrenKehadiran() {
     try {
       setLoading(true)
       
-      // Get all data presensi
-      const response = await presensiAPI.getAll()
-      
-      // Process data untuk chart
-      const dataByDate = {}
-      
-      // Initialize 7 hari terakhir
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date()
-        date.setDate(date.getDate() - i)
-        const dateStr = date.toISOString().split('T')[0]
-        const dayName = formatDayName(date)
-        
-        dataByDate[dateStr] = {
-          tanggal: dayName,
-          hadir: 0,
-          tidakHadir: 0
-        }
-      }
-      
-      // Count presensi per tanggal (hanya 7 hari terakhir)
-      if (response.data && Array.isArray(response.data)) {
-        response.data.forEach(log => {
-          if (dataByDate[log.tanggal]) {
-            if (log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat') {
-              dataByDate[log.tanggal].hadir++
-            } else {
-              dataByDate[log.tanggal].tidakHadir++
-            }
-          }
-        })
-      }
-      
-      // Convert to array
-      const chartArray = Object.values(dataByDate)
+      const response = await adminChartsAPI.getOverview()
+      const chartArray = response.data?.trend7Days || []
       setChartData(chartArray)
       
       // Calculate average (hanya hari yang ada data)
@@ -100,14 +67,6 @@ function TrenKehadiran() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const formatDayName = (date) => {
-    const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
-    const dayName = days[date.getDay()]
-    const dateNum = date.getDate()
-    const month = date.getMonth() + 1
-    return `${dayName} ${dateNum}/${month}`
   }
 
   if (loading) {

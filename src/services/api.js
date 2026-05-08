@@ -239,6 +239,23 @@ export const adminSummaryAPI = {
   },
 }
 
+export const adminChartsAPI = {
+  getOverview: async () => {
+    return fetchAPI('/admin_charts.php?chart=overview', {
+      method: 'GET',
+      timeoutMs: 8000,
+    })
+  },
+
+  getLeaderboard: async (period = 'month') => {
+    const params = new URLSearchParams({ chart: 'leaderboard', period })
+    return fetchAPI(`/admin_charts.php?${params}`, {
+      method: 'GET',
+      timeoutMs: 8000,
+    })
+  },
+}
+
 // Status Rekan API - compact teacher peer status payload
 export const statusRekanAPI = {
   getToday: async () => {
@@ -326,6 +343,7 @@ export default {
   guruHomeAPI,
   presensiAPI,
   adminSummaryAPI,
+  adminChartsAPI,
   statusRekanAPI,
   activityAPI,
   holidaysAPI,

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { RadialBarChart, RadialBar, ResponsiveContainer, PolarAngleAxis } from 'recharts'
 import { Activity, UserCheck, FileText, UserX, Users } from 'lucide-react'
-import { formatDateForInput } from '../../utils/dateUtils'
-import { guruAPI, presensiAPI } from '../../services/api'
+import { adminChartsAPI } from '../../services/api'
 
 function PersentaseKehadiran() {
   const [stats, setStats] = useState({
@@ -22,30 +21,14 @@ function PersentaseKehadiran() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const todayStr = formatDateForInput(new Date())
-      
-      const [guruResponse, presensiResponse] = await Promise.all([
-        guruAPI.getAll(),
-        presensiAPI.getAll({ tanggal: todayStr })
-      ])
-      
-      const totalGuru = guruResponse.data.length
-      const todayData = presensiResponse.data
-      
-      const hadirCount = todayData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
-      const izinCount = todayData.filter(log => log.status === 'izin').length
-      const sakitCount = todayData.filter(log => log.status === 'sakit').length
-      const sudahAbsen = hadirCount + izinCount + sakitCount
-      const belumAbsen = totalGuru - sudahAbsen
-      const persentase = totalGuru > 0 ? Math.round((sudahAbsen / totalGuru) * 100) : 0
-      
-      setStats({
-        hadir: hadirCount,
-        izin: izinCount,
-        sakit: sakitCount,
-        belumAbsen: belumAbsen,
-        total: totalGuru,
-        persentase: persentase
+      const response = await adminChartsAPI.getOverview()
+      setStats(response.data?.todayStats || {
+        hadir: 0,
+        izin: 0,
+        sakit: 0,
+        belumAbsen: 0,
+        total: 0,
+        persentase: 0
       })
     } catch (error) {
       console.error('Failed to load attendance stats:', error)
