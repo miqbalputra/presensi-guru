@@ -17,18 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// API Key validation (ganti dengan key yang kuat)
-$api_key = 'n8n_geopresensi_2024_secret_key';
-$request_key = $_SERVER['HTTP_X_API_KEY'] ?? $_GET['api_key'] ?? '';
-
-if ($request_key !== $api_key) {
-    http_response_code(401);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Unauthorized: Invalid API Key'
-    ]);
-    exit();
-}
+requireApiKey('N8N_API_KEY');
 
 // POST - Log Activity
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -45,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO activity_log (user, aktivitas, status, created_at) 
+            INSERT INTO activity_logs (user, aktivitas, status, waktu) 
             VALUES (?, ?, ?, NOW())
         ");
         

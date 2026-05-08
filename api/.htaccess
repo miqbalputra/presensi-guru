@@ -1,7 +1,6 @@
 # Proteksi file sensitif
 <FilesMatch "^(config\.php|security\.php)$">
-    Order allow,deny
-    Deny from all
+    Require all denied
 </FilesMatch>
 
 # Enable error logging (jangan tampilkan error ke user)

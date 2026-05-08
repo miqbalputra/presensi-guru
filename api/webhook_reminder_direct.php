@@ -60,10 +60,14 @@ try {
         exit('Webhook disabled');
     }
     
-    // Config Gowa dari n8n
-    $gowaUrl = 'http://45.13.236.95:3000/webhook/send-wa'; // GANTI dengan webhook URL Gowa Anda
-    $gowaUsername = 'admin'; // Username Gowa
-    $gowaPassword = 'YOUR_PASSWORD'; // GANTI dengan password Gowa Anda
+    $gowaUrl = envValue('GOWA_WEBHOOK_URL', '');
+    $gowaUsername = envValue('GOWA_USERNAME', '');
+    $gowaPassword = envValue('GOWA_PASSWORD', '');
+
+    if ($gowaUrl === '' || $gowaUsername === '' || $gowaPassword === '') {
+        logError('Gowa credentials belum dikonfigurasi di environment variable');
+        exit('Gowa credentials not configured');
+    }
     
     // 2. Cek apakah hari ini hari libur
     $today = date('Y-m-d');

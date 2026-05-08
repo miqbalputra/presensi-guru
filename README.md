@@ -1,6 +1,18 @@
 # 📱 GeoPresensi Griya Quran
 ### Sistem Absensi Guru Berbasis Lokasi (GPS) & QR Code
 
+## Deploy Cepat ke Coolify
+
+Project ini sudah mendukung deploy via Dockerfile untuk Coolify. Lihat panduan lengkap di [COOLIFY.md](COOLIFY.md).
+
+Ringkasnya:
+
+1. Buat database MySQL 8 di Coolify.
+2. Import dump produksi `geogqpresence.sql` secara manual ke database.
+3. Buat app dari repo GitHub ini dengan build pack Dockerfile.
+4. Isi environment variable `APP_URL`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, dan `N8N_API_KEY`.
+5. Deploy. Frontend akan memakai API same-origin di `/api`.
+
 Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat, transparan, dan real-time. Menggunakan validasi Geofencing (GPS) dan QR Code untuk menjamin kehadiran fisik guru di sekolah.
 
 ---

@@ -49,6 +49,7 @@ Desktop.ini
 *.zip
 
 # SQL production files (data sensitif)
+geogqpresence.sql
 DATABASE_PRODUKSI*.sql
 GEOPRESENSI_FULL*.sql
 RESET_*.sql
@@ -57,7 +58,6 @@ reset_*.sql
 dummy_data.sql
 
 # PHP config sensitif (berisi credentials database)
-api/config.php
 api/config_laragon.php
 
 # Script lokal
@@ -67,3 +67,11 @@ generate_password.php
 generate_miputra_password.php
 reset_admin_miputra.php
 
+# cPanel/manual deployment artifacts
+UPLOAD_ME/
+staging/
+temp_zip_content/
+
+# Runtime writable folders
+sessions/
+logs/
