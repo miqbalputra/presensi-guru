@@ -20,6 +20,7 @@ define('DB_NAME', envValue('DB_NAME', $isLocalhost ? 'geopresensi' : 'geogqprese
 define('DB_USER', envValue('DB_USER', $isLocalhost ? 'root' : 'geopresensi'));
 define('DB_PASS', envValue('DB_PASS', $isLocalhost ? '' : ''));
 define('DB_PORT', envValue('DB_PORT', '3306'));
+define('DB_TIMEZONE', envValue('DB_TIMEZONE', '+07:00'));
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowedOrigins = array_filter(array_map('trim', explode(',', envValue('CORS_ALLOWED_ORIGINS', ''))));
@@ -62,6 +63,7 @@ try {
             PDO::ATTR_EMULATE_PREPARES => false
         ]
     );
+    $pdo->exec("SET time_zone = " . $pdo->quote(DB_TIMEZONE));
 } catch (PDOException $e) {
     http_response_code(500);
     $isProduction = APP_ENV === 'production';

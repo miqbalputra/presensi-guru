@@ -36,6 +36,7 @@ DB_PORT=3306
 DB_NAME=geogqpresence
 DB_USER=user_database
 DB_PASS=password_database
+DB_TIMEZONE=+07:00
 
 N8N_API_KEY=isi-dengan-random-key-yang-kuat
 ```
