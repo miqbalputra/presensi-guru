@@ -1,11 +1,20 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect, useRef, Component } from 'react'
+import { useState, useEffect, useRef, Component, Suspense, lazy } from 'react'
 import { Download, X } from 'lucide-react'
-import Login from './pages/Login'
-import AdminDashboard from './pages/AdminDashboard'
-import GuruDashboard from './pages/GuruDashboard'
 import { users as initialUsers } from './data/dummyData'
 import { authAPI } from './services/api'
+
+const Login = lazy(() => import('./pages/Login'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const GuruDashboard = lazy(() => import('./pages/GuruDashboard'))
+
+function PageLoading() {
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
+}
 
 // ─── Error Boundary: mencegah white screen akibat uncaught error di child ───
 class ErrorBoundary extends Component {
@@ -206,22 +215,24 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <Routes>
-          <Route path="/login" element={
-            user ? <Navigate to={user.role === 'guru' ? '/guru' : '/admin'} /> : <Login onLogin={handleLogin} />
-          } />
-          <Route path="/admin/*" element={
-            user && (user.role === 'admin' || user.role === 'kepala_sekolah') ?
-            <AdminDashboard user={user} onLogout={handleLogout} /> :
-            <Navigate to="/login" />
-          } />
-          <Route path="/guru/*" element={
-            user && user.role === 'guru' ?
-            <GuruDashboard user={user} onLogout={handleLogout} /> :
-            <Navigate to="/login" />
-          } />
-          <Route path="/" element={<Navigate to="/login" />} />
-        </Routes>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route path="/login" element={
+              user ? <Navigate to={user.role === 'guru' ? '/guru' : '/admin'} /> : <Login onLogin={handleLogin} />
+            } />
+            <Route path="/admin/*" element={
+              user && (user.role === 'admin' || user.role === 'kepala_sekolah') ?
+              <AdminDashboard user={user} onLogout={handleLogout} /> :
+              <Navigate to="/login" />
+            } />
+            <Route path="/guru/*" element={
+              user && user.role === 'guru' ?
+              <GuruDashboard user={user} onLogout={handleLogout} /> :
+              <Navigate to="/login" />
+            } />
+            <Route path="/" element={<Navigate to="/login" />} />
+          </Routes>
+        </Suspense>
 
         {/* PWA Install Popup */}
         {showInstallPrompt && (

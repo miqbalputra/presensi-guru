@@ -1,9 +1,18 @@
-import { useState, useEffect } from 'react'
-import { Home, History, Users, LogOut, Menu, BarChart3 } from 'lucide-react'
+import { useState, useEffect, Suspense, lazy } from 'react'
+import { Home, History, Users, LogOut, BarChart3 } from 'lucide-react'
 import GuruHome from '../components/guru/GuruHome'
-import GuruRiwayat from '../components/guru/GuruRiwayat'
-import GuruStatus from '../components/guru/GuruStatus'
-import GuruStatistik from '../components/guru/GuruStatistik'
+
+const GuruRiwayat = lazy(() => import('../components/guru/GuruRiwayat'))
+const GuruStatus = lazy(() => import('../components/guru/GuruStatus'))
+const GuruStatistik = lazy(() => import('../components/guru/GuruStatistik'))
+
+function TabLoading() {
+  return (
+    <div className="min-h-[220px] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
+}
 
 function GuruDashboard({ user, onLogout }) {
   // Restore tab terakhir dari localStorage
@@ -45,9 +54,13 @@ function GuruDashboard({ user, onLogout }) {
       {/* Content */}
       <main className="max-w-4xl mx-auto p-4">
         {activeTab === 'home' && <GuruHome user={user} />}
-        {activeTab === 'riwayat' && <GuruRiwayat user={user} />}
-        {activeTab === 'status' && <GuruStatus user={user} />}
-        {activeTab === 'statistik' && <GuruStatistik user={user} />}
+        {activeTab !== 'home' && (
+          <Suspense fallback={<TabLoading />}>
+            {activeTab === 'riwayat' && <GuruRiwayat user={user} />}
+            {activeTab === 'status' && <GuruStatus user={user} />}
+            {activeTab === 'statistik' && <GuruStatistik user={user} />}
+          </Suspense>
+        )}
       </main>
 
       {/* Bottom Navigation */}

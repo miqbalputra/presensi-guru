@@ -1,17 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from '../components/admin/Sidebar'
-import DashboardHome from '../components/admin/DashboardHome'
-import DataGuru from '../components/admin/DataGuru'
-import EditPresensi from '../components/admin/EditPresensi'
-import DownloadLaporan from '../components/admin/DownloadLaporan'
-import LogAktivitas from '../components/admin/LogAktivitas'
-import HariLibur from '../components/admin/HariLibur'
-import Pengaturan from '../components/admin/Pengaturan'
-import JadwalPiket from '../components/admin/JadwalPiket'
-import QRCodeGenerator from '../components/admin/QRCodeGenerator'
-import ManualEntry from '../components/admin/ManualEntry'
-import LokasiGeofence from '../components/admin/LokasiGeofence'
+
+const DashboardHome = lazy(() => import('../components/admin/DashboardHome'))
+const DataGuru = lazy(() => import('../components/admin/DataGuru'))
+const EditPresensi = lazy(() => import('../components/admin/EditPresensi'))
+const DownloadLaporan = lazy(() => import('../components/admin/DownloadLaporan'))
+const LogAktivitas = lazy(() => import('../components/admin/LogAktivitas'))
+const HariLibur = lazy(() => import('../components/admin/HariLibur'))
+const Pengaturan = lazy(() => import('../components/admin/Pengaturan'))
+const JadwalPiket = lazy(() => import('../components/admin/JadwalPiket'))
+const QRCodeGenerator = lazy(() => import('../components/admin/QRCodeGenerator'))
+const ManualEntry = lazy(() => import('../components/admin/ManualEntry'))
+const LokasiGeofence = lazy(() => import('../components/admin/LokasiGeofence'))
+
+function SectionLoading() {
+  return (
+    <div className="min-h-[240px] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
+}
 
 function AdminDashboard({ user, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -62,20 +71,22 @@ function AdminDashboard({ user, onLogout }) {
         </header>
 
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 lg:p-6">
-          <Routes>
-            <Route path="/" element={<DashboardHome />} />
-            <Route path="/data-guru" element={<DataGuru />} />
-            <Route path="/jadwal-piket" element={<JadwalPiket />} />
-            <Route path="/edit-presensi" element={<EditPresensi user={user} />} />
-            <Route path="/download-laporan" element={<DownloadLaporan />} />
-            <Route path="/hari-libur" element={<HariLibur user={user} />} />
-            <Route path="/log-aktivitas" element={<LogAktivitas />} />
-            <Route path="/pengaturan" element={<Pengaturan />} />
-            <Route path="/qr-code" element={<QRCodeGenerator />} />
-            <Route path="/manual-entry" element={<ManualEntry />} />
-            <Route path="/lokasi-geofence" element={<LokasiGeofence user={user} />} />
-            <Route path="*" element={<Navigate to="/admin" />} />
-          </Routes>
+          <Suspense fallback={<SectionLoading />}>
+            <Routes>
+              <Route path="/" element={<DashboardHome />} />
+              <Route path="/data-guru" element={<DataGuru />} />
+              <Route path="/jadwal-piket" element={<JadwalPiket />} />
+              <Route path="/edit-presensi" element={<EditPresensi user={user} />} />
+              <Route path="/download-laporan" element={<DownloadLaporan />} />
+              <Route path="/hari-libur" element={<HariLibur user={user} />} />
+              <Route path="/log-aktivitas" element={<LogAktivitas />} />
+              <Route path="/pengaturan" element={<Pengaturan />} />
+              <Route path="/qr-code" element={<QRCodeGenerator />} />
+              <Route path="/manual-entry" element={<ManualEntry />} />
+              <Route path="/lokasi-geofence" element={<LokasiGeofence user={user} />} />
+              <Route path="*" element={<Navigate to="/admin" />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

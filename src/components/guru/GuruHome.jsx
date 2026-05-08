@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { CheckCircle, FileText, AlertCircle, Clock, QrCode } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { getUserLocation, validateLocation } from '../../utils/geoLocation'
 import { SCHOOL_LOCATION } from '../../data/dummyData'
 import { presensiAPI, activityAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
-import QRScanner from './QRScanner'
+
+const QRScanner = lazy(() => import('./QRScanner'))
 
 function GuruHome({ user }) {
   const [todayAttendance, setTodayAttendance] = useState(null)
@@ -931,22 +932,31 @@ function GuruHome({ user }) {
 
       {/* QR Scanner Modal */}
       {showQRScanner && (
-        <QRScanner
-          user={user}
-          settings={settings}
-          attendanceStatus={{
-            has_checked_in: !!todayAttendance,
-            has_checked_out: !!(todayAttendance?.jam_pulang || todayAttendance?.jamPulang)
-          }}
-          onClose={() => setShowQRScanner(false)}
-          onPiketRestriction={handleQRScanPiketRestriction}
-          onSuccess={() => {
-            setShowQRScanner(false)
-            setMessage({ type: 'success', text: '\u2705 Presensi berhasil dicatat!' })
-            checkTodayAttendance()
-            setTimeout(() => setMessage({ type: "", text: "" }), 4000)
-          }}
-        />
+        <Suspense fallback={
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 flex items-center gap-3 shadow-xl">
+              <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+              <span className="font-semibold text-gray-700">Membuka kamera...</span>
+            </div>
+          </div>
+        }>
+          <QRScanner
+            user={user}
+            settings={settings}
+            attendanceStatus={{
+              has_checked_in: !!todayAttendance,
+              has_checked_out: !!(todayAttendance?.jam_pulang || todayAttendance?.jamPulang)
+            }}
+            onClose={() => setShowQRScanner(false)}
+            onPiketRestriction={handleQRScanPiketRestriction}
+            onSuccess={() => {
+              setShowQRScanner(false)
+              setMessage({ type: 'success', text: '\u2705 Presensi berhasil dicatat!' })
+              checkTodayAttendance()
+              setTimeout(() => setMessage({ type: "", text: "" }), 4000)
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Message */}
