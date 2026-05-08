@@ -126,26 +126,19 @@ function GuruHome({ user }) {
     }
 
     try {
-      // Load settings, check holiday, check piket, then attendance
-      console.log('1️⃣ Loading settings...')
-      await loadSettings()
-      console.log('✅ Settings loaded')
-
-      console.log('2️⃣ Checking holiday...')
-      await checkIfHoliday()
-      console.log('✅ Holiday checked')
-
-      console.log('3️⃣ Checking jadwal piket...')
-      await checkJadwalPiket()
-      console.log('✅ Jadwal piket checked')
-
-      console.log('4️⃣ Checking attendance...')
-      await checkTodayAttendance()
-      console.log('✅ Attendance checked')
-
+      await Promise.allSettled([
+        loadSettings(),
+        checkIfHoliday(),
+        checkJadwalPiket(),
+        checkTodayAttendance()
+      ])
       console.log('=== ✅ Data Loaded ===')
     } catch (error) {
       console.error('❌ Failed to load initial data:', error)
+      setMessage({
+        type: 'error',
+        text: 'Sebagian data belum berhasil dimuat. Silakan refresh atau login ulang jika tombol presensi belum muncul.'
+      })
     } finally {
       setPageLoading(false)
       console.log('=== 🏁 Page Loading Complete ===')

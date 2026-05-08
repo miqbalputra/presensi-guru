@@ -4,9 +4,14 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost/api'
 
 // Helper function untuk fetch dengan error handling
 async function fetchAPI(endpoint, options = {}) {
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs || 15000
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -23,7 +28,12 @@ async function fetchAPI(endpoint, options = {}) {
     return data
   } catch (error) {
     console.error('API Error:', error)
+    if (error.name === 'AbortError') {
+      throw new Error('Koneksi server terlalu lama merespons. Silakan coba lagi.')
+    }
     throw error
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
@@ -223,6 +233,7 @@ export const guruHomeAPI = {
   getInitialData: async () => {
     return fetchAPI('/guru_home.php', {
       method: 'GET',
+      timeoutMs: 5000,
     })
   },
 }
