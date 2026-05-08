@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Users, UserCheck, UserX, FileText, AlertCircle, Clock } from 'lucide-react'
-import { formatDate, formatDateForInput } from '../../utils/dateUtils'
-import { guruAPI, presensiAPI } from '../../services/api'
+import { adminSummaryAPI } from '../../services/api'
 import TrenKehadiran from './TrenKehadiran'
 import PersentaseKehadiran from './PersentaseKehadiran'
 import LeaderboardGuru from './LeaderboardGuru'
@@ -12,23 +11,25 @@ import StatistikLengkap from './StatistikLengkap'
 function DashboardHome() {
   const [filter, setFilter] = useState('today')
   const [attendanceLogs, setAttendanceLogs] = useState([])
-  const [dataGuru, setDataGuru] = useState([])
+  const [totalGuru, setTotalGuru] = useState(0)
+  const [statsSummary, setStatsSummary] = useState({ hadir: 0, izin: 0, sakit: 0 })
+  const [guruBelumPresensi, setGuruBelumPresensi] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadData()
-  }, [])
+    loadData(filter)
+  }, [filter])
 
-  const loadData = async () => {
+  const loadData = async (period) => {
     try {
       setLoading(true)
-      const [guruResponse, presensiResponse] = await Promise.all([
-        guruAPI.getAll(),
-        presensiAPI.getAll()
-      ])
-      
-      setDataGuru(guruResponse.data)
-      setAttendanceLogs(presensiResponse.data)
+      const response = await adminSummaryAPI.getDashboard(period)
+      const data = response.data || {}
+
+      setTotalGuru(data.totalGuru || 0)
+      setStatsSummary(data.stats || { hadir: 0, izin: 0, sakit: 0 })
+      setGuruBelumPresensi(data.belumPresensiHariIni || [])
+      setAttendanceLogs(data.logs || [])
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {
@@ -36,56 +37,12 @@ function DashboardHome() {
     }
   }
 
-  const getFilteredData = () => {
-    const today = new Date()
-    const todayStr = formatDateForInput(today)
-    
-    switch(filter) {
-      case 'today':
-        return attendanceLogs.filter(log => log.tanggal === todayStr)
-      case 'yesterday':
-        const yesterday = new Date()
-        yesterday.setDate(today.getDate() - 1)
-        const yesterdayStr = formatDateForInput(yesterday)
-        return attendanceLogs.filter(log => log.tanggal === yesterdayStr)
-      case '7days':
-        const sevenDaysAgo = new Date()
-        sevenDaysAgo.setDate(today.getDate() - 6) // 7 hari termasuk hari ini
-        const sevenDaysStr = formatDateForInput(sevenDaysAgo)
-        return attendanceLogs.filter(log => log.tanggal >= sevenDaysStr && log.tanggal <= todayStr)
-      case '14days':
-        const fourteenDaysAgo = new Date()
-        fourteenDaysAgo.setDate(today.getDate() - 13) // 14 hari termasuk hari ini
-        const fourteenDaysStr = formatDateForInput(fourteenDaysAgo)
-        return attendanceLogs.filter(log => log.tanggal >= fourteenDaysStr && log.tanggal <= todayStr)
-      case '30days':
-        const thirtyDaysAgo = new Date()
-        thirtyDaysAgo.setDate(today.getDate() - 29) // 30 hari termasuk hari ini
-        const thirtyDaysStr = formatDateForInput(thirtyDaysAgo)
-        return attendanceLogs.filter(log => log.tanggal >= thirtyDaysStr && log.tanggal <= todayStr)
-      default:
-        return attendanceLogs.filter(log => log.tanggal === todayStr)
-    }
-  }
-
-  const filteredData = getFilteredData()
+  const filteredData = attendanceLogs
   
   // Hitung stats berdasarkan data yang sudah difilter
-  const hadirCount = filteredData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
-  const izinCount = filteredData.filter(log => log.status === 'izin').length
-  const sakitCount = filteredData.filter(log => log.status === 'sakit').length
-  const totalGuru = dataGuru.length
-
-  // Hitung guru yang belum presensi hari ini
-  const getGuruBelumPresensi = () => {
-    const today = formatDateForInput(new Date())
-    const presensiHariIni = attendanceLogs.filter(log => log.tanggal === today)
-    const guruSudahPresensi = presensiHariIni.map(log => log.user_id)
-    const guruBelumPresensi = dataGuru.filter(guru => !guruSudahPresensi.includes(guru.id))
-    return guruBelumPresensi
-  }
-
-  const guruBelumPresensi = getGuruBelumPresensi()
+  const hadirCount = statsSummary.hadir || 0
+  const izinCount = statsSummary.izin || 0
+  const sakitCount = statsSummary.sakit || 0
   const belumPresensiCount = guruBelumPresensi.length
 
   // Label dinamis berdasarkan filter

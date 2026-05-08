@@ -1,74 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
 import { UserCheck, UserX, FileText, AlertCircle, LogOut, RefreshCw, Clock } from 'lucide-react'
-import { formatDateForInput } from '../../utils/dateUtils'
-import { guruAPI, presensiAPI } from '../../services/api'
+import { statusRekanAPI } from '../../services/api'
 
-function GuruStatus({ user }) {
+function GuruStatus() {
   const [statusList, setStatusList] = useState([])
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
 
   const loadStatus = useCallback(async () => {
     try {
-      const today = formatDateForInput(new Date())
-      const timestamp = new Date().getTime()
-
-      const [guruResponse, presensiResponse] = await Promise.all([
-        guruAPI.getAll(),
-        presensiAPI.getAll({ tanggal: today, status_rekan: 1, _t: timestamp })
-      ])
-
-      const allGuru = guruResponse.data || []
-      const todayLogs = presensiResponse.data || []
-
-      const status = allGuru
-        .filter(guru => guru.id !== user.id)
-        .map(guru => {
-          const attendance = todayLogs.find(log => {
-            const logUserId = log.user_id || log.userId
-            return logUserId === guru.id
-          })
-
-          // Tentukan status lengkap termasuk "sudah_pulang"
-          let statusFinal = 'belum'
-          let jamMasuk = '-'
-          let jamPulang = null
-
-          if (attendance) {
-            statusFinal = attendance.status
-            jamMasuk = attendance.jam_masuk || attendance.jamMasuk || attendance.jam_hadir || attendance.jamHadir || '-'
-            jamPulang = attendance.jam_pulang || attendance.jamPulang || null
-
-            // Jika hadir dan sudah ada jam pulang → tampilkan "sudah_pulang"
-            if (
-              (statusFinal === 'hadir' || statusFinal === 'hadir_terlambat' || statusFinal === 'hadir_izin_terlambat') &&
-              jamPulang
-            ) {
-              statusFinal = 'sudah_pulang'
-            }
-          }
-
-          return {
-            ...guru,
-            statusFinal,
-            statusAsli: attendance?.status || 'belum',
-            jamMasuk,
-            jamPulang
-          }
-        })
-
-      // Urutkan: hadir dulu, lalu belum absen, lalu izin/sakit
-      const order = { hadir: 0, hadir_terlambat: 1, hadir_izin_terlambat: 2, sudah_pulang: 3, izin: 4, sakit: 5, belum: 6 }
-      status.sort((a, b) => (order[a.statusFinal] ?? 9) - (order[b.statusFinal] ?? 9))
-
-      setStatusList(status)
+      const response = await statusRekanAPI.getToday()
+      setStatusList(response.data?.items || [])
       setLastUpdated(new Date())
     } catch (error) {
       console.error('Failed to load status:', error)
     } finally {
       setLoading(false)
     }
-  }, [user.id])
+  }, [])
 
   useEffect(() => {
     loadStatus()

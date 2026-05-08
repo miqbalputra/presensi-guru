@@ -228,6 +228,27 @@ export const jadwalPiketAPI = {
   },
 }
 
+// Admin Summary API - compact dashboard payload
+export const adminSummaryAPI = {
+  getDashboard: async (period = 'today') => {
+    const params = new URLSearchParams({ period })
+    return fetchAPI(`/admin_summary.php?${params}`, {
+      method: 'GET',
+      timeoutMs: 8000,
+    })
+  },
+}
+
+// Status Rekan API - compact teacher peer status payload
+export const statusRekanAPI = {
+  getToday: async () => {
+    return fetchAPI(`/status_rekan.php?_t=${Date.now()}`, {
+      method: 'GET',
+      timeoutMs: 8000,
+    })
+  },
+}
+
 // Guru Home API - compact initial payload for faster guru dashboard load
 export const guruHomeAPI = {
   getInitialData: async () => {
@@ -304,6 +325,8 @@ export default {
   guruAPI,
   guruHomeAPI,
   presensiAPI,
+  adminSummaryAPI,
+  statusRekanAPI,
   activityAPI,
   holidaysAPI,
   settingsAPI,
