@@ -118,20 +118,25 @@ function GuruHome({ user }) {
     setPageLoading(true)
 
     try {
-      const response = await guruHomeAPI.getInitialData()
-      applyInitialPayload(response.data)
-      return
-    } catch (error) {
-      console.error('Failed to load compact guru data, falling back:', error)
-    }
+      let loadedCompactData = false
 
-    try {
-      await Promise.allSettled([
-        loadSettings(),
-        checkIfHoliday(),
-        checkJadwalPiket(),
-        checkTodayAttendance()
-      ])
+      try {
+        const response = await guruHomeAPI.getInitialData()
+        applyInitialPayload(response.data)
+        loadedCompactData = true
+      } catch (error) {
+        console.error('Failed to load compact guru data, falling back:', error)
+      }
+
+      if (!loadedCompactData) {
+        await Promise.allSettled([
+          loadSettings(),
+          checkIfHoliday(),
+          checkJadwalPiket(),
+          checkTodayAttendance()
+        ])
+      }
+
       console.log('=== ✅ Data Loaded ===')
     } catch (error) {
       console.error('❌ Failed to load initial data:', error)
