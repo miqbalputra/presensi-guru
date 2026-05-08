@@ -10,6 +10,28 @@ requireAuth(['guru']);
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+function mapAttendanceRecord($record)
+{
+    if (!$record) {
+        return null;
+    }
+
+    $record['userId'] = $record['user_id'];
+    $record['jamMasuk'] = $record['jam_masuk'];
+    $record['jamPulang'] = $record['jam_pulang'];
+    $record['jamHadir'] = $record['jam_hadir'];
+    $record['jamIzin'] = $record['jam_izin'];
+    $record['jamSakit'] = $record['jam_sakit'];
+    return $record;
+}
+
+function getAttendanceById($pdo, $id)
+{
+    $stmt = $pdo->prepare("SELECT * FROM attendance_logs WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    return mapAttendanceRecord($stmt->fetch());
+}
+
 // POST - Proses scan QR Code
 if ($method === 'POST') {
     // Pastikan timezone server sesuai WIB
@@ -263,6 +285,7 @@ if ($method === 'POST') {
 
                     sendResponse(true, 'Presensi pulang berhasil (Smart Scan)!', [
                         'jam_pulang' => $currentTime,
+                        'attendance' => getAttendanceById($pdo, $existing['id']),
                         'message' => 'Hati-hati di jalan!'
                     ]);
                 } else {
@@ -338,7 +361,8 @@ if ($method === 'POST') {
             'status' => $status,
             'jam_masuk' => $currentTime,
             'keterangan' => $keterangan,
-            'metode' => 'qr_scan'
+            'metode' => 'qr_scan',
+            'attendance' => getAttendanceById($pdo, $insertId)
         ];
         
         $message = $status === 'hadir' 
@@ -373,7 +397,7 @@ if ($method === 'GET') {
             LIMIT 1
         ");
         $stmt->execute([$userId, $today]);
-        $attendance = $stmt->fetch();
+        $attendance = mapAttendanceRecord($stmt->fetch());
         
         sendResponse(true, 'Status presensi', [
             'has_checked_in' => $attendance ? true : false,

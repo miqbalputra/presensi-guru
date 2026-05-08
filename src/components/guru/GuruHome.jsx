@@ -3,7 +3,7 @@ import { CheckCircle, FileText, AlertCircle, Clock, QrCode } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage, validateLocation } from '../../utils/geoLocation'
 import { SCHOOL_LOCATION } from '../../data/dummyData'
-import { authAPI, guruHomeAPI, presensiAPI, activityAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
+import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
 
 const QRScanner = lazy(() => import('./QRScanner'))
 
@@ -81,6 +81,33 @@ function GuruHome({ user }) {
       })
     }
   }
+
+  const updateLocationReady = (location) => {
+    setLocationStatus({
+      state: 'ready',
+      location,
+      message: location?.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
+    })
+  }
+
+  const getFastLocation = async () => {
+    const cached = getLastKnownLocation(30000)
+    if (cached && (!cached.accuracy || cached.accuracy <= 120)) {
+      updateLocationReady(cached)
+      return cached
+    }
+
+    const location = await getReliableUserLocation({
+      minAccuracy: 120,
+      cacheMaxAgeMs: 30000,
+      firstTimeout: 10000,
+      retryTimeout: 5000
+    })
+    updateLocationReady(location)
+    return location
+  }
+
+  const getAttendanceFromResponse = (response) => response?.data?.attendance || null
 
   const applyInitialPayload = (data) => {
     if (!data) return
@@ -309,12 +336,7 @@ function GuruHome({ user }) {
     const TESTING_MODE = settings.mode_testing == '1' // Gunakan == agar int(1) tetap true sebagai '1'
 
     try {
-      const location = await getReliableUserLocation()
-      setLocationStatus({
-        state: 'ready',
-        location,
-        message: location.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
-      })
+      const location = await getFastLocation()
 
       if (!TESTING_MODE) {
         // Gunakan koordinat dari settings (bukan hardcoded)
@@ -372,73 +394,46 @@ function GuruHome({ user }) {
 
   const saveAttendance = async (status, ket, lat, lon) => {
     try {
-      const currentTime = formatTimeForDB() // Format HH:MM:SS untuk database
-      const today = formatDateForInput(new Date()) // Format yyyy-mm-dd untuk database
-
-      console.log('💾 saveAttendance called:', { status, currentTime, today })
-
-      // Cek apakah terlambat (hanya untuk status hadir)
+      const currentTime = formatTimeForDB()
+      const today = formatDateForInput(new Date())
       let finalStatus = status
       let finalKeterangan = ket
       let piketWarning = ''
 
       if (status === 'hadir') {
-        console.log('✅ Status is hadir, checking late and piket...')
-
-        // Tentukan target jam masuk
         let targetJamMasuk = settings.jam_masuk_normal
-        const today = new Date()
-        const isMonday = today.getDay() === 1 // 1 = Monday
+        const currentDate = new Date()
+        const isMonday = currentDate.getDay() === 1
         const isApelEnabled = settings.apel_senin_enabled == '1'
 
         if (isMonday) {
           if (isApelEnabled) {
-            if (isPiketToday && jadwalPiketHariIni) {
-              targetJamMasuk = jadwalPiketHariIni.jam_piket.substring(0, 5) // 06:40
-            } else {
-              targetJamMasuk = '07:00' // Guru non-piket saat apel
-            }
-          } else {
-            // MODE APEL MATI
-            if (isPiketToday) {
-              targetJamMasuk = '07:00' // Override 06:40 -> 07:00
-            } else {
-              targetJamMasuk = settings.jam_masuk_normal // 07:20
-            }
+            targetJamMasuk = isPiketToday && jadwalPiketHariIni
+              ? jadwalPiketHariIni.jam_piket.substring(0, 5)
+              : '07:00'
+          } else if (isPiketToday) {
+            targetJamMasuk = '07:00'
           }
         } else if (isPiketToday && jadwalPiketHariIni) {
           targetJamMasuk = jadwalPiketHariIni.jam_piket.substring(0, 5)
         }
 
         const lateCheck = checkIfLate(currentTime, targetJamMasuk)
-        console.log('⏰ Late check result:', lateCheck, 'Target:', targetJamMasuk)
-
         if (lateCheck.isLate) {
           finalStatus = 'hadir_terlambat'
           const labelPiket = isPiketToday ? ' (Piket)' : ''
-          
-          if (lateCheck.severity === 'late') {
-            finalKeterangan = `Terlambat ${lateCheck.minutes} menit${labelPiket}`
-          } else if (lateCheck.severity === 'very_late') {
-            finalKeterangan = `Terlambat ${lateCheck.minutes} menit (Parah)${labelPiket}`
-          }
-          console.log('🔴 User is late:', { finalStatus, finalKeterangan })
-        } else {
-          console.log('✅ User is on time')
+          finalKeterangan = lateCheck.severity === 'very_late'
+            ? `Terlambat ${lateCheck.minutes} menit (Parah)${labelPiket}`
+            : `Terlambat ${lateCheck.minutes} menit${labelPiket}`
         }
 
-        // Jika piket, tambahkan info di pesan sukses
-        if (isPiketToday && jadwalPiketHariIni) {
+        if (isPiketToday && jadwalPiketHariIni && lateCheck.isLate) {
           const jamPiketStr = jadwalPiketHariIni.jam_piket.substring(0, 5)
-          if (lateCheck.isLate) {
-            piketWarning = `⚠️ Anda terlambat hadir piket. Jam piket: ${jamPiketStr} WIB`
-          } else {
-            console.log('✅ Tepat waktu hadir piket')
-          }
+          piketWarning = `Anda terlambat hadir piket. Jam piket: ${jamPiketStr} WIB`
         }
       }
 
-      const presensiData = {
+      const response = await presensiAPI.create({
         userId: user.id,
         nama: user.nama,
         tanggal: today,
@@ -451,22 +446,8 @@ function GuruHome({ user }) {
         keterangan: finalKeterangan,
         latitude: lat,
         longitude: lon
-      }
+      })
 
-      const response = await presensiAPI.create(presensiData)
-
-      // Add activity log
-      try {
-        await activityAPI.create({
-          user: user.nama,
-          aktivitas: 'Input Presensi',
-          status: finalStatus.charAt(0).toUpperCase() + finalStatus.slice(1).replace('_', ' ')
-        })
-      } catch (logError) {
-        console.error('Failed to log activity:', logError)
-      }
-
-      // Pesan sukses dengan info terlambat dan piket
       let successMessage = `Presensi ${status} berhasil disimpan!`
       if (finalStatus === 'hadir_terlambat') {
         successMessage += ` (${finalKeterangan})`
@@ -475,64 +456,29 @@ function GuruHome({ user }) {
         successMessage += `\n\n${piketWarning}`
       }
 
-      setMessage({
-        type: piketWarning ? 'warning' : 'success',
-        text: successMessage
+      setTodayAttendance(getAttendanceFromResponse(response) || {
+        id: response.data?.id || Date.now(),
+        user_id: user.id,
+        userId: user.id,
+        nama: user.nama,
+        tanggal: today,
+        status: finalStatus,
+        jam_masuk: status === 'hadir' ? currentTime : null,
+        jam_pulang: null,
+        jam_hadir: status === 'hadir' ? currentTime : null,
+        jamMasuk: status === 'hadir' ? currentTime : null,
+        jamPulang: null,
+        jamHadir: status === 'hadir' ? currentTime : null,
+        jam_izin: status === 'izin' ? currentTime : null,
+        jamIzin: status === 'izin' ? currentTime : null,
+        jam_sakit: status === 'sakit' ? currentTime : null,
+        jamSakit: status === 'sakit' ? currentTime : null,
+        keterangan: finalKeterangan,
+        latitude: lat,
+        longitude: lon
       })
+      setMessage({ type: piketWarning ? 'warning' : 'success', text: successMessage })
       setLoading(false)
-
-      // Reload data dari database dengan retry mechanism
-      let retryCount = 0
-      const maxRetries = 3
-
-      const loadData = async () => {
-        try {
-          const response = await presensiAPI.getAll({
-            user_id: user.id,
-            tanggal: today
-          })
-
-          if (response.data && response.data.length > 0) {
-            console.log('✅ Data loaded successfully:', response.data[0])
-            setTodayAttendance(response.data[0])
-          } else if (retryCount < maxRetries) {
-            // Retry jika data belum ada
-            retryCount++
-            console.log(`⏳ Retry ${retryCount}/${maxRetries}...`)
-            setTimeout(loadData, 300)
-          } else {
-            console.log('⚠️ Max retries reached, setting data manually')
-            // Fallback: set manual jika retry gagal
-            setTodayAttendance({
-              id: response.data?.id || Date.now(),
-              user_id: user.id,
-              nama: user.nama,
-              tanggal: today,
-              status: finalStatus,
-              jam_masuk: status === 'hadir' ? currentTime : null,
-              jam_pulang: null,
-              jam_hadir: status === 'hadir' ? currentTime : null,
-              jamHadir: status === 'hadir' ? currentTime : null,
-              jam_izin: status === 'izin' ? currentTime : null,
-              jamIzin: status === 'izin' ? currentTime : null,
-              jam_sakit: status === 'sakit' ? currentTime : null,
-              jamSakit: status === 'sakit' ? currentTime : null,
-              keterangan: finalKeterangan,
-              latitude: lat,
-              longitude: lon
-            })
-          }
-        } catch (error) {
-          console.error('❌ Failed to load data:', error)
-          if (retryCount < maxRetries) {
-            retryCount++
-            setTimeout(loadData, 300)
-          }
-        }
-      }
-
-      // Start loading dengan delay kecil
-      setTimeout(loadData, 200)
     } catch (error) {
       setMessage({
         type: 'error',
@@ -583,12 +529,7 @@ function GuruHome({ user }) {
     const TESTING_MODE = settings.mode_testing == '1' // Gunakan == agar int(1) tetap true sebagai '1'
 
     try {
-      const location = await getReliableUserLocation()
-      setLocationStatus({
-        state: 'ready',
-        location,
-        message: location.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
-      })
+      const location = await getFastLocation()
 
       if (!TESTING_MODE) {
         // Gunakan koordinat dari settings (bukan hardcoded)
@@ -627,37 +568,20 @@ function GuruHome({ user }) {
         izin_pulang_awal: izinPulangAwal
       }
 
-      await presensiAPI.update(updatedData)
-
-      // Add activity log
-      try {
-        await activityAPI.create({
-          user: user.nama,
-          aktivitas: 'Presensi Pulang',
-          status: 'Pulang' + (izinPulangAwal ? ' (Izin Awal)' : '')
-        })
-      } catch (logError) {
-        console.error('Failed to log activity:', logError)
-      }
+      const response = await presensiAPI.update(updatedData)
 
       setMessage({
         type: 'success',
         text: 'Presensi pulang berhasil disimpan!'
       })
 
-      // Update todayAttendance langsung dengan jam pulang
-      setTodayAttendance({
+      setTodayAttendance(getAttendanceFromResponse(response) || {
         ...todayAttendance,
         jam_pulang: currentTime,
         jamPulang: currentTime // Alias untuk compatibility
       })
 
       setLoading(false)
-
-      // Tetap panggil checkTodayAttendance untuk sync dengan database
-      setTimeout(() => {
-        checkTodayAttendance()
-      }, 500)
     } catch (error) {
       if (error.message.startsWith('PIKET_RESTRICTION|')) {
         const jam = error.message.split('|')[1]
@@ -694,12 +618,7 @@ function GuruHome({ user }) {
       // Jika dari QR Scan
       setLoading(true)
       try {
-        const location = await getReliableUserLocation()
-        setLocationStatus({
-          state: 'ready',
-          location,
-          message: location.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
-        })
+        const location = await getFastLocation()
         const response = await qrScanAPI.submit(
           pendingQRData,
           location.latitude,
@@ -712,7 +631,12 @@ function GuruHome({ user }) {
         setPendingQRData(null)
         setKeteranganPiket('')
         setMessage({ type: 'success', text: '✅ Presensi pulang (izin awal) berhasil!' })
-        checkTodayAttendance()
+        const attendance = getAttendanceFromResponse(response)
+        if (attendance) {
+          setTodayAttendance(attendance)
+        } else {
+          checkTodayAttendance()
+        }
       } catch (error) {
         setMessage({ type: 'error', text: error.message })
       } finally {
@@ -1046,17 +970,22 @@ function GuruHome({ user }) {
           <QRScanner
             user={user}
             settings={settings}
-            initialLocation={locationStatus.location || getLastKnownLocation()}
+            initialLocation={locationStatus.location || getLastKnownLocation(30000)}
             attendanceStatus={{
               has_checked_in: !!todayAttendance,
               has_checked_out: !!(todayAttendance?.jam_pulang || todayAttendance?.jamPulang)
             }}
             onClose={() => setShowQRScanner(false)}
             onPiketRestriction={handleQRScanPiketRestriction}
-            onSuccess={() => {
+            onSuccess={(response) => {
               setShowQRScanner(false)
               setMessage({ type: 'success', text: '\u2705 Presensi berhasil dicatat!' })
-              checkTodayAttendance()
+              const attendance = getAttendanceFromResponse(response)
+              if (attendance) {
+                setTodayAttendance(attendance)
+              } else {
+                checkTodayAttendance()
+              }
               setTimeout(() => setMessage({ type: "", text: "" }), 4000)
             }}
           />

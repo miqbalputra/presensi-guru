@@ -6,6 +6,38 @@ requireAuth(['admin', 'kepala_sekolah', 'guru']);
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+function mapAttendanceRecord($record)
+{
+    if (!$record) {
+        return null;
+    }
+
+    $record['userId'] = $record['user_id'];
+    $record['jamMasuk'] = $record['jam_masuk'];
+    $record['jamPulang'] = $record['jam_pulang'];
+    $record['jamHadir'] = $record['jam_hadir'];
+    $record['jamIzin'] = $record['jam_izin'];
+    $record['jamSakit'] = $record['jam_sakit'];
+    return $record;
+}
+
+function getAttendanceById($pdo, $id)
+{
+    $stmt = $pdo->prepare("SELECT * FROM attendance_logs WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    return mapAttendanceRecord($stmt->fetch());
+}
+
+function writeAttendanceActivity($pdo, $user, $activity, $status)
+{
+    try {
+        $stmtLog = $pdo->prepare("INSERT INTO activity_logs (user, aktivitas, status) VALUES (?, ?, ?)");
+        $stmtLog->execute([$user, $activity, $status]);
+    } catch (Exception $e) {
+        // Activity log tidak boleh menggagalkan presensi utama.
+    }
+}
+
 // Kontrol akses per method:
 // - GET     : semua role (admin, kepala_sekolah, guru)
 // - PUT     : admin dan guru (guru hanya untuk presensi pulang milik sendiri)
@@ -79,12 +111,7 @@ if ($method === 'GET' && !isset($_GET['id'])) {
 
         // Convert snake_case to camelCase for frontend
         foreach ($logs as &$log) {
-            $log['userId']   = $log['user_id'];
-            $log['jamMasuk'] = $log['jam_masuk'];
-            $log['jamPulang'] = $log['jam_pulang'];
-            $log['jamHadir'] = $log['jam_hadir'];
-            $log['jamIzin']  = $log['jam_izin'];
-            $log['jamSakit'] = $log['jam_sakit'];
+            $log = mapAttendanceRecord($log);
         }
 
         sendResponse(true, 'Data presensi berhasil diambil', $logs);
@@ -229,7 +256,19 @@ if ($method === 'POST') {
             $data['longitude'] ?? null
         ]);
 
-        sendResponse(true, 'Presensi berhasil disimpan', ['id' => $pdo->lastInsertId()]);
+        $insertId = $pdo->lastInsertId();
+        $attendance = getAttendanceById($pdo, $insertId);
+        writeAttendanceActivity(
+            $pdo,
+            $data['nama'],
+            'Input Presensi',
+            ucfirst(str_replace('_', ' ', $attendance['status'] ?? $data['status']))
+        );
+
+        sendResponse(true, 'Presensi berhasil disimpan', [
+            'id' => $insertId,
+            'attendance' => $attendance
+        ]);
     } catch (PDOException $e) {
         handleError($e, 'presensi.php - create');
     }
@@ -419,7 +458,17 @@ if ($method === 'PUT') {
             intval($data['id'])
         ]);
 
-        sendResponse(true, 'Presensi berhasil diupdate');
+        $attendance = getAttendanceById($pdo, intval($data['id']));
+        if ($isGuru && !empty($data['jamPulang'])) {
+            $logStatus = 'Pulang' . (!empty($data['izin_pulang_awal']) ? ' (Izin Awal)' : '');
+            writeAttendanceActivity($pdo, $rec['nama'], 'Presensi Pulang', $logStatus);
+        } elseif ($isAdmin) {
+            writeAttendanceActivity($pdo, $_SESSION['nama'] ?? 'Admin', 'Update Presensi', ucfirst(str_replace('_', ' ', $status)));
+        }
+
+        sendResponse(true, 'Presensi berhasil diupdate', [
+            'attendance' => $attendance
+        ]);
     } catch (PDOException $e) {
         sendResponse(false, 'Error update: ' . $e->getMessage());
     }

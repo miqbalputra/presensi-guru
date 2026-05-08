@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { QrCode, Camera, X, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { qrScanAPI } from '../../services/api'
-import { getReliableUserLocation, getLocationErrorMessage } from '../../utils/geoLocation'
+import { getReliableUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
 
 function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, settings, initialLocation }) {
     const [error, setError] = useState('')
@@ -71,7 +71,13 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
             return
         }
 
-        getReliableUserLocation({ firstTimeout: 15000, retryTimeout: 8000 })
+        const cached = getLastKnownLocation(30000)
+        if (cached && (!cached.accuracy || cached.accuracy <= 120)) {
+            safeSetLocation(cached)
+            return
+        }
+
+        getReliableUserLocation({ minAccuracy: 120, cacheMaxAgeMs: 30000, firstTimeout: 10000, retryTimeout: 5000 })
             .then(safeSetLocation)
             .catch((err) => {
                 console.error('GPS Error:', err)
@@ -184,7 +190,12 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
                         longitude: parseFloat(settings?.sekolah_longitude || 119.4327)
                     }
                 } else {
-                    currentLocation = await getReliableUserLocation({ firstTimeout: 15000, retryTimeout: 8000 })
+                    currentLocation = getLastKnownLocation(30000) || await getReliableUserLocation({
+                        minAccuracy: 120,
+                        cacheMaxAgeMs: 30000,
+                        firstTimeout: 10000,
+                        retryTimeout: 5000
+                    })
                     safeSetLocation(currentLocation)
                 }
             }
@@ -207,7 +218,7 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
 
             // Tampilkan success 1.5 detik lalu panggil onSuccess di parent
             safeTimeout(() => {
-                if (onSuccess) onSuccess()
+                if (onSuccess) onSuccess(response)
             }, 1500)
 
         } catch (err) {
