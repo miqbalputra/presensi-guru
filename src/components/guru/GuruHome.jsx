@@ -1,9 +1,9 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
 import { CheckCircle, FileText, AlertCircle, Clock, QrCode } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
-import { getUserLocation, validateLocation } from '../../utils/geoLocation'
+import { getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage, validateLocation } from '../../utils/geoLocation'
 import { SCHOOL_LOCATION } from '../../data/dummyData'
-import { presensiAPI, activityAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
+import { authAPI, guruHomeAPI, presensiAPI, activityAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
 
 const QRScanner = lazy(() => import('./QRScanner'))
 
@@ -35,6 +35,7 @@ function GuruHome({ user }) {
   const [pendingQRData, setPendingQRData] = useState(null)
   const [keteranganPiket, setKeteranganPiket] = useState('')
   const [piketStep, setPiketStep] = useState(1) // 1: Info, 2: Input Alasan
+  const [locationStatus, setLocationStatus] = useState({ state: 'idle', location: null, message: '' })
 
   useEffect(() => {
     loadInitialData()
@@ -54,10 +55,75 @@ function GuruHome({ user }) {
     return () => clearInterval(heartbeat)
   }, [])
 
+  useEffect(() => {
+    warmUpLocation()
+  }, [settings.mode_testing])
+
+  const warmUpLocation = async () => {
+    if (settings.mode_testing == '1') {
+      setLocationStatus({ state: 'ready', location: null, message: 'Mode testing aktif' })
+      return
+    }
+
+    setLocationStatus({ state: 'loading', location: null, message: 'Menyiapkan GPS...' })
+    try {
+      const location = await warmUpUserLocation()
+      setLocationStatus({
+        state: 'ready',
+        location,
+        message: location.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
+      })
+    } catch (error) {
+      setLocationStatus({
+        state: 'error',
+        location: null,
+        message: getLocationErrorMessage(error)
+      })
+    }
+  }
+
+  const applyInitialPayload = (data) => {
+    if (!data) return
+
+    if (data.settings) {
+      setSettings(data.settings)
+    }
+
+    if (data.holiday) {
+      const { isWorkday, isHoliday: holidayFound, isWeekend, holidayName, dayName } = data.holiday
+      if (!isWorkday) {
+        setIsHoliday(true)
+        if (isWeekend) {
+          setHolidayInfo({ type: 'weekend', message: `Hari ${dayName} adalah hari libur` })
+        } else if (holidayFound) {
+          setHolidayInfo({ type: 'holiday', message: `Hari Libur: ${holidayName}` })
+        }
+      } else {
+        setIsHoliday(false)
+        setHolidayInfo(null)
+      }
+    }
+
+    if (data.piket) {
+      setJadwalPiketHariIni(data.piket.mine || null)
+      setIsPiketToday(!!data.piket.isPiketToday)
+    }
+
+    setTodayAttendance(data.attendance || null)
+  }
+
   const loadInitialData = async () => {
     console.log('=== 🚀 Loading Initial Data ===')
     console.log('User:', user)
     setPageLoading(true)
+
+    try {
+      const response = await guruHomeAPI.getInitialData()
+      applyInitialPayload(response.data)
+      return
+    } catch (error) {
+      console.error('Failed to load compact guru data, falling back:', error)
+    }
 
     try {
       // Load settings, check holiday, check piket, then attendance
@@ -245,7 +311,12 @@ function GuruHome({ user }) {
     const TESTING_MODE = settings.mode_testing == '1' // Gunakan == agar int(1) tetap true sebagai '1'
 
     try {
-      const location = await getUserLocation()
+      const location = await getReliableUserLocation()
+      setLocationStatus({
+        state: 'ready',
+        location,
+        message: location.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
+      })
 
       if (!TESTING_MODE) {
         // Gunakan koordinat dari settings (bukan hardcoded)
@@ -277,7 +348,7 @@ function GuruHome({ user }) {
         // Produksi: tampilkan error
         setMessage({
           type: 'error',
-          text: 'Gagal mendapatkan lokasi. Pastikan Anda mengizinkan akses lokasi.'
+          text: getLocationErrorMessage(error)
         })
         setLoading(false)
       }
@@ -514,7 +585,12 @@ function GuruHome({ user }) {
     const TESTING_MODE = settings.mode_testing == '1' // Gunakan == agar int(1) tetap true sebagai '1'
 
     try {
-      const location = await getUserLocation()
+      const location = await getReliableUserLocation()
+      setLocationStatus({
+        state: 'ready',
+        location,
+        message: location.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
+      })
 
       if (!TESTING_MODE) {
         // Gunakan koordinat dari settings (bukan hardcoded)
@@ -620,7 +696,12 @@ function GuruHome({ user }) {
       // Jika dari QR Scan
       setLoading(true)
       try {
-        const location = await getUserLocation()
+        const location = await getReliableUserLocation()
+        setLocationStatus({
+          state: 'ready',
+          location,
+          message: location.accuracy ? `GPS siap (akurasi ${Math.round(location.accuracy)}m)` : 'GPS siap'
+        })
         const response = await qrScanAPI.submit(
           pendingQRData,
           location.latitude,
@@ -730,6 +811,30 @@ function GuruHome({ user }) {
             <span className="px-2.5 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs text-orange-600 font-medium">
               🧪 Mode Testing
             </span>
+          )}
+          {settings.mode_testing != '1' && (
+            <button
+              type="button"
+              onClick={warmUpLocation}
+              className={`px-2.5 py-1 border rounded-full text-xs font-medium ${
+                locationStatus.state === 'ready'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : locationStatus.state === 'loading'
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : locationStatus.state === 'error'
+                      ? 'bg-rose-50 border-rose-200 text-rose-700'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
+              }`}
+              title={locationStatus.message || 'Ketuk untuk menyiapkan GPS'}
+            >
+              {locationStatus.state === 'ready'
+                ? 'GPS Siap'
+                : locationStatus.state === 'loading'
+                  ? 'GPS...'
+                  : locationStatus.state === 'error'
+                    ? 'Cek GPS'
+                    : 'Siapkan GPS'}
+            </button>
           )}
           {isPiketToday && jadwalPiketHariIni && (
             <span className="px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-600 font-medium">
@@ -943,6 +1048,7 @@ function GuruHome({ user }) {
           <QRScanner
             user={user}
             settings={settings}
+            initialLocation={locationStatus.location || getLastKnownLocation()}
             attendanceStatus={{
               has_checked_in: !!todayAttendance,
               has_checked_out: !!(todayAttendance?.jam_pulang || todayAttendance?.jamPulang)

@@ -218,6 +218,15 @@ export const jadwalPiketAPI = {
   },
 }
 
+// Guru Home API - compact initial payload for faster guru dashboard load
+export const guruHomeAPI = {
+  getInitialData: async () => {
+    return fetchAPI('/guru_home.php', {
+      method: 'GET',
+    })
+  },
+}
+
 // QR Scan API
 export const qrScanAPI = {
   // Submit QR scan attendance
@@ -282,6 +291,7 @@ export const manualEntryAPI = {
 export default {
   authAPI,
   guruAPI,
+  guruHomeAPI,
   presensiAPI,
   activityAPI,
   holidaysAPI,

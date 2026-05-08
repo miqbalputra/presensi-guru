@@ -2,15 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { QrCode, Camera, X, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { qrScanAPI } from '../../services/api'
+import { getReliableUserLocation, getLocationErrorMessage } from '../../utils/geoLocation'
 
-function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, settings }) {
+function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, settings, initialLocation }) {
     const [error, setError] = useState('')
     const [scanning, setScanning] = useState(false)
     const [processing, setProcessing] = useState(false)
     const [successMsg, setSuccessMsg] = useState('') // '' = belum sukses
     const [manualInput, setManualInput] = useState(false)
     const [manualQRData, setManualQRData] = useState('')
-    const [location, setLocation] = useState(null)
+    const [location, setLocation] = useState(initialLocation || null)
     const [facingMode, setFacingMode] = useState('environment')
 
     const scannerRef = useRef(null)
@@ -57,31 +58,26 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
 
     // Load GPS location
     useEffect(() => {
-        if (!navigator.geolocation) {
-            safeSetError('Geolokasi tidak didukung oleh browser Anda')
+        if (initialLocation) {
+            safeSetLocation(initialLocation)
             return
         }
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                safeSetLocation({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude
-                })
-            },
-            (err) => {
+
+        if (settings?.mode_testing === '1') {
+            safeSetLocation({
+                latitude: parseFloat(settings?.sekolah_latitude || -5.1477),
+                longitude: parseFloat(settings?.sekolah_longitude || 119.4327)
+            })
+            return
+        }
+
+        getReliableUserLocation({ firstTimeout: 15000, retryTimeout: 8000 })
+            .then(safeSetLocation)
+            .catch((err) => {
                 console.error('GPS Error:', err)
-                if (settings?.mode_testing === '1') {
-                    safeSetLocation({
-                        latitude: parseFloat(settings?.sekolah_latitude || -5.1477),
-                        longitude: parseFloat(settings?.sekolah_longitude || 119.4327)
-                    })
-                } else {
-                    safeSetError('Gagal mendapatkan lokasi. Pastikan GPS aktif.')
-                }
-            },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        )
-    }, [settings, safeSetError, safeSetLocation])
+                safeSetError(getLocationErrorMessage(err))
+            })
+    }, [initialLocation, settings, safeSetError, safeSetLocation])
 
     // Stop scanner helper
     const stopScanner = useCallback(async () => {
@@ -188,7 +184,8 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
                         longitude: parseFloat(settings?.sekolah_longitude || 119.4327)
                     }
                 } else {
-                    throw new Error('Menunggu koordinat GPS... Mohon aktifkan GPS atau izinkan akses lokasi.')
+                    currentLocation = await getReliableUserLocation({ firstTimeout: 15000, retryTimeout: 8000 })
+                    safeSetLocation(currentLocation)
                 }
             }
 
