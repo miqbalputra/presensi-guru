@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, Line, ReferenceLine
+  Tooltip, Legend, ResponsiveContainer, Line
 } from 'recharts'
-import { LogOut, UserX, Clock, Calendar, Info, Users, GitCompare, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { presensiAPI, guruAPI, jadwalPiketAPI } from '../../services/api'
+import { LogOut, Clock, Calendar, Info, Users, GitCompare, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { adminChartsAPI } from '../../services/api'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -20,22 +20,6 @@ const formatLabel = (dateStr) => {
   const d = new Date(dateStr)
   const days = ['Min','Sen','Sel','Rab','Kam','Jum','Sab']
   return `${days[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`
-}
-
-const buildDateRange = (startStr, endStr) => {
-  const result = []
-  let cur = startStr
-  while (cur <= endStr) {
-    result.push(cur)
-    cur = addDays(cur, 1)
-  }
-  return result
-}
-
-const timeToMinutes = (timeStr) => {
-  if (!timeStr || timeStr === '-' || timeStr === '00:00:00') return null
-  const [h, m] = timeStr.split(':').map(Number)
-  return h * 60 + m
 }
 
 const minutesToTime = (mins) => {
@@ -98,7 +82,6 @@ function TrenJamPulang() {
   
   const [selectedGuru, setSelectedGuru] = useState('all')
   const [dataGuru, setDataGuru] = useState([])
-  const [allLogs, setAllLogs] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Chart data
@@ -108,123 +91,31 @@ function TrenJamPulang() {
   const [statsB, setStatsB] = useState({ normal: 0, early: 0, forgotten: 0, avgMins: null })
   const [earlyReasons, setEarlyReasons] = useState([])
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [periodeA, periodeB, selectedGuru])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const [guruRes, presensiRes] = await Promise.all([
-        guruAPI.getAll(),
-        presensiAPI.getAll()
-      ])
-      setDataGuru(guruRes.data || [])
-      setAllLogs(presensiRes.data || [])
+      const response = await adminChartsAPI.getCheckout({
+        startA: periodeA.start,
+        endA: periodeA.end,
+        startB: periodeB.start,
+        endB: periodeB.end,
+        userId: selectedGuru
+      })
+      const data = response.data || {}
+      setDataGuru(data.guru || [])
+      setChartData(data.periodA?.rows || [])
+      setStatsA(data.periodA?.summary || { normal: 0, early: 0, forgotten: 0, avgMins: null, pctForgotten: '0.0' })
+      setEarlyReasons(data.periodA?.reasons || [])
+      setStatsB(data.periodB?.summary || { normal: 0, early: 0, forgotten: 0, avgMins: null, pctForgotten: '0.0' })
+      setCompareData(data.compare || [])
     } catch (e) {
       console.error('TrenJamPulang: gagal muat data', e)
     } finally {
       setLoading(false)
     }
   }
-
-  const computeStats = (start, end) => {
-    const dates = buildDateRange(start, end)
-    const byDate = {}
-    dates.forEach(d => {
-      byDate[d] = { normal: 0, early: 0, forgotten: 0, totalMins: 0, countMins: 0, tanggal: d }
-    })
-
-    const filtered = allLogs.filter(log => {
-      const matchDate = log.tanggal >= start && log.tanggal <= end
-      const matchGuru = selectedGuru === 'all' || log.userId === parseInt(selectedGuru)
-      return matchDate && matchGuru
-    })
-
-    const reasons = []
-
-    filtered.forEach(log => {
-      if (!byDate[log.tanggal]) return
-      const isPast = log.tanggal < todayStr
-      const noCheckout = !log.jamPulang || log.jamPulang === '-' || log.jamPulang === '00:00:00'
-
-      if (isPast && log.status.startsWith('hadir') && noCheckout) {
-        byDate[log.tanggal].forgotten++
-      } else if (log.jamPulang && log.jamPulang !== '-' && log.jamPulang !== '00:00:00') {
-        const mins = timeToMinutes(log.jamPulang)
-        if (mins !== null) {
-          byDate[log.tanggal].totalMins += mins
-          byDate[log.tanggal].countMins++
-        }
-
-        if (log.keterangan && log.keterangan.includes('Izin Pulang Awal Piket')) {
-          byDate[log.tanggal].early++
-          if (start === periodeA.start) { // Hanya ambil reason dari periode aktif/A
-            reasons.push({
-              nama: log.nama,
-              tanggal: log.tanggal,
-              jam: log.jamPulang,
-              alasan: log.keterangan.replace('(Izin Pulang Awal Piket)', '').replace(' | Alasan: ', '').trim() || 'Tanpa alasan detail'
-            })
-          }
-        } else {
-          byDate[log.tanggal].normal++
-        }
-      }
-    })
-
-    const rows = Object.values(byDate).map(r => ({
-      ...r,
-      avgMinutes: r.countMins > 0 ? Math.round(r.totalMins / r.countMins) : null
-    }))
-
-    const totalNormal = rows.reduce((s, r) => s + r.normal, 0)
-    const totalEarly = rows.reduce((s, r) => s + r.early, 0)
-    const totalForgotten = rows.reduce((s, r) => s + r.forgotten, 0)
-    const allCountMins = rows.reduce((s, r) => s + r.countMins, 0)
-    const allTotalMins = rows.reduce((s, r) => s + r.totalMins, 0)
-
-    return { 
-      rows, 
-      reasons,
-      summary: {
-        normal: totalNormal,
-        early: totalEarly,
-        forgotten: totalForgotten,
-        avgMins: allCountMins > 0 ? Math.round(allTotalMins / allCountMins) : null,
-        pctForgotten: (totalNormal + totalEarly + totalForgotten) > 0 
-          ? ((totalForgotten / (totalNormal + totalEarly + totalForgotten)) * 100).toFixed(1) : '0.0'
-      }
-    }
-  }
-
-  const rebuild = useCallback(() => {
-    if (!allLogs.length) return
-
-    const resA = computeStats(periodeA.start, periodeA.end)
-    setChartData(resA.rows)
-    setStatsA(resA.summary)
-    setEarlyReasons(resA.reasons.slice(0, 10))
-
-    const resB = computeStats(periodeB.start, periodeB.end)
-    setStatsB(resB.summary)
-
-    // Compare data normalization
-    const maxLen = Math.max(resA.rows.length, resB.rows.length)
-    const cmp = []
-    for (let i = 0; i < maxLen; i++) {
-      const a = resA.rows[i]
-      const b = resB.rows[i]
-      const totalA = a ? a.normal + a.early + a.forgotten : 0
-      const totalB = b ? b.normal + b.early + b.forgotten : 0
-      cmp.push({
-        day: i + 1,
-        'Lupa Pulang A': totalA > 0 ? +((a.forgotten / totalA) * 100).toFixed(1) : 0,
-        'Lupa Pulang B': totalB > 0 ? +((b.forgotten / totalB) * 100).toFixed(1) : 0,
-      })
-    }
-    setCompareData(cmp)
-  }, [allLogs, periodeA, periodeB, selectedGuru, todayStr])
-
-  useEffect(() => { rebuild() }, [rebuild])
 
   // Delta forgotten
   const delta = parseFloat(statsA.pctForgotten) - parseFloat(statsB.pctForgotten)
@@ -423,4 +314,3 @@ function TrenJamPulang() {
 }
 
 export default TrenJamPulang
-

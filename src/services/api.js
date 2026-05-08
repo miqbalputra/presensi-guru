@@ -254,6 +254,29 @@ export const adminChartsAPI = {
       timeoutMs: 8000,
     })
   },
+
+  getCheckout: async ({ startA, endA, startB, endB, userId = 'all' }) => {
+    const params = new URLSearchParams({
+      chart: 'checkout',
+      startA,
+      endA,
+      startB,
+      endB,
+      user_id: userId,
+    })
+    return fetchAPI(`/admin_charts.php?${params}`, {
+      method: 'GET',
+      timeoutMs: 10000,
+    })
+  },
+
+  getCompleteStats: async (days = 30) => {
+    const params = new URLSearchParams({ chart: 'complete_stats', days })
+    return fetchAPI(`/admin_charts.php?${params}`, {
+      method: 'GET',
+      timeoutMs: 10000,
+    })
+  },
 }
 
 // Status Rekan API - compact teacher peer status payload

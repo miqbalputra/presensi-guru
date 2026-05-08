@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { 
+import {
   BarChart2, 
   Clock, 
   AlertTriangle, 
@@ -7,117 +7,42 @@ import {
   FileText, 
   UserX,
   Download,
-  ChevronRight,
   TrendingDown,
   Info
 } from 'lucide-react'
-import { presensiAPI, guruAPI, jadwalPiketAPI } from '../../services/api'
+import { adminChartsAPI } from '../../services/api'
 import { formatDate } from '../../utils/dateUtils'
 import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
 
 function StatistikLengkap() {
   const [loading, setLoading] = useState(true)
-  const [dataGuru, setDataGuru] = useState([])
-  const [attendanceLogs, setAttendanceLogs] = useState([])
-  const [jadwalPiket, setJadwalPiket] = useState([])
   const [filterDays, setFilterDays] = useState(30)
+  const [lateStats, setLateStats] = useState({ totalLatePct: '0.0', statsPerGuru: [], totalLate: 0 })
+  const [latePiket, setLatePiket] = useState([])
+  const [earlyCheckouts, setEarlyCheckouts] = useState([])
+  const [izinSakit, setIzinSakit] = useState([])
+  const [forgotten, setForgotten] = useState([])
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [filterDays])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const [guruRes, presensiRes, piketRes] = await Promise.all([
-        guruAPI.getAll(),
-        presensiAPI.getAll(),
-        jadwalPiketAPI.getAll()
-      ])
-      setDataGuru(guruRes.data)
-      setAttendanceLogs(presensiRes.data)
-      setJadwalPiket(piketRes.data)
+      const response = await adminChartsAPI.getCompleteStats(filterDays)
+      const data = response.data || {}
+      setLateStats(data.lateStats || { totalLatePct: '0.0', statsPerGuru: [], totalLate: 0 })
+      setLatePiket(data.latePiket || [])
+      setEarlyCheckouts(data.earlyCheckouts || [])
+      setIzinSakit(data.izinSakit || [])
+      setForgotten(data.forgotten || [])
     } catch (error) {
       console.error('Gagal memuat data statistik:', error)
     } finally {
       setLoading(false)
     }
   }
-
-  // Filter data berdasarkan jumlah hari
-  const getFilteredLogs = () => {
-    const today = new Date()
-    const cutoffDate = new Date()
-    cutoffDate.setDate(today.getDate() - filterDays)
-    const cutoffStr = cutoffDate.toISOString().split('T')[0]
-    
-    return attendanceLogs.filter(log => log.tanggal >= cutoffStr)
-  }
-
-  const logs = getFilteredLogs()
-
-  // 1. Perhitungan Terlambat
-  const calculateLateStats = () => {
-    const checkIns = logs.filter(l => l.status.startsWith('hadir'))
-    const lateLogs = checkIns.filter(l => l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat')
-    const totalLatePct = checkIns.length > 0 ? ((lateLogs.length / checkIns.length) * 100).toFixed(1) : 0
-
-    const statsPerGuru = dataGuru.map(guru => {
-      const guruLogs = logs.filter(l => l.userId === guru.id && l.status.startsWith('hadir'))
-      const guruLate = guruLogs.filter(l => l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat')
-      const pct = guruLogs.length > 0 ? ((guruLate.length / guruLogs.length) * 100).toFixed(1) : 0
-      return { 
-        id: guru.id, 
-        nama: guru.nama, 
-        total: guruLogs.length, 
-        terlambat: guruLate.length, 
-        persentase: pct 
-      }
-    }).sort((a, b) => b.persentase - a.persentase)
-
-    return { totalLatePct, statsPerGuru, totalLate: lateLogs.length }
-  }
-
-  // 2. Terlambat Piket Pagi
-  const getLatePiketPagi = () => {
-    return logs.filter(log => {
-      // Cek apakah hari itu dia piket
-      const hariMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
-      const logDate = new Date(log.tanggal)
-      const hariIni = hariMap[logDate.getDay()]
-      
-      const isPiket = jadwalPiket.some(p => p.user_id === log.userId && p.hari === hariIni)
-      return isPiket && (log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat')
-    })
-  }
-
-  // 3. Terlalu Cepat Pulang (Piket)
-  const getEarlyCheckouts = () => {
-    return logs.filter(log => log.keterangan && log.keterangan.includes('Izin Pulang Awal Piket'))
-  }
-
-  // 4. Alasan Izin & Sakit
-  const getIzinSakitReasons = () => {
-    return logs.filter(log => log.status === 'izin' || log.status === 'sakit')
-  }
-
-  // 5. Lupa Presensi Pulang
-  const getForgottenCheckouts = () => {
-    const today = new Date().toISOString().split('T')[0]
-    return logs.filter(log => 
-      log.tanggal < today && 
-      log.status.startsWith('hadir') && 
-      (!log.jamPulang || log.jamPulang === '-')
-    )
-  }
-
-  const lateStats = calculateLateStats()
-  const latePiket = getLatePiketPagi()
-  const earlyCheckouts = getEarlyCheckouts()
-  const izinSakit = getIzinSakitReasons()
-  const forgotten = getForgottenCheckouts()
 
   const downloadFullReportExcel = () => {
     const wb = XLSX.utils.book_new()

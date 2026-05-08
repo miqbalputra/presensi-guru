@@ -23,6 +23,110 @@ function parseJabatan($value)
     return is_array($decoded) ? $decoded : [$value];
 }
 
+function buildDateRange($start, $end)
+{
+    $dates = [];
+    $current = strtotime($start);
+    $last = strtotime($end);
+    while ($current <= $last) {
+        $dates[] = date('Y-m-d', $current);
+        $current = strtotime('+1 day', $current);
+    }
+    return $dates;
+}
+
+function timeToMinutesValue($time)
+{
+    if (empty($time) || $time === '-' || $time === '00:00:00') {
+        return null;
+    }
+    $parts = explode(':', $time);
+    return ((int)$parts[0] * 60) + (int)$parts[1];
+}
+
+function summarizeCheckoutRows($logs, $start, $end, $today)
+{
+    $byDate = [];
+    foreach (buildDateRange($start, $end) as $date) {
+        $byDate[$date] = [
+            'normal' => 0,
+            'early' => 0,
+            'forgotten' => 0,
+            'totalMins' => 0,
+            'countMins' => 0,
+            'tanggal' => $date
+        ];
+    }
+
+    $reasons = [];
+    foreach ($logs as $log) {
+        $date = $log['tanggal'];
+        if (!isset($byDate[$date])) {
+            continue;
+        }
+
+        $status = $log['status'] ?? '';
+        $jamPulang = $log['jam_pulang'] ?? null;
+        $noCheckout = empty($jamPulang) || $jamPulang === '-' || $jamPulang === '00:00:00';
+
+        if ($date < $today && strpos($status, 'hadir') === 0 && $noCheckout) {
+            $byDate[$date]['forgotten']++;
+            continue;
+        }
+
+        if (!$noCheckout) {
+            $minutes = timeToMinutesValue($jamPulang);
+            if ($minutes !== null) {
+                $byDate[$date]['totalMins'] += $minutes;
+                $byDate[$date]['countMins']++;
+            }
+
+            $keterangan = $log['keterangan'] ?? '';
+            if (strpos($keterangan, 'Izin Pulang Awal Piket') !== false) {
+                $byDate[$date]['early']++;
+                $reasons[] = [
+                    'nama' => $log['nama'],
+                    'tanggal' => $date,
+                    'jam' => $jamPulang,
+                    'alasan' => trim(str_replace(['(Izin Pulang Awal Piket)', ' | Alasan: '], '', $keterangan)) ?: 'Tanpa alasan detail'
+                ];
+            } else {
+                $byDate[$date]['normal']++;
+            }
+        }
+    }
+
+    $rows = [];
+    $totalNormal = 0;
+    $totalEarly = 0;
+    $totalForgotten = 0;
+    $allMins = 0;
+    $allCount = 0;
+
+    foreach ($byDate as $row) {
+        $row['avgMinutes'] = $row['countMins'] > 0 ? (int)round($row['totalMins'] / $row['countMins']) : null;
+        $totalNormal += $row['normal'];
+        $totalEarly += $row['early'];
+        $totalForgotten += $row['forgotten'];
+        $allMins += $row['totalMins'];
+        $allCount += $row['countMins'];
+        $rows[] = $row;
+    }
+
+    $total = $totalNormal + $totalEarly + $totalForgotten;
+    return [
+        'rows' => $rows,
+        'reasons' => array_slice($reasons, 0, 10),
+        'summary' => [
+            'normal' => $totalNormal,
+            'early' => $totalEarly,
+            'forgotten' => $totalForgotten,
+            'avgMins' => $allCount > 0 ? (int)round($allMins / $allCount) : null,
+            'pctForgotten' => $total > 0 ? number_format(($totalForgotten / $total) * 100, 1, '.', '') : '0.0'
+        ]
+    ];
+}
+
 try {
     $chart = $_GET['chart'] ?? 'overview';
     $today = date('Y-m-d');
@@ -216,6 +320,162 @@ try {
             'period' => $period,
             'totalHariAktif' => $totalHariAktif,
             'items' => $leaderboard
+        ]);
+    }
+
+    if ($chart === 'checkout') {
+        $startA = $_GET['startA'] ?? date('Y-m-d', strtotime('-13 days'));
+        $endA = $_GET['endA'] ?? $today;
+        $startB = $_GET['startB'] ?? date('Y-m-d', strtotime('-27 days'));
+        $endB = $_GET['endB'] ?? date('Y-m-d', strtotime('-14 days'));
+        $userId = $_GET['user_id'] ?? 'all';
+
+        if (!validateDate($startA) || !validateDate($endA) || !validateDate($startB) || !validateDate($endB)) {
+            sendResponse(false, 'Invalid date range');
+        }
+
+        $guruStmt = $pdo->prepare("SELECT id, nama FROM users WHERE role = 'guru' ORDER BY nama ASC");
+        $guruStmt->execute();
+        $guru = $guruStmt->fetchAll();
+
+        $minDate = min($startA, $startB);
+        $maxDate = max($endA, $endB);
+        $params = [$minDate, $maxDate];
+        $userFilter = '';
+        if ($userId !== 'all') {
+            $userFilter = 'AND user_id = ?';
+            $params[] = (int)$userId;
+        }
+
+        $logsStmt = $pdo->prepare("
+            SELECT user_id, nama, tanggal, status, jam_pulang, keterangan
+            FROM attendance_logs
+            WHERE tanggal BETWEEN ? AND ? {$userFilter}
+        ");
+        $logsStmt->execute($params);
+        $logs = $logsStmt->fetchAll();
+
+        $logsA = array_values(array_filter($logs, fn($log) => $log['tanggal'] >= $startA && $log['tanggal'] <= $endA));
+        $logsB = array_values(array_filter($logs, fn($log) => $log['tanggal'] >= $startB && $log['tanggal'] <= $endB));
+        $a = summarizeCheckoutRows($logsA, $startA, $endA, $today);
+        $b = summarizeCheckoutRows($logsB, $startB, $endB, $today);
+
+        $maxLen = max(count($a['rows']), count($b['rows']));
+        $compare = [];
+        for ($i = 0; $i < $maxLen; $i++) {
+            $rowA = $a['rows'][$i] ?? null;
+            $rowB = $b['rows'][$i] ?? null;
+            $totalA = $rowA ? $rowA['normal'] + $rowA['early'] + $rowA['forgotten'] : 0;
+            $totalB = $rowB ? $rowB['normal'] + $rowB['early'] + $rowB['forgotten'] : 0;
+            $compare[] = [
+                'day' => $i + 1,
+                'Lupa Pulang A' => $totalA > 0 ? round(($rowA['forgotten'] / $totalA) * 100, 1) : 0,
+                'Lupa Pulang B' => $totalB > 0 ? round(($rowB['forgotten'] / $totalB) * 100, 1) : 0
+            ];
+        }
+
+        sendResponse(true, 'Data tren jam pulang berhasil diambil', [
+            'guru' => $guru,
+            'periodA' => $a,
+            'periodB' => $b,
+            'compare' => $compare
+        ]);
+    }
+
+    if ($chart === 'complete_stats') {
+        $days = validateInt($_GET['days'] ?? 30, 1, 3650);
+        if ($days === false) {
+            sendResponse(false, 'Invalid days');
+        }
+        $startDate = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
+
+        $logsStmt = $pdo->prepare("
+            SELECT id, user_id, nama, tanggal, status, jam_masuk, jam_pulang, keterangan
+            FROM attendance_logs
+            WHERE tanggal >= ?
+            ORDER BY tanggal DESC, id DESC
+        ");
+        $logsStmt->execute([$startDate]);
+        $logs = $logsStmt->fetchAll();
+
+        $guruStmt = $pdo->prepare("SELECT id, nama FROM users WHERE role = 'guru' ORDER BY nama ASC");
+        $guruStmt->execute();
+        $guruRows = $guruStmt->fetchAll();
+
+        $piketStmt = $pdo->prepare("SELECT user_id, hari FROM jadwal_piket");
+        $piketStmt->execute();
+        $piketMap = [];
+        foreach ($piketStmt->fetchAll() as $row) {
+            $piketMap[(int)$row['user_id'] . '|' . $row['hari']] = true;
+        }
+
+        $checkIns = array_values(array_filter($logs, fn($log) => strpos($log['status'], 'hadir') === 0));
+        $lateLogs = array_values(array_filter($checkIns, fn($log) => in_array($log['status'], ['hadir_terlambat', 'hadir_izin_terlambat'], true)));
+        $statsByGuru = [];
+        foreach ($guruRows as $guru) {
+            $statsByGuru[(int)$guru['id']] = [
+                'id' => (int)$guru['id'],
+                'nama' => $guru['nama'],
+                'total' => 0,
+                'terlambat' => 0,
+                'persentase' => '0.0'
+            ];
+        }
+
+        foreach ($checkIns as $log) {
+            $id = (int)$log['user_id'];
+            if (!isset($statsByGuru[$id])) continue;
+            $statsByGuru[$id]['total']++;
+            if (in_array($log['status'], ['hadir_terlambat', 'hadir_izin_terlambat'], true)) {
+                $statsByGuru[$id]['terlambat']++;
+            }
+        }
+        foreach ($statsByGuru as &$stat) {
+            $stat['persentase'] = $stat['total'] > 0 ? number_format(($stat['terlambat'] / $stat['total']) * 100, 1, '.', '') : '0.0';
+        }
+        unset($stat);
+        $statsPerGuru = array_values($statsByGuru);
+        usort($statsPerGuru, fn($a, $b) => (float)$b['persentase'] <=> (float)$a['persentase']);
+
+        $hariMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        $latePiket = [];
+        $earlyCheckouts = [];
+        $izinSakit = [];
+        $forgotten = [];
+
+        foreach ($logs as $log) {
+            $log['userId'] = (int)$log['user_id'];
+            $log['jamMasuk'] = $log['jam_masuk'];
+            $log['jamPulang'] = $log['jam_pulang'];
+
+            if (in_array($log['status'], ['hadir_terlambat', 'hadir_izin_terlambat'], true)) {
+                $hari = $hariMap[(int)date('w', strtotime($log['tanggal']))];
+                if (isset($piketMap[(int)$log['user_id'] . '|' . $hari])) {
+                    $latePiket[] = $log;
+                }
+            }
+            if (!empty($log['keterangan']) && strpos($log['keterangan'], 'Izin Pulang Awal Piket') !== false) {
+                $earlyCheckouts[] = $log;
+            }
+            if ($log['status'] === 'izin' || $log['status'] === 'sakit') {
+                $izinSakit[] = $log;
+            }
+            $noCheckout = empty($log['jam_pulang']) || $log['jam_pulang'] === '-' || $log['jam_pulang'] === '00:00:00';
+            if ($log['tanggal'] < $today && strpos($log['status'], 'hadir') === 0 && $noCheckout) {
+                $forgotten[] = $log;
+            }
+        }
+
+        sendResponse(true, 'Statistik lengkap berhasil diambil', [
+            'lateStats' => [
+                'totalLatePct' => count($checkIns) > 0 ? number_format((count($lateLogs) / count($checkIns)) * 100, 1, '.', '') : '0.0',
+                'statsPerGuru' => $statsPerGuru,
+                'totalLate' => count($lateLogs)
+            ],
+            'latePiket' => $latePiket,
+            'earlyCheckouts' => $earlyCheckouts,
+            'izinSakit' => $izinSakit,
+            'forgotten' => $forgotten
         ]);
     }
 
