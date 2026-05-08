@@ -1,42 +1,11 @@
 <?php
 require_once 'config.php';
+require_once 'attendance_service.php';
 
 // Semua role yang valid bisa akses endpoint ini (filtering per-role dilakukan di dalam)
 requireAuth(['admin', 'kepala_sekolah', 'guru']);
 
 $method = $_SERVER['REQUEST_METHOD'];
-
-function mapAttendanceRecord($record)
-{
-    if (!$record) {
-        return null;
-    }
-
-    $record['userId'] = $record['user_id'];
-    $record['jamMasuk'] = $record['jam_masuk'];
-    $record['jamPulang'] = $record['jam_pulang'];
-    $record['jamHadir'] = $record['jam_hadir'];
-    $record['jamIzin'] = $record['jam_izin'];
-    $record['jamSakit'] = $record['jam_sakit'];
-    return $record;
-}
-
-function getAttendanceById($pdo, $id)
-{
-    $stmt = $pdo->prepare("SELECT * FROM attendance_logs WHERE id = ? LIMIT 1");
-    $stmt->execute([$id]);
-    return mapAttendanceRecord($stmt->fetch());
-}
-
-function writeAttendanceActivity($pdo, $user, $activity, $status)
-{
-    try {
-        $stmtLog = $pdo->prepare("INSERT INTO activity_logs (user, aktivitas, status) VALUES (?, ?, ?)");
-        $stmtLog->execute([$user, $activity, $status]);
-    } catch (Exception $e) {
-        // Activity log tidak boleh menggagalkan presensi utama.
-    }
-}
 
 // Kontrol akses per method:
 // - GET     : semua role (admin, kepala_sekolah, guru)
@@ -111,7 +80,7 @@ if ($method === 'GET' && !isset($_GET['id'])) {
 
         // Convert snake_case to camelCase for frontend
         foreach ($logs as &$log) {
-            $log = mapAttendanceRecord($log);
+            $log = gp_map_attendance_record($log);
         }
 
         sendResponse(true, 'Data presensi berhasil diambil', $logs);
@@ -124,149 +93,45 @@ if ($method === 'GET' && !isset($_GET['id'])) {
 if ($method === 'POST') {
     $data = getRequestData();
 
-    // SECURITY: Jika guru, paksa pakai ID dan Nama sendiri dari session
     if ($_SESSION['role'] === 'guru') {
         $data['userId'] = $_SESSION['user_id'];
-        $data['nama']   = $_SESSION['nama'] ?? $_SESSION['user']['nama'] ?? 'Guru';
     }
 
     try {
-        // Cek apakah sudah ada presensi hari ini untuk user ini
-        $stmt_check = $pdo->prepare("SELECT id FROM attendance_logs WHERE user_id = ? AND tanggal = ?");
-        $stmt_check->execute([$data['userId'], $data['tanggal']]);
-        if ($stmt_check->fetch()) {
-            sendResponse(false, 'Anda sudah melakukan presensi hari ini.');
+        if (empty($data['userId'])) {
+            sendResponse(false, 'User presensi harus diisi');
         }
 
-        // Validasi tanggal
-        if (!validateDate($data['tanggal'])) {
-            sendResponse(false, 'Format tanggal tidak valid');
+        $user = gp_get_guru($pdo, $data['userId']);
+        if (!$user) {
+            sendResponse(false, 'Data guru tidak ditemukan');
         }
 
-        // CEK APAKAH HARI LIBUR
-        $stmt_holiday = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
-        $stmt_holiday->execute([$data['tanggal']]);
-        $holiday = $stmt_holiday->fetch();
-
-        // Check if date is weekend (Saturday = 6, Sunday = 0)
-        $dayOfWeek = date('w', strtotime($data['tanggal']));
-        $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
-
-        // LOGIKA: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR
-        $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
-
-        if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
-            $message = $holiday
-                ? 'Tidak dapat melakukan presensi pada hari libur: ' . $holiday['nama']
-                : 'Tidak dapat melakukan presensi pada hari weekend';
-            sendResponse(false, $message);
+        $status = $data['status'] ?? 'hadir';
+        if (!in_array($status, ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat', 'izin', 'sakit'], true)) {
+            sendResponse(false, 'Status presensi tidak valid');
         }
 
-        // Validasi koordinat hanya untuk status HADIR
-        if ($data['status'] === 'hadir') {
-            if (isset($data['latitude']) && isset($data['longitude'])) {
-                if (!validateCoordinates($data['latitude'], $data['longitude'])) {
-                    sendResponse(false, 'Koordinat GPS tidak valid');
-                }
-            }
+        if (isset($data['latitude']) && isset($data['longitude']) && !validateCoordinates($data['latitude'], $data['longitude'])) {
+            sendResponse(false, 'Koordinat GPS tidak valid');
         }
 
-        // GET SETTINGS for validation
-        $stmt_settings = $pdo->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('jam_masuk_normal', 'apel_senin_enabled')");
-        $stmt_settings->execute();
-        $settings_res = $stmt_settings->fetchAll();
-        $app_settings = [];
-        foreach ($settings_res as $s) {
-            $app_settings[$s['setting_key']] = $s['setting_value'];
-        }
-
-        // Tentukan target jam masuk
-        $jamMasukTarget = $app_settings['jam_masuk_normal'] ?? '07:20';
-        $piketLabel     = "";
-        $hariInggris    = date('l', strtotime($data['tanggal']));
-        $hariIndonesia  = [
-            'Monday' => 'Senin', 'Tuesday' => 'Selasa', 'Wednesday' => 'Rabu',
-            'Thursday' => 'Kamis', 'Friday' => 'Jumat', 'Saturday' => 'Sabtu', 'Sunday' => 'Minggu'
-        ];
-        $hariIni = $hariIndonesia[$hariInggris];
-
-        if ($isSpecialWorkday && !empty($holiday['jam_masuk_khusus'])) {
-            $jamMasukTarget = substr($holiday['jam_masuk_khusus'], 0, 5);
-            $piketLabel     = " (Event: " . $holiday['nama'] . ")";
-        } else {
-            $stmtPiket = $pdo->prepare("SELECT jam_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
-            $stmtPiket->execute([$data['userId'], $hariIni]);
-            $piket = $stmtPiket->fetch();
-
-            if ($hariIni === 'Senin') {
-                if (($app_settings['apel_senin_enabled'] ?? '0') == '1') {
-                    if ($piket) {
-                        $jamMasukTarget = $piket['jam_piket'];
-                        $piketLabel     = " (Piket Apel)";
-                    } else {
-                        $jamMasukTarget = '07:00';
-                        $piketLabel     = " (Apel Senin)";
-                    }
-                } else {
-                    if ($piket) {
-                        $jamMasukTarget = '07:00';
-                        $piketLabel     = " (Piket)";
-                    } else {
-                        $jamMasukTarget = $app_settings['jam_masuk_normal'] ?? '07:20';
-                    }
-                }
-            } else {
-                if ($piket) {
-                    $jamMasukTarget = $piket['jam_piket'];
-                    $piketLabel     = " (Piket)";
-                }
-            }
-        }
-
-        $jamPresensi = !empty($data['jamMasuk']) ? $data['jamMasuk'] : date('H:i:s');
-
-        $stmt = $pdo->prepare("
-            INSERT INTO attendance_logs
-            (user_id, nama, tanggal, status, jam_masuk, jam_pulang, jam_hadir, jam_izin, jam_sakit, keterangan, latitude, longitude)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-
-        $keteranganFix = $data['keterangan'] ?? '';
-        if ($data['status'] === 'hadir') {
-            $waktuTarget   = strtotime($data['tanggal'] . ' ' . $jamMasukTarget);
-            $waktuPresensi = strtotime($data['tanggal'] . ' ' . $jamPresensi);
-            if ($waktuPresensi > $waktuTarget) {
-                $diff          = round(($waktuPresensi - $waktuTarget) / 60);
-                $keteranganFix = "Terlambat $diff menit$piketLabel";
-            }
-        }
-
-        $stmt->execute([
-            $data['userId'],
-            $data['nama'],
-            $data['tanggal'],
-            $data['status'],
-            $jamPresensi,
-            null,
-            $jamPresensi,
-            null,
-            null,
-            $keteranganFix,
-            $data['latitude']  ?? null,
-            $data['longitude'] ?? null
+        $attendance = gp_create_attendance($pdo, [
+            'user' => $user,
+            'date' => $data['tanggal'] ?? date('Y-m-d'),
+            'time' => !empty($data['jamMasuk']) ? $data['jamMasuk'] : date('H:i:s'),
+            'status' => $status,
+            'keterangan' => $data['keterangan'] ?? '',
+            'jam_izin' => $data['jamIzin'] ?? null,
+            'jam_sakit' => $data['jamSakit'] ?? null,
+            'latitude' => $data['latitude'] ?? null,
+            'longitude' => $data['longitude'] ?? null,
+            'method' => 'manual',
+            'preserve_status' => ($_SESSION['role'] ?? '') === 'admin'
         ]);
 
-        $insertId = $pdo->lastInsertId();
-        $attendance = getAttendanceById($pdo, $insertId);
-        writeAttendanceActivity(
-            $pdo,
-            $data['nama'],
-            'Input Presensi',
-            ucfirst(str_replace('_', ' ', $attendance['status'] ?? $data['status']))
-        );
-
         sendResponse(true, 'Presensi berhasil disimpan', [
-            'id' => $insertId,
+            'id' => $attendance['id'],
             'attendance' => $attendance
         ]);
     } catch (PDOException $e) {
@@ -303,6 +168,25 @@ if ($method === 'PUT') {
     if ($_SESSION['role'] === 'guru') {
         if ($rec['user_id'] != $_SESSION['user_id']) {
             sendResponse(false, 'Forbidden: Anda hanya dapat mengubah data presensi Anda sendiri');
+        }
+
+        if (!empty($data['jamPulang'])) {
+            $jp = trim($data['jamPulang']);
+            if (strlen($jp) === 5) {
+                $jp .= ':00';
+            }
+
+            $attendance = gp_checkout_attendance($pdo, [
+                'record' => $rec,
+                'time' => $jp,
+                'izin_pulang_awal' => !empty($data['izin_pulang_awal']),
+                'keterangan' => $data['keterangan'] ?? '',
+                'method' => 'manual'
+            ]);
+
+            sendResponse(true, 'Presensi berhasil diupdate', [
+                'attendance' => $attendance
+            ]);
         }
     }
 
@@ -458,12 +342,12 @@ if ($method === 'PUT') {
             intval($data['id'])
         ]);
 
-        $attendance = getAttendanceById($pdo, intval($data['id']));
+        $attendance = gp_get_attendance_by_id($pdo, intval($data['id']));
         if ($isGuru && !empty($data['jamPulang'])) {
             $logStatus = 'Pulang' . (!empty($data['izin_pulang_awal']) ? ' (Izin Awal)' : '');
-            writeAttendanceActivity($pdo, $rec['nama'], 'Presensi Pulang', $logStatus);
+            gp_write_activity($pdo, $rec['nama'], 'Presensi Pulang', $logStatus);
         } elseif ($isAdmin) {
-            writeAttendanceActivity($pdo, $_SESSION['nama'] ?? 'Admin', 'Update Presensi', ucfirst(str_replace('_', ' ', $status)));
+            gp_write_activity($pdo, $_SESSION['nama'] ?? 'Admin', 'Update Presensi', ucfirst(str_replace('_', ' ', $status)));
         }
 
         sendResponse(true, 'Presensi berhasil diupdate', [

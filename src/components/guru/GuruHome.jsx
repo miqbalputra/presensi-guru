@@ -242,26 +242,6 @@ function GuruHome({ user }) {
     }
   }
 
-  // Fungsi untuk cek apakah terlambat
-  const checkIfLate = (jamPresensi, jamMasukTarget = null) => {
-    const jamMasukRef = jamMasukTarget || settings.jam_masuk_normal
-    const [jamMasuk, menitMasuk] = jamMasukRef.split(':').map(Number)
-    const [jamPresensiH, menitPresensiH] = jamPresensi.split(':').map(Number)
-
-    const waktuMasuk = jamMasuk * 60 + menitMasuk
-    const waktuPresensi = jamPresensiH * 60 + menitPresensiH
-
-    const selisihMenit = waktuPresensi - waktuMasuk
-
-    if (selisihMenit <= 0) {
-      return { isLate: false, minutes: 0, severity: 'ontime' }
-    } else if (selisihMenit <= parseInt(settings.toleransi_terlambat)) {
-      return { isLate: true, minutes: selisihMenit, severity: 'late' }
-    } else {
-      return { isLate: true, minutes: selisihMenit, severity: 'very_late' }
-    }
-  }
-
   const checkIfHoliday = async () => {
     try {
       const today = formatDateForInput(new Date())
@@ -396,73 +376,30 @@ function GuruHome({ user }) {
     try {
       const currentTime = formatTimeForDB()
       const today = formatDateForInput(new Date())
-      let finalStatus = status
-      let finalKeterangan = ket
-      let piketWarning = ''
-
-      if (status === 'hadir') {
-        let targetJamMasuk = settings.jam_masuk_normal
-        const currentDate = new Date()
-        const isMonday = currentDate.getDay() === 1
-        const isApelEnabled = settings.apel_senin_enabled == '1'
-
-        if (isMonday) {
-          if (isApelEnabled) {
-            targetJamMasuk = isPiketToday && jadwalPiketHariIni
-              ? jadwalPiketHariIni.jam_piket.substring(0, 5)
-              : '07:00'
-          } else if (isPiketToday) {
-            targetJamMasuk = '07:00'
-          }
-        } else if (isPiketToday && jadwalPiketHariIni) {
-          targetJamMasuk = jadwalPiketHariIni.jam_piket.substring(0, 5)
-        }
-
-        const lateCheck = checkIfLate(currentTime, targetJamMasuk)
-        if (lateCheck.isLate) {
-          finalStatus = 'hadir_terlambat'
-          const labelPiket = isPiketToday ? ' (Piket)' : ''
-          finalKeterangan = lateCheck.severity === 'very_late'
-            ? `Terlambat ${lateCheck.minutes} menit (Parah)${labelPiket}`
-            : `Terlambat ${lateCheck.minutes} menit${labelPiket}`
-        }
-
-        if (isPiketToday && jadwalPiketHariIni && lateCheck.isLate) {
-          const jamPiketStr = jadwalPiketHariIni.jam_piket.substring(0, 5)
-          piketWarning = `Anda terlambat hadir piket. Jam piket: ${jamPiketStr} WIB`
-        }
-      }
 
       const response = await presensiAPI.create({
         userId: user.id,
         nama: user.nama,
         tanggal: today,
-        status: finalStatus,
+        status,
         jamMasuk: status === 'hadir' ? currentTime : null,
         jamPulang: null,
         jamHadir: status === 'hadir' ? currentTime : null,
         jamIzin: status === 'izin' ? currentTime : null,
         jamSakit: status === 'sakit' ? currentTime : null,
-        keterangan: finalKeterangan,
+        keterangan: ket,
         latitude: lat,
         longitude: lon
       })
 
-      let successMessage = `Presensi ${status} berhasil disimpan!`
-      if (finalStatus === 'hadir_terlambat') {
-        successMessage += ` (${finalKeterangan})`
-      }
-      if (piketWarning) {
-        successMessage += `\n\n${piketWarning}`
-      }
-
-      setTodayAttendance(getAttendanceFromResponse(response) || {
+      const attendance = getAttendanceFromResponse(response)
+      setTodayAttendance(attendance || {
         id: response.data?.id || Date.now(),
         user_id: user.id,
         userId: user.id,
         nama: user.nama,
         tanggal: today,
-        status: finalStatus,
+        status,
         jam_masuk: status === 'hadir' ? currentTime : null,
         jam_pulang: null,
         jam_hadir: status === 'hadir' ? currentTime : null,
@@ -473,11 +410,18 @@ function GuruHome({ user }) {
         jamIzin: status === 'izin' ? currentTime : null,
         jam_sakit: status === 'sakit' ? currentTime : null,
         jamSakit: status === 'sakit' ? currentTime : null,
-        keterangan: finalKeterangan,
+        keterangan: ket,
         latitude: lat,
         longitude: lon
       })
-      setMessage({ type: piketWarning ? 'warning' : 'success', text: successMessage })
+
+      const saved = attendance || {}
+      let successMessage = response.message || `Presensi ${status} berhasil disimpan!`
+      if (saved.status === 'hadir_terlambat' && saved.keterangan) {
+        successMessage += ` (${saved.keterangan})`
+      }
+
+      setMessage({ type: saved.status === 'hadir_terlambat' ? 'warning' : 'success', text: successMessage })
       setLoading(false)
     } catch (error) {
       setMessage({
@@ -562,7 +506,7 @@ function GuruHome({ user }) {
         jamHadir: todayAttendance.jam_hadir,
         jamIzin: todayAttendance.jam_izin,
         jamSakit: todayAttendance.jam_sakit,
-        keterangan: keteranganCustom ? `${todayAttendance.keterangan || ''} | Alasan Pulang Awal: ${keteranganCustom}`.trim() : todayAttendance.keterangan,
+        keterangan: keteranganCustom,
         latitude: todayAttendance.latitude,
         longitude: todayAttendance.longitude,
         izin_pulang_awal: izinPulangAwal

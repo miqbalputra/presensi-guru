@@ -4,33 +4,12 @@
  * Endpoint untuk presensi dengan scan QR Code + validasi GPS
  */
 require_once 'config.php';
+require_once 'attendance_service.php';
 
 // Endpoint ini harus login sebagai guru
 requireAuth(['guru']);
 
 $method = $_SERVER['REQUEST_METHOD'];
-
-function mapAttendanceRecord($record)
-{
-    if (!$record) {
-        return null;
-    }
-
-    $record['userId'] = $record['user_id'];
-    $record['jamMasuk'] = $record['jam_masuk'];
-    $record['jamPulang'] = $record['jam_pulang'];
-    $record['jamHadir'] = $record['jam_hadir'];
-    $record['jamIzin'] = $record['jam_izin'];
-    $record['jamSakit'] = $record['jam_sakit'];
-    return $record;
-}
-
-function getAttendanceById($pdo, $id)
-{
-    $stmt = $pdo->prepare("SELECT * FROM attendance_logs WHERE id = ? LIMIT 1");
-    $stmt->execute([$id]);
-    return mapAttendanceRecord($stmt->fetch());
-}
 
 // POST - Proses scan QR Code
 if ($method === 'POST') {
@@ -90,7 +69,7 @@ if ($method === 'POST') {
         $isTestingMode = ($settings['mode_testing'] ?? '0') == '1'; // Gunakan == agar int(1) tetap true sebagai '1'
         
         // Get user info from session — dengan fallback DB jika sesi lama
-        if (isset($_SESSION['user']) && is_array($_SESSION['user'])) {
+        if (isset($_SESSION['user']) && is_array($_SESSION['user']) && isset($_SESSION['user']['jenis_kelamin'], $_SESSION['user']['tipe_guru'])) {
             $user = $_SESSION['user'];
         } else {
             // Fallback: ambil dari database pakai user_id
@@ -152,225 +131,64 @@ if ($method === 'POST') {
         // Tanggal hari ini
         $today = date('Y-m-d');
         $currentTime = date('H:i:s');
-        
-        // 1. CEK APAKAH HARI LIBUR / SPECIAL WORKDAY
-        $stmt_holiday = $pdo->prepare("
-            SELECT tanggal, nama, jenis, is_workday, jam_masuk_khusus
-            FROM holidays
-            WHERE tanggal = ?
-            LIMIT 1
-        ");
-        $stmt_holiday->execute([$today]);
-        $holiday = $stmt_holiday->fetch();
-        
-        $dayOfWeek = date('w');
-        $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
-        
-        // LOGIKA BARU: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR (untuk Guru)
-        $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
-        
-        if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
-            $message = $holiday ? 'Tidak dapat melakukan presensi pada hari libur: ' . $holiday['nama'] : 'Tidak dapat melakukan presensi pada hari weekend';
-            sendResponse(false, $message);
-        }
 
-        // 2. CEK JADWAL PIKET HARI INI
-        $hariInggris = date('l');
-        $hariIndonesia = [
-            'Monday' => 'Senin', 'Tuesday' => 'Selasa', 'Wednesday' => 'Rabu',
-            'Thursday' => 'Kamis', 'Friday' => 'Jumat', 'Saturday' => 'Sabtu', 'Sunday' => 'Minggu'
-        ];
-        $hariIni = $hariIndonesia[$hariInggris];
-
-        $stmtPiket = $pdo->prepare("SELECT jam_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
-        $stmtPiket->execute([$userId, $hariIni]);
-        $piket = $stmtPiket->fetch();
-
-        $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
-        $piketLabel = "";
-        
-        if ($isSpecialWorkday && !empty($holiday['jam_masuk_khusus'])) {
-            // MODE EVENT KHUSUS/RAPAT: Gunakan jam khusus dari tabel holidays
-            $jamMasukTarget = substr($holiday['jam_masuk_khusus'], 0, 5);
-            $piketLabel = " (Event: " . $holiday['nama'] . ")";
-            // Lewati pengecekan piket rutin
-        } else {
-            // LOGIKA HARI SENIN & APEL
-            if ($hariIni === 'Senin') {
-                if (($settings['apel_senin_enabled'] ?? '0') == '1') {
-                    if ($piket) {
-                        $jamMasukTarget = $piket['jam_piket']; // 06:40
-                        $piketLabel = " (Piket Apel)";
-                    } else {
-                        $jamMasukTarget = '07:00'; // Guru non-piket saat apel
-                        $piketLabel = " (Apel Senin)";
-                    }
-                } else {
-                    // MODE APEL MATI (UAS/Lainnya)
-                    if ($piket) {
-                        $jamMasukTarget = '07:00'; // Override 06:40 -> 07:00
-                        $piketLabel = " (Piket)";
-                    } else {
-                        $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
-                    }
-                }
-            } else {
-                // HARI SELAIN SENIN
-                if ($piket) {
-                    $jamMasukTarget = $piket['jam_piket'];
-                    $piketLabel = " (Piket)";
-                }
-            }
-        }
-        
-        // Cek apakah sudah presensi hari ini
         $stmt = $pdo->prepare("
-            SELECT id, status, jam_masuk, jam_pulang, keterangan
+            SELECT *
             FROM attendance_logs
             WHERE user_id = ? AND tanggal = ?
             LIMIT 1
         ");
         $stmt->execute([$userId, $today]);
         $existing = $stmt->fetch();
-        
+
         if ($existing) {
-            // Cek apakah ini percobaan Pulang (jam_pulang masih kosong) — berlaku untuk semua tipe guru
-            if (!$existing['jam_pulang']) {
-                // SMART DETECT: Otomatis anggap pulang jika sudah lewat jam 09:00 WIB
-                // ATAU jika is_pulang dikirim true eksplisit (boolean true ATAU string '1')
-                $currentHour = intval(date('H'));
-                $isPulangFlag = isset($data['is_pulang']) && ($data['is_pulang'] === true || $data['is_pulang'] === 1 || $data['is_pulang'] === '1');
-                $isPulangRequest = $isPulangFlag || ($currentHour >= 9);
+            $currentHour = intval(date('H'));
+            $isPulangFlag = isset($data['is_pulang']) && ($data['is_pulang'] === true || $data['is_pulang'] === 1 || $data['is_pulang'] === '1');
+            $isPulangRequest = $isPulangFlag || ($currentHour >= 9);
 
-                if ($isPulangRequest) {
-                    // VALIDASI JAM PULANG - Minimal Jam 09:00 WIB (Force tetap 09:00 untuk non-admin)
-                    if ($currentHour < 9 && $_SESSION['role'] !== 'admin') {
-                        sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul 09:00 WIB');
-                    }
-
-                    // VALIDASI JAM PULANG PIKET
-                    $stmtPiketCheckout = $pdo->prepare("SELECT jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
-                    $stmtPiketCheckout->execute([$userId, $hariIni]);
-                    $piketCheckout = $stmtPiketCheckout->fetch();
-
-                    if ($piketCheckout && !empty($piketCheckout['jam_pulang_piket'])) {
-                        list($piketHour, $piketMinute) = explode(':', $piketCheckout['jam_pulang_piket']);
-                        $piketTimeInMinutes = (intval($piketHour) * 60) + intval($piketMinute);
-                        $currentTimeInMinutes = (intval(date('H')) * 60) + intval(date('i'));
-
-                        if ($currentTimeInMinutes < $piketTimeInMinutes && empty($data['izin_pulang_awal'])) {
-                            $jamPulangPiketStr = substr($piketCheckout['jam_pulang_piket'], 0, 5);
-                            sendResponse(false, "PIKET_RESTRICTION|{$jamPulangPiketStr}");
-                        }
-
-                        // Jika izin_pulang_awal ada, tambahkan info ke activity log atau keterangan jika memungkinkan
-                        // Tapi di qr_scan.php kita tidak mengupdate keterangan di sini, hanya jam_pulang.
-                    }
-
-                    // Update jam pulang
-                    $keterangan = $existing['keterangan'] ?? '';
-                    if (!empty($data['izin_pulang_awal'])) {
-                        $reason = !empty($data['keterangan']) ? " | Alasan: " . $data['keterangan'] : "";
-                        $keterangan = ($keterangan ? $keterangan . " " : "") . "(Izin Pulang Awal Piket{$reason})";
-                    }
-                    
-                    $stmt = $pdo->prepare("UPDATE attendance_logs SET jam_pulang = ?, keterangan = ?, updated_at = NOW() WHERE id = ?");
-                    $stmt->execute([$currentTime, $keterangan, $existing['id']]);
-                    
-                    // Log activity untuk pulang
-                    try {
-                        $stmtLog = $pdo->prepare("INSERT INTO activity_logs (user, aktivitas, status) VALUES (?, ?, ?)");
-                        $stmtLog->execute([$userName, 'Presensi Pulang (Smart QR)', 'Sukses']);
-                    } catch (Exception $e) { /* Ignore */ }
-
-                    sendResponse(true, 'Presensi pulang berhasil (Smart Scan)!', [
-                        'jam_pulang' => $currentTime,
-                        'attendance' => getAttendanceById($pdo, $existing['id']),
-                        'message' => 'Hati-hati di jalan!'
-                    ]);
-                } else {
-                    sendResponse(false, 'Anda sudah presensi masuk. Belum bisa presensi pulang sebelum pukul 09:00 WIB.');
-                }
-            } else {
-                sendResponse(false, 'Anda sudah melakukan lengkap presensi (Masuk & Pulang) hari ini.');
+            if (!$isPulangRequest) {
+                sendResponse(false, 'Anda sudah presensi masuk. Belum bisa presensi pulang sebelum pukul 09:00 WIB.');
             }
+
+            $attendance = gp_checkout_attendance($pdo, [
+                'record' => $existing,
+                'time' => $currentTime,
+                'izin_pulang_awal' => !empty($data['izin_pulang_awal']),
+                'keterangan' => $data['keterangan'] ?? '',
+                'method' => 'qr_scan'
+            ]);
+
+            sendResponse(true, 'Presensi pulang berhasil (Smart Scan)!', [
+                'jam_pulang' => $attendance['jam_pulang'],
+                'attendance' => $attendance,
+                'message' => 'Hati-hati di jalan!'
+            ]);
         }
-        
-        // Guru partime: langsung hadir tanpa cek keterlambatan
-        if ($user['tipe_guru'] === 'partime') {
-            $status = 'hadir';
-            $keterangan = 'Guru Partime';
-        } else {
-            // Guru full_time: cek keterlambatan seperti biasa
-            $toleransi = intval($settings['toleransi_terlambat'] ?? 15);
-            
-            list($jamNormal, $menitNormal) = explode(':', $jamMasukTarget);
-            list($jamSekarang, $menitSekarang) = explode(':', $currentTime);
-            
-            $waktuNormal = intval($jamNormal) * 60 + intval($menitNormal);
-            $waktuSekarang = intval($jamSekarang) * 60 + intval($menitSekarang);
-            
-            $selisih = $waktuSekarang - $waktuNormal;
-            
-            $status = 'hadir';
-            $keterangan = '';
-            
-            if ($selisih > 0) {
-                if ($selisih <= $toleransi) {
-                    $status = 'hadir_terlambat';
-                    $keterangan = "Terlambat {$selisih} menit" . $piketLabel;
-                } else {
-                    $status = 'hadir_terlambat';
-                    $keterangan = "Terlambat {$selisih} menit (Parah)" . $piketLabel;
-                }
-            }
-        }
-        
-        // Simpan presensi
-        $stmt = $pdo->prepare("
-            INSERT INTO attendance_logs 
-            (user_id, nama, tanggal, status, jam_masuk, jam_hadir, keterangan, latitude, longitude, metode)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'qr_scan')
-        ");
-        
-        $stmt->execute([
-            $userId,
-            $userName,
-            $today,
-            $status,
-            $currentTime,
-            $currentTime,
-            $keterangan,
-            $data['latitude'],
-            $data['longitude']
+
+        $attendance = gp_create_attendance($pdo, [
+            'user' => $user,
+            'date' => $today,
+            'time' => $currentTime,
+            'status' => 'hadir',
+            'keterangan' => '',
+            'latitude' => $data['latitude'],
+            'longitude' => $data['longitude'],
+            'method' => 'qr_scan'
         ]);
-        
-        $insertId = $pdo->lastInsertId();
-        
-        // Log activity
-        try {
-            $stmtLog = $pdo->prepare("INSERT INTO activity_logs (user, aktivitas, status) VALUES (?, ?, ?)");
-            $stmtLog->execute([$userName, 'Presensi QR Scan', ucfirst($status)]);
-        } catch (Exception $e) {
-            // Ignore log errors
-        }
-        
-        // Response
-        $response = [
-            'id' => $insertId,
-            'status' => $status,
-            'jam_masuk' => $currentTime,
-            'keterangan' => $keterangan,
+
+        $message = $attendance['status'] === 'hadir'
+            ? 'Presensi berhasil! Selamat bekerja!'
+            : 'Presensi berhasil! (' . $attendance['keterangan'] . ')';
+
+        sendResponse(true, $message, [
+            'id' => $attendance['id'],
+            'status' => $attendance['status'],
+            'jam_masuk' => $attendance['jam_masuk'],
+            'keterangan' => $attendance['keterangan'],
             'metode' => 'qr_scan',
-            'attendance' => getAttendanceById($pdo, $insertId)
-        ];
-        
-        $message = $status === 'hadir' 
-            ? 'Presensi berhasil! Selamat bekerja!' 
-            : "Presensi berhasil! ({$keterangan})";
-        
-        sendResponse(true, $message, $response);
-        
+            'attendance' => $attendance
+        ]);
+
     } catch (PDOException $e) {
         handleError($e, 'qr_scan.php - create');
     }
@@ -397,7 +215,7 @@ if ($method === 'GET') {
             LIMIT 1
         ");
         $stmt->execute([$userId, $today]);
-        $attendance = mapAttendanceRecord($stmt->fetch());
+        $attendance = gp_map_attendance_record($stmt->fetch());
         
         sendResponse(true, 'Status presensi', [
             'has_checked_in' => $attendance ? true : false,
