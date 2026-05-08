@@ -11,6 +11,11 @@
 	}
 	respond @blockedApiFiles 404
 
+	@blockedDataFiles {
+		path /migrations/* /*.sql
+	}
+	respond @blockedDataFiles 404
+
 	handle /api/* {
 		php_server
 	}

@@ -29,7 +29,12 @@ try {
     $isWeekend = ($dayOfWeek == 6 || $dayOfWeek == 7);
     
     // 2. Cek hari libur nasional dari database
-    $holidayStmt = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
+    $holidayStmt = $pdo->prepare("
+        SELECT tanggal, nama, jenis, is_workday
+        FROM holidays
+        WHERE tanggal = ?
+        LIMIT 1
+    ");
     $holidayStmt->execute([$today]);
     $holiday = $holidayStmt->fetch(PDO::FETCH_ASSOC);
     

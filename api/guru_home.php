@@ -19,7 +19,12 @@ try {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 
-    $holidayStmt = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
+    $holidayStmt = $pdo->prepare("
+        SELECT tanggal, nama, jenis, is_workday, jam_masuk_khusus
+        FROM holidays
+        WHERE tanggal = ?
+        LIMIT 1
+    ");
     $holidayStmt->execute([$today]);
     $holiday = $holidayStmt->fetch();
 
@@ -37,7 +42,14 @@ try {
         'dayName' => ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][$dayOfWeek]
     ];
 
-    $attendanceStmt = $pdo->prepare("SELECT * FROM attendance_logs WHERE user_id = ? AND tanggal = ? LIMIT 1");
+    $attendanceStmt = $pdo->prepare("
+        SELECT id, user_id, nama, tanggal, status, jam_masuk, jam_pulang, jam_hadir,
+               jam_izin, jam_sakit, keterangan, latitude, longitude, metode,
+               created_at, updated_at
+        FROM attendance_logs
+        WHERE user_id = ? AND tanggal = ?
+        LIMIT 1
+    ");
     $attendanceStmt->execute([$userId, $today]);
     $attendance = $attendanceStmt->fetch();
     if ($attendance) {
@@ -62,23 +74,13 @@ try {
     $hari = $hariIndonesia[$hariInggris];
 
     $piketStmt = $pdo->prepare("
-        SELECT jp.id, jp.user_id, jp.nama_guru, jp.hari, jp.jam_piket, jp.jam_pulang_piket,
-               jp.keterangan, jp.created_at, jp.updated_at, u.username
-        FROM jadwal_piket jp
-        LEFT JOIN users u ON jp.user_id = u.id
-        WHERE jp.hari = ?
-        ORDER BY jp.jam_piket ASC
+        SELECT id, user_id, nama_guru, hari, jam_piket, jam_pulang_piket, keterangan
+        FROM jadwal_piket
+        WHERE user_id = ? AND hari = ?
+        LIMIT 1
     ");
-    $piketStmt->execute([$hari]);
-    $jadwal = $piketStmt->fetchAll();
-
-    $myPiket = null;
-    foreach ($jadwal as $row) {
-        if ((int)$row['user_id'] === (int)$userId) {
-            $myPiket = $row;
-            break;
-        }
-    }
+    $piketStmt->execute([$userId, $hari]);
+    $myPiket = $piketStmt->fetch();
 
     sendResponse(true, 'Data dashboard guru berhasil diambil', [
         'today' => $today,
@@ -87,7 +89,6 @@ try {
         'attendance' => $attendance ?: null,
         'piket' => [
             'hari' => $hari,
-            'jadwal' => $jadwal,
             'mine' => $myPiket,
             'isPiketToday' => $myPiket ? true : false
         ]

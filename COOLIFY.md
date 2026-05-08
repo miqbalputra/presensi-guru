@@ -61,7 +61,17 @@ curl -fsS https://domain-presensi-anda.com/api/webhook_reminder.php
 
 Jalankan pada jam `08:00`, `09:00`, dan `10:00` WIB.
 
-## 5. Catatan Keamanan
+## 5. Optimasi Database Produksi
+
+Setelah import database dan deploy pertama berhasil, jalankan migrasi index berikut satu kali di database MySQL produksi:
+
+```sql
+SOURCE migrations/2026-05-08-performance-indexes.sql;
+```
+
+Jika menjalankan dari SQL console Coolify/MySQL, copy isi file `migrations/2026-05-08-performance-indexes.sql` lalu execute. Migrasi ini hanya menambahkan index jika belum ada, sehingga aman dijalankan ulang dan tidak mengubah isi data presensi.
+
+## 6. Catatan Keamanan
 
 Endpoint debug/reset/import lama sudah dikeluarkan dari image production. Credential database dan API key harus disimpan di environment variable Coolify, bukan di file PHP.
 

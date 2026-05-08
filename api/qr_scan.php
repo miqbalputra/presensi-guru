@@ -32,31 +32,9 @@ if ($method === 'POST') {
             sendResponse(false, 'Format QR Code tidak valid');
         }
         
-        // Validasi QR secret dari settings
-        $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'qr_secret'");
-        $stmt->execute();
-        $qrSecretSetting = $stmt->fetch();
-        
-        if (!$qrSecretSetting || $qrData['secret'] !== $qrSecretSetting['setting_value']) {
-            sendResponse(false, 'QR Code tidak valid atau sudah kadaluarsa');
-        }
-        
-        // Validasi tipe QR
-        if ($qrData['type'] !== 'attendance') {
-            sendResponse(false, 'QR Code bukan untuk presensi');
-        }
-        
-        // Cek apakah fitur QR enabled
-        $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'qr_enabled'");
-        $stmt->execute();
-        $qrEnabled = $stmt->fetch();
-        
-        if (!$qrEnabled || $qrEnabled['setting_value'] !== '1') {
-            sendResponse(false, 'Fitur QR Code Scan sedang tidak aktif');
-        }
-        
-        // Get settings untuk validasi GPS
+        // Get settings untuk validasi QR, GPS, dan jam presensi dalam satu query.
         $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN (
+            'qr_secret', 'qr_enabled',
             'sekolah_latitude', 'sekolah_longitude', 'radius_gps', 'mode_testing', 
             'jam_masuk_normal', 'toleransi_terlambat',
             'lokasi_laki_latitude', 'lokasi_laki_longitude',
@@ -71,6 +49,20 @@ if ($method === 'POST') {
         foreach ($settingsArr as $s) {
             $settings[$s['setting_key']] = $s['setting_value'];
         }
+
+        if (empty($settings['qr_secret']) || $qrData['secret'] !== $settings['qr_secret']) {
+            sendResponse(false, 'QR Code tidak valid atau sudah kadaluarsa');
+        }
+        
+        // Validasi tipe QR
+        if ($qrData['type'] !== 'attendance') {
+            sendResponse(false, 'QR Code bukan untuk presensi');
+        }
+        
+        // Cek apakah fitur QR enabled
+        if (($settings['qr_enabled'] ?? '0') !== '1') {
+            sendResponse(false, 'Fitur QR Code Scan sedang tidak aktif');
+        }
         
         // Validasi GPS (kecuali mode testing)
         $isTestingMode = ($settings['mode_testing'] ?? '0') == '1'; // Gunakan == agar int(1) tetap true sebagai '1'
@@ -80,7 +72,12 @@ if ($method === 'POST') {
             $user = $_SESSION['user'];
         } else {
             // Fallback: ambil dari database pakai user_id
-            $stmtUser = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+            $stmtUser = $pdo->prepare("
+                SELECT id, nama, jenis_kelamin, tipe_guru
+                FROM users
+                WHERE id = ?
+                LIMIT 1
+            ");
             $stmtUser->execute([$_SESSION['user_id']]);
             $user = $stmtUser->fetch();
             if (!$user) {
@@ -135,7 +132,12 @@ if ($method === 'POST') {
         $currentTime = date('H:i:s');
         
         // 1. CEK APAKAH HARI LIBUR / SPECIAL WORKDAY
-        $stmt_holiday = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
+        $stmt_holiday = $pdo->prepare("
+            SELECT tanggal, nama, jenis, is_workday, jam_masuk_khusus
+            FROM holidays
+            WHERE tanggal = ?
+            LIMIT 1
+        ");
         $stmt_holiday->execute([$today]);
         $holiday = $stmt_holiday->fetch();
         
@@ -200,7 +202,12 @@ if ($method === 'POST') {
         }
         
         // Cek apakah sudah presensi hari ini
-        $stmt = $pdo->prepare("SELECT id, status, jam_masuk, jam_pulang FROM attendance_logs WHERE user_id = ? AND tanggal = ?");
+        $stmt = $pdo->prepare("
+            SELECT id, status, jam_masuk, jam_pulang, keterangan
+            FROM attendance_logs
+            WHERE user_id = ? AND tanggal = ?
+            LIMIT 1
+        ");
         $stmt->execute([$userId, $today]);
         $existing = $stmt->fetch();
         
@@ -357,7 +364,14 @@ if ($method === 'GET') {
     $today = date('Y-m-d');
     
     try {
-        $stmt = $pdo->prepare("SELECT * FROM attendance_logs WHERE user_id = ? AND tanggal = ?");
+        $stmt = $pdo->prepare("
+            SELECT id, user_id, nama, tanggal, status, jam_masuk, jam_pulang, jam_hadir,
+                   jam_izin, jam_sakit, keterangan, latitude, longitude, metode,
+                   created_at, updated_at
+            FROM attendance_logs
+            WHERE user_id = ? AND tanggal = ?
+            LIMIT 1
+        ");
         $stmt->execute([$userId, $today]);
         $attendance = $stmt->fetch();
         
