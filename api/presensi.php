@@ -181,7 +181,10 @@ if ($method === 'PUT') {
                 'time' => $jp,
                 'izin_pulang_awal' => !empty($data['izin_pulang_awal']),
                 'keterangan' => $data['keterangan'] ?? '',
-                'method' => 'manual'
+                'method' => 'manual',
+                'latitude' => $data['latitude'] ?? null,
+                'longitude' => $data['longitude'] ?? null,
+                'validate_location' => true
             ]);
 
             sendResponse(true, 'Presensi berhasil diupdate', [

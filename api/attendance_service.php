@@ -61,6 +61,123 @@ function gp_get_guru($pdo, $userId)
     return $stmt->fetch();
 }
 
+function gp_calculate_distance($lat1, $lon1, $lat2, $lon2)
+{
+    $earthRadius = 6371000;
+    $latDiff = deg2rad($lat2 - $lat1);
+    $lonDiff = deg2rad($lon2 - $lon1);
+
+    $a = sin($latDiff / 2) * sin($latDiff / 2) +
+        cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+        sin($lonDiff / 2) * sin($lonDiff / 2);
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+    return round($earthRadius * $c);
+}
+
+function gp_get_setting_coordinate($settings, $latKey, $lonKey)
+{
+    if (!isset($settings[$latKey], $settings[$lonKey])) {
+        return null;
+    }
+
+    if (!validateCoordinates($settings[$latKey], $settings[$lonKey])) {
+        return null;
+    }
+
+    return [
+        'lat' => (float)$settings[$latKey],
+        'lon' => (float)$settings[$lonKey]
+    ];
+}
+
+function gp_add_location_target(&$targets, $label, $coord)
+{
+    if (!$coord) {
+        return;
+    }
+
+    $key = $coord['lat'] . ',' . $coord['lon'];
+    if (isset($targets[$key])) {
+        return;
+    }
+
+    $targets[$key] = [
+        'label' => $label,
+        'lat' => $coord['lat'],
+        'lon' => $coord['lon']
+    ];
+}
+
+function gp_get_attendance_location_targets($settings, $user, $date, $isCheckout = false)
+{
+    $targets = [];
+    $school = gp_get_setting_coordinate($settings, 'sekolah_latitude', 'sekolah_longitude');
+    $apel = gp_get_setting_coordinate($settings, 'lokasi_apel_latitude', 'lokasi_apel_longitude');
+    $gender = $user['jenis_kelamin'] ?? '';
+
+    if ($isCheckout && $gender === 'Perempuan') {
+        gp_add_location_target($targets, 'Lokasi Sekolah', $school);
+        gp_add_location_target($targets, 'Lokasi Masjid/Apel', $apel);
+        return array_values($targets);
+    }
+
+    $isMonday = date('w', strtotime($date)) == 1;
+    if ($isMonday && ($settings['apel_senin_enabled'] ?? '0') == '1') {
+        gp_add_location_target($targets, 'Lokasi Apel Senin', $apel ?: $school);
+        return array_values($targets);
+    }
+
+    if ($gender === 'Laki-laki') {
+        gp_add_location_target($targets, 'Area Guru Laki-laki', gp_get_setting_coordinate($settings, 'lokasi_laki_latitude', 'lokasi_laki_longitude') ?: $school);
+    } elseif ($gender === 'Perempuan') {
+        gp_add_location_target($targets, 'Area Guru Perempuan', gp_get_setting_coordinate($settings, 'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude') ?: $school);
+    } else {
+        gp_add_location_target($targets, 'Lokasi Sekolah', $school);
+    }
+
+    return array_values($targets);
+}
+
+function gp_enforce_attendance_location($settings, $user, $latitude, $longitude, $date, $isCheckout = false)
+{
+    if (($settings['mode_testing'] ?? '0') == '1') {
+        return;
+    }
+
+    if (!validateCoordinates($latitude, $longitude)) {
+        sendResponse(false, 'Koordinat GPS tidak valid');
+    }
+
+    $targets = gp_get_attendance_location_targets($settings, $user, $date, $isCheckout);
+    if (empty($targets)) {
+        sendResponse(false, 'Lokasi presensi belum dikonfigurasi. Hubungi admin.');
+    }
+
+    $radius = (int)($settings['radius_gps'] ?? 100);
+    $nearestDistance = null;
+    $nearestLabel = '';
+    $allowedLabels = [];
+
+    foreach ($targets as $target) {
+        $distance = gp_calculate_distance((float)$latitude, (float)$longitude, $target['lat'], $target['lon']);
+        $allowedLabels[] = $target['label'];
+
+        if ($distance <= $radius) {
+            return;
+        }
+
+        if ($nearestDistance === null || $distance < $nearestDistance) {
+            $nearestDistance = $distance;
+            $nearestLabel = $target['label'];
+        }
+    }
+
+    $areaLabel = implode(' / ', array_unique($allowedLabels));
+    $distanceText = $nearestDistance === null ? '-' : $nearestDistance . 'm';
+    sendResponse(false, "Anda berada di luar area {$areaLabel}. Jarak terdekat: {$distanceText} dari {$nearestLabel}, Maksimal: {$radius}m");
+}
+
 function gp_day_name($date)
 {
     $days = [
@@ -262,6 +379,29 @@ function gp_checkout_attendance($pdo, $options)
     }
 
     [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date);
+    if (!empty($options['validate_location'])) {
+        $user = gp_get_guru($pdo, $record['user_id']);
+        if (!$user) {
+            sendResponse(false, 'Data guru tidak ditemukan');
+        }
+
+        $settings = gp_get_settings($pdo, [
+            'sekolah_latitude', 'sekolah_longitude', 'radius_gps', 'mode_testing',
+            'lokasi_laki_latitude', 'lokasi_laki_longitude',
+            'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude',
+            'lokasi_apel_latitude', 'lokasi_apel_longitude',
+            'apel_senin_enabled'
+        ]);
+        gp_enforce_attendance_location(
+            $settings,
+            $user,
+            $options['latitude'] ?? null,
+            $options['longitude'] ?? null,
+            $date,
+            true
+        );
+    }
+
     $piket = gp_get_piket($pdo, $record['user_id'], $date);
 
     if (!$isSpecialWorkday && $piket && !empty($piket['jam_pulang_piket'])) {

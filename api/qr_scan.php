@@ -65,9 +65,6 @@ if ($method === 'POST') {
             sendResponse(false, 'Fitur QR Code Scan sedang tidak aktif');
         }
         
-        // Validasi GPS (kecuali mode testing)
-        $isTestingMode = ($settings['mode_testing'] ?? '0') == '1'; // Gunakan == agar int(1) tetap true sebagai '1'
-        
         // Get user info from session — dengan fallback DB jika sesi lama
         if (isset($_SESSION['user']) && is_array($_SESSION['user']) && isset($_SESSION['user']['jenis_kelamin'], $_SESSION['user']['tipe_guru'])) {
             $user = $_SESSION['user'];
@@ -88,45 +85,6 @@ if ($method === 'POST') {
         }
         $userId = $user['id'];
         $userName = $user['nama'];
-
-        if (!$isTestingMode) {
-            $dayOfWeek = date('w'); // 0 (Sunday) to 6 (Saturday)
-            $isMonday = ($dayOfWeek == 1);
-            
-            $targetLat = floatval($settings['sekolah_latitude'] ?? 0);
-            $targetLon = floatval($settings['sekolah_longitude'] ?? 0);
-            $locationName = "Sekolah";
-
-            // 1. Cek Hari Senin (Apel)
-            if ($isMonday && ($settings['apel_senin_enabled'] ?? '0') == '1') {
-            $targetLat = floatval($settings['lokasi_apel_latitude'] ?? $targetLat);
-                $targetLon = floatval($settings['lokasi_apel_longitude'] ?? $targetLon);
-                $locationName = "Lokasi Apel Senin";
-            } else {
-                // 2. Jika bukan Senin, gunakan lokasi berbasis Gender
-                if ($user['jenis_kelamin'] === 'Laki-laki') {
-                    $targetLat = floatval($settings['lokasi_laki_latitude'] ?? $targetLat);
-                    $targetLon = floatval($settings['lokasi_laki_longitude'] ?? $targetLon);
-                    $locationName = "Area Guru Laki-laki";
-                } else if ($user['jenis_kelamin'] === 'Perempuan') {
-                    $targetLat = floatval($settings['lokasi_perempuan_latitude'] ?? $targetLat);
-                    $targetLon = floatval($settings['lokasi_perempuan_longitude'] ?? $targetLon);
-                    $locationName = "Area Guru Perempuan";
-                }
-            }
-
-            $radius = intval($settings['radius_gps'] ?? 100);
-            $userLat = floatval($data['latitude']);
-            $userLon = floatval($data['longitude']);
-            
-            // Hitung jarak menggunakan Haversine formula
-            $distance = calculateDistance($userLat, $userLon, $targetLat, $targetLon);
-            
-            if ($distance > $radius) {
-                sendResponse(false, "Anda berada di luar area {$locationName}. Jarak: {$distance}m, Maksimal: {$radius}m");
-            }
-        }
-        
 
         // Tanggal hari ini
         $today = date('Y-m-d');
@@ -150,6 +108,8 @@ if ($method === 'POST') {
                 sendResponse(false, 'Anda sudah presensi masuk. Belum bisa presensi pulang sebelum pukul 09:00 WIB.');
             }
 
+            gp_enforce_attendance_location($settings, $user, $data['latitude'], $data['longitude'], $today, true);
+
             $attendance = gp_checkout_attendance($pdo, [
                 'record' => $existing,
                 'time' => $currentTime,
@@ -164,6 +124,8 @@ if ($method === 'POST') {
                 'message' => 'Hati-hati di jalan!'
             ]);
         }
+
+        gp_enforce_attendance_location($settings, $user, $data['latitude'], $data['longitude'], $today, false);
 
         $attendance = gp_create_attendance($pdo, [
             'user' => $user,
