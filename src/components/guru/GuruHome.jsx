@@ -1,7 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
 import { CheckCircle, FileText, AlertCircle, Clock, QrCode } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
-import { calculateDistance, getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage, validateLocation } from '../../utils/geoLocation'
+import { calculateDistance, getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
 import { SCHOOL_LOCATION } from '../../data/dummyData'
 import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
 
@@ -23,6 +23,8 @@ function GuruHome({ user }) {
     radius_gps: '500',
     sekolah_latitude: '-5.1477',
     sekolah_longitude: '119.4327',
+    lokasi_laki_latitude: '',
+    lokasi_laki_longitude: '',
     lokasi_apel_latitude: '',
     lokasi_apel_longitude: '',
     mode_testing: '1',
@@ -111,7 +113,7 @@ function GuruHome({ user }) {
 
   const getAttendanceFromResponse = (response) => response?.data?.attendance || null
 
-  const getCheckoutLocationTargets = () => {
+  const getAttendanceLocationTargets = (isCheckout = false) => {
     const targets = []
     const addTarget = (label, lat, lon) => {
       const parsedLat = parseFloat(lat)
@@ -121,19 +123,39 @@ function GuruHome({ user }) {
       targets.push({ label, lat: parsedLat, lon: parsedLon })
     }
 
-    addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
-
     const gender = user?.jenis_kelamin || user?.jenisKelamin
-    if (gender === 'Perempuan') {
+    const isMonday = new Date().getDay() === 1
+    const isApelEnabled = settings.apel_senin_enabled == '1'
+
+    if (isCheckout && gender === 'Perempuan') {
+      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
       addTarget('masjid/apel', settings.lokasi_apel_latitude, settings.lokasi_apel_longitude)
+      return targets
+    }
+
+    if (isMonday && isApelEnabled) {
+      addTarget('apel senin', settings.lokasi_apel_latitude, settings.lokasi_apel_longitude)
+      if (gender === 'Laki-laki') {
+        addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
+      }
+      return targets
+    }
+
+    if (gender === 'Laki-laki') {
+      addTarget('pos guru laki-laki', settings.lokasi_laki_latitude, settings.lokasi_laki_longitude)
+      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
+    } else if (gender === 'Perempuan') {
+      addTarget('area guru perempuan', settings.lokasi_perempuan_latitude, settings.lokasi_perempuan_longitude)
+    } else {
+      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
     }
 
     return targets
   }
 
-  const validateCheckoutLocation = (location) => {
+  const validateAttendanceLocation = (location, isCheckout = false) => {
     const radius = parseInt(settings.radius_gps, 10)
-    const targets = getCheckoutLocationTargets()
+    const targets = getAttendanceLocationTargets(isCheckout)
 
     if (!targets.length || !Number.isFinite(radius)) {
       return { isValid: false, message: 'Lokasi presensi belum dikonfigurasi. Hubungi admin.' }
@@ -368,19 +390,12 @@ function GuruHome({ user }) {
       const location = await getFastLocation()
 
       if (!TESTING_MODE) {
-        // Gunakan koordinat dari settings (bukan hardcoded)
-        const validation = validateLocation(
-          location.latitude,
-          location.longitude,
-          parseFloat(settings.sekolah_latitude),
-          parseFloat(settings.sekolah_longitude),
-          parseInt(settings.radius_gps)
-        )
+        const validation = validateAttendanceLocation(location, false)
 
         if (!validation.isValid) {
           setMessage({
             type: 'error',
-            text: `Anda berada di luar jangkauan sekolah (${validation.distance}m dari sekolah). Maksimal jarak: ${settings.radius_gps}m`
+            text: validation.message
           })
           setLoading(false)
           return
@@ -525,7 +540,7 @@ function GuruHome({ user }) {
       const location = await getFastLocation()
 
       if (!TESTING_MODE) {
-        const validation = validateCheckoutLocation(location)
+        const validation = validateAttendanceLocation(location, true)
 
         if (!validation.isValid) {
           setMessage({
