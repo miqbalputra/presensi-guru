@@ -362,10 +362,13 @@ function setupSecureSession()
         $timeout = ($role === 'admin' || $role === 'kepala_sekolah') ? 7200 : (30 * 24 * 60 * 60);
 
         if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+            $isRestoreRequest = strpos($_SERVER['REQUEST_URI'] ?? '', 'auth.php?action=restore') !== false;
             session_unset();
             @session_destroy();
             @session_start();
-            sendResponse(false, 'Sesi berakhir karena inaktivitas. Silakan login kembali.');
+            if (!$isRestoreRequest) {
+                sendResponse(false, 'Sesi berakhir karena inaktivitas. Silakan login kembali.');
+            }
         }
     }
 

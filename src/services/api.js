@@ -57,6 +57,14 @@ export const authAPI = {
       method: 'GET',
     })
   },
+
+  restoreSession: async (rememberToken) => {
+    return fetchAPI('/auth.php?action=restore', {
+      method: 'POST',
+      body: JSON.stringify({ rememberToken }),
+      timeoutMs: 10000,
+    })
+  },
 }
 
 // Guru API

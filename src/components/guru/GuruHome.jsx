@@ -55,9 +55,10 @@ function GuruHome({ user }) {
       console.log('💓 Heartbeat: Keeping session alive...')
       authAPI.checkSession().catch(err => {
         console.error('Heartbeat failed:', err)
-        // Jika benar-benar Unauthorized, mungkin perlu redirect ke login
-        if (err.message?.includes('Unauthorized')) {
-          window.location.reload() 
+        if (user?.rememberToken) {
+          authAPI.restoreSession(user.rememberToken).catch(restoreErr => {
+            console.error('Failed to restore guru session:', restoreErr)
+          })
         }
       })
     }, 10 * 60 * 1000)
@@ -86,8 +87,13 @@ function GuruHome({ user }) {
     let intervalId = null
     const intervalMinutes = Math.min(Math.max(parseInt(settings.location_tracking_interval_minutes || '15', 10) || 15, 5), 60)
     const accuracyLimit = Math.min(Math.max(parseInt(settings.location_tracking_accuracy_limit || '100', 10) || 100, 20), 1000)
+    let lastTrackingAttemptAt = 0
 
     const sendTrackingPoint = async () => {
+      const now = Date.now()
+      if (now - lastTrackingAttemptAt < 15000) return
+      lastTrackingAttemptAt = now
+
       try {
         setTrackingStatus({ state: 'loading', message: 'Mengirim lokasi tracking...' })
         const location = await getReliableUserLocation({
@@ -121,10 +127,22 @@ function GuruHome({ user }) {
 
     sendTrackingPoint()
     intervalId = setInterval(sendTrackingPoint, intervalMinutes * 60 * 1000)
+    const sendTrackingOnResume = () => {
+      if (!document.hidden) {
+        sendTrackingPoint()
+      }
+    }
+
+    document.addEventListener('visibilitychange', sendTrackingOnResume)
+    window.addEventListener('focus', sendTrackingOnResume)
+    window.addEventListener('pageshow', sendTrackingOnResume)
 
     return () => {
       cancelled = true
       if (intervalId) clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', sendTrackingOnResume)
+      window.removeEventListener('focus', sendTrackingOnResume)
+      window.removeEventListener('pageshow', sendTrackingOnResume)
     }
   }, [
     todayAttendance?.id,

@@ -72,10 +72,22 @@ function App() {
   const GURU_30_DAYS_MS = 30 * 24 * 60 * 60 * 1000 // 30 hari dalam milidetik
 
   // Didefinisikan sebelum useEffect agar bisa dipakai di dalam syncSession
-  const handleLogin = (userData) => {
-    setUser(userData)
-    const userWithTimestamp = { ...userData, loginAt: Date.now() }
+  const persistUser = (userData) => {
+    const existingUser = JSON.parse(localStorage.getItem('user') || '{}')
+    const loginAt = existingUser.loginAt || userData.loginAt || Date.now()
+    const rememberToken = userData.rememberToken || existingUser.rememberToken
+    const userWithTimestamp = { ...existingUser, ...userData, loginAt }
+    if (rememberToken) {
+      userWithTimestamp.rememberToken = rememberToken
+    }
+
+    setUser(userWithTimestamp)
     localStorage.setItem('user', JSON.stringify(userWithTimestamp))
+    return userWithTimestamp
+  }
+
+  const handleLogin = (userData) => {
+    persistUser({ ...userData, loginAt: Date.now() })
   }
 
   const handleLogout = () => {
@@ -112,8 +124,35 @@ function App() {
             // (session PHP di server mungkin sudah expire, tapi localStorage masih valid)
             if (!localUser.loginAt) {
               // Jika belum ada loginAt (user lama), tambahkan sekarang agar periodenya terhitung
-              const updated = { ...localUser, loginAt: Date.now() }
-              localStorage.setItem('user', JSON.stringify(updated))
+              persistUser({ ...localUser, loginAt: Date.now() })
+            }
+
+            try {
+              const session = await authAPI.checkSession()
+              if (session.success && session.data) {
+                persistUser({
+                  ...localUser,
+                  id: session.data.id || session.data.user_id || localUser.id,
+                  user_id: session.data.user_id || localUser.user_id,
+                  username: session.data.username || localUser.username,
+                  role: session.data.role || localUser.role,
+                  nama: session.data.nama || localUser.nama
+                })
+                return
+              }
+            } catch (_) {
+              // Session PHP mungkin hilang setelah browser tidur/redeploy; coba pulihkan dari token 30 hari.
+            }
+
+            if (localUser.rememberToken) {
+              try {
+                const restored = await authAPI.restoreSession(localUser.rememberToken)
+                if (restored.success && restored.data) {
+                  persistUser(restored.data)
+                }
+              } catch (restoreError) {
+                console.warn('Guru session restore failed:', restoreError)
+              }
             }
             return
           }
