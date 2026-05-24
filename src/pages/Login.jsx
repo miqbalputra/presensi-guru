@@ -13,6 +13,17 @@ function Login({ onLogin }) {
 
   const changelog = [
     {
+      version: 'v1.3.0',
+      date: '24 Mei 2026',
+      features: [
+        'Tracking lokasi guru setelah presensi hadir dengan interval yang bisa diatur admin',
+        'Dashboard Tracking Lokasi untuk melihat titik terakhir, akurasi GPS, peta, dan riwayat harian',
+        'Presensi hadir dan pulang mendukung lokasi gender masing-masing dengan fallback ke lokasi sekolah utama',
+        'Status izin dan sakit tidak lagi membutuhkan validasi GPS',
+        'Session guru lebih tahan lama dengan pemulihan otomatis saat PWA dibuka kembali'
+      ]
+    },
+    {
       version: 'v1.2.0',
       date: '21 April 2026',
       features: [
