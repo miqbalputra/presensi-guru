@@ -112,7 +112,10 @@ if ($method === 'POST') {
             sendResponse(false, 'Status presensi tidak valid');
         }
 
-        if (isset($data['latitude']) && isset($data['longitude']) && !validateCoordinates($data['latitude'], $data['longitude'])) {
+        $requiresLocation = in_array($status, ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true);
+        if ($requiresLocation
+            && isset($data['latitude']) && isset($data['longitude'])
+            && !validateCoordinates($data['latitude'], $data['longitude'])) {
             sendResponse(false, 'Koordinat GPS tidak valid');
         }
 
@@ -124,8 +127,8 @@ if ($method === 'POST') {
             'keterangan' => $data['keterangan'] ?? '',
             'jam_izin' => $data['jamIzin'] ?? null,
             'jam_sakit' => $data['jamSakit'] ?? null,
-            'latitude' => $data['latitude'] ?? null,
-            'longitude' => $data['longitude'] ?? null,
+            'latitude' => $requiresLocation ? ($data['latitude'] ?? null) : null,
+            'longitude' => $requiresLocation ? ($data['longitude'] ?? null) : null,
             'method' => 'manual',
             'preserve_status' => ($_SESSION['role'] ?? '') === 'admin'
         ]);

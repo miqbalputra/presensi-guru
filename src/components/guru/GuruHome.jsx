@@ -25,6 +25,8 @@ function GuruHome({ user }) {
     sekolah_longitude: '119.4327',
     lokasi_laki_latitude: '',
     lokasi_laki_longitude: '',
+    lokasi_perempuan_latitude: '',
+    lokasi_perempuan_longitude: '',
     lokasi_apel_latitude: '',
     lokasi_apel_longitude: '',
     mode_testing: '1',
@@ -127,15 +129,9 @@ function GuruHome({ user }) {
     const isMonday = new Date().getDay() === 1
     const isApelEnabled = settings.apel_senin_enabled == '1'
 
-    if (isCheckout && gender === 'Perempuan') {
-      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
-      addTarget('masjid/apel', settings.lokasi_apel_latitude, settings.lokasi_apel_longitude)
-      return targets
-    }
-
     if (isMonday && isApelEnabled) {
       addTarget('apel senin', settings.lokasi_apel_latitude, settings.lokasi_apel_longitude)
-      if (gender === 'Laki-laki') {
+      if (gender === 'Laki-laki' || gender === 'Perempuan') {
         addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
       }
       return targets
@@ -146,6 +142,7 @@ function GuruHome({ user }) {
       addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
     } else if (gender === 'Perempuan') {
       addTarget('area guru perempuan', settings.lokasi_perempuan_latitude, settings.lokasi_perempuan_longitude)
+      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
     } else {
       addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
     }
@@ -432,16 +429,14 @@ function GuruHome({ user }) {
     }
     setLoading(true)
     setShowModal(false)
-    // Untuk izin/sakit, gunakan koordinat 0 (tidak perlu GPS)
-    saveAttendance(modalType, keterangan, 0, 0)
+    saveAttendance(modalType, keterangan)
   }
 
   const saveAttendance = async (status, ket, lat, lon) => {
     try {
       const currentTime = formatTimeForDB()
       const today = formatDateForInput(new Date())
-
-      const response = await presensiAPI.create({
+      const attendanceData = {
         userId: user.id,
         nama: user.nama,
         tanggal: today,
@@ -451,10 +446,15 @@ function GuruHome({ user }) {
         jamHadir: status === 'hadir' ? currentTime : null,
         jamIzin: status === 'izin' ? currentTime : null,
         jamSakit: status === 'sakit' ? currentTime : null,
-        keterangan: ket,
-        latitude: lat,
-        longitude: lon
-      })
+        keterangan: ket
+      }
+
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        attendanceData.latitude = lat
+        attendanceData.longitude = lon
+      }
+
+      const response = await presensiAPI.create(attendanceData)
 
       const attendance = getAttendanceFromResponse(response)
       setTodayAttendance(attendance || {
@@ -475,8 +475,8 @@ function GuruHome({ user }) {
         jam_sakit: status === 'sakit' ? currentTime : null,
         jamSakit: status === 'sakit' ? currentTime : null,
         keterangan: ket,
-        latitude: lat,
-        longitude: lon
+        latitude: Number.isFinite(lat) ? lat : null,
+        longitude: Number.isFinite(lon) ? lon : null
       })
 
       const saved = attendance || {}
