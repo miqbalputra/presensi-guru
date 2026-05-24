@@ -48,10 +48,31 @@ if ($method === 'PUT') {
             'jam_masuk_normal', 'toleransi_terlambat', 'radius_gps', 'sekolah_latitude', 'sekolah_longitude', 'sekolah_nama', 'mode_testing',
             'lokasi_laki_latitude', 'lokasi_laki_longitude', 'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude',
             'lokasi_apel_latitude', 'lokasi_apel_longitude', 'apel_senin_enabled',
+            'location_tracking_enabled', 'location_tracking_interval_minutes', 'location_tracking_accuracy_limit',
             'qr_secret', 'qr_enabled', 'piket_terlambat_adalah_terlambat', 'jam_piket_default', 'button_enabled'
         ];
         if (!in_array($data['setting_key'], $allowedKeys)) {
             sendResponse(false, 'Setting key tidak valid: ' . $data['setting_key']);
+        }
+
+        if ($data['setting_key'] === 'location_tracking_enabled' && !in_array((string)$data['setting_value'], ['0', '1'], true)) {
+            sendResponse(false, 'Nilai tracking lokasi harus 0 atau 1');
+        }
+
+        if ($data['setting_key'] === 'location_tracking_interval_minutes') {
+            $interval = validateInt($data['setting_value'], 5, 60);
+            if ($interval === false) {
+                sendResponse(false, 'Interval tracking harus 5 sampai 60 menit');
+            }
+            $data['setting_value'] = (string)$interval;
+        }
+
+        if ($data['setting_key'] === 'location_tracking_accuracy_limit') {
+            $accuracyLimit = validateInt($data['setting_value'], 20, 1000);
+            if ($accuracyLimit === false) {
+                sendResponse(false, 'Batas akurasi GPS harus 20 sampai 1000 meter');
+            }
+            $data['setting_value'] = (string)$accuracyLimit;
         }
         
         // ... validasi format jam, angka, dll tetap berjalan ...

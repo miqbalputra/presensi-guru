@@ -342,6 +342,39 @@ export const qrGenerateAPI = {
   },
 }
 
+// Location Tracking API
+export const locationTrackingAPI = {
+  submit: async ({ latitude, longitude, accuracy }) => {
+    return fetchAPI('/location_tracking.php', {
+      method: 'POST',
+      body: JSON.stringify({ latitude, longitude, accuracy }),
+      timeoutMs: 10000,
+    })
+  },
+
+  getLatest: async (date) => {
+    const params = new URLSearchParams()
+    if (date) params.set('date', date)
+    return fetchAPI(`/location_tracking.php${params.toString() ? '?' + params.toString() : ''}`, {
+      method: 'GET',
+      timeoutMs: 10000,
+    })
+  },
+
+  getHistory: async (userId, date, limit = 300) => {
+    const params = new URLSearchParams({
+      action: 'history',
+      user_id: userId,
+      limit,
+    })
+    if (date) params.set('date', date)
+    return fetchAPI(`/location_tracking.php?${params}`, {
+      method: 'GET',
+      timeoutMs: 10000,
+    })
+  },
+}
+
 // Manual Entry API (Admin only)
 export const manualEntryAPI = {
   // Get list of guru for dropdown
@@ -374,5 +407,6 @@ export default {
   jadwalPiketAPI,
   qrScanAPI,
   qrGenerateAPI,
+  locationTrackingAPI,
   manualEntryAPI,
 }

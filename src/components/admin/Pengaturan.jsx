@@ -13,7 +13,10 @@ function Pengaturan() {
     mode_testing: '1',
     piket_terlambat_adalah_terlambat: '0',
     button_enabled: '1',
-    apel_senin_enabled: '1'
+    apel_senin_enabled: '1',
+    location_tracking_enabled: '0',
+    location_tracking_interval_minutes: '15',
+    location_tracking_accuracy_limit: '100'
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -148,6 +151,95 @@ function Pengaturan() {
             <p className="text-xs text-gray-500 mt-2">
               Contoh: 07:20 berarti guru yang presensi jam 07:21 atau lebih akan dianggap terlambat
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tracking Lokasi Guru */}
+      <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
+        <div className="flex items-start gap-4">
+          <div className={`p-3 rounded-lg ${settings.location_tracking_enabled == '1' ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+            <MapPin className={`w-6 h-6 ${settings.location_tracking_enabled == '1' ? 'text-emerald-600' : 'text-gray-600'}`} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Tracking Lokasi Guru</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Tracking berjalan setelah guru presensi hadir dan berhenti otomatis setelah presensi pulang. Browser guru harus tetap membuka aplikasi.
+            </p>
+
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
+              <button
+                onClick={() => {
+                  const newValue = settings.location_tracking_enabled == '1' ? '0' : '1'
+                  handleChange('location_tracking_enabled', newValue)
+                  handleSave('location_tracking_enabled', newValue)
+                }}
+                disabled={saving}
+                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                  settings.location_tracking_enabled == '1' ? 'bg-emerald-600' : 'bg-gray-400'
+                }`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                    settings.location_tracking_enabled == '1' ? 'translate-x-9' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <div>
+                <p className={`font-bold ${settings.location_tracking_enabled == '1' ? 'text-emerald-600' : 'text-gray-600'}`}>
+                  {settings.location_tracking_enabled == '1' ? 'TRACKING AKTIF' : 'TRACKING NONAKTIF'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Interval {settings.location_tracking_interval_minutes || 15} menit, batas akurasi {settings.location_tracking_accuracy_limit || 100}m
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Interval Tracking (menit)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="5"
+                    max="60"
+                    value={settings.location_tracking_interval_minutes || '15'}
+                    onChange={(e) => handleChange('location_tracking_interval_minutes', e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => handleSave('location_tracking_interval_minutes')}
+                    disabled={saving}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    Simpan
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Disarankan 10-15 menit. Batas aplikasi: 5 sampai 60 menit.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Batas Akurasi GPS Maksimum (meter)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="20"
+                    max="1000"
+                    value={settings.location_tracking_accuracy_limit || '100'}
+                    onChange={(e) => handleChange('location_tracking_accuracy_limit', e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => handleSave('location_tracking_accuracy_limit')}
+                    disabled={saving}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    Simpan
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Tracking ditolak jika akurasi GPS lebih buruk dari angka ini.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

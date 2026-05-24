@@ -3,7 +3,7 @@ import { CheckCircle, FileText, AlertCircle, Clock, QrCode } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { calculateDistance, getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
 import { SCHOOL_LOCATION } from '../../data/dummyData'
-import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI } from '../../services/api'
+import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI, locationTrackingAPI } from '../../services/api'
 
 const QRScanner = lazy(() => import('./QRScanner'))
 
@@ -31,7 +31,10 @@ function GuruHome({ user }) {
     lokasi_apel_longitude: '',
     mode_testing: '1',
     button_enabled: '0',
-    qr_enabled: '1'
+    qr_enabled: '1',
+    location_tracking_enabled: '0',
+    location_tracking_interval_minutes: '15',
+    location_tracking_accuracy_limit: '100'
   })
   const [jadwalPiketHariIni, setJadwalPiketHariIni] = useState(null)
   const [isPiketToday, setIsPiketToday] = useState(false)
@@ -42,6 +45,7 @@ function GuruHome({ user }) {
   const [keteranganPiket, setKeteranganPiket] = useState('')
   const [piketStep, setPiketStep] = useState(1) // 1: Info, 2: Input Alasan
   const [locationStatus, setLocationStatus] = useState({ state: 'idle', location: null, message: '' })
+  const [trackingStatus, setTrackingStatus] = useState({ state: 'idle', message: '' })
 
   useEffect(() => {
     loadInitialData()
@@ -64,6 +68,73 @@ function GuruHome({ user }) {
   useEffect(() => {
     warmUpLocation()
   }, [settings.mode_testing])
+
+  useEffect(() => {
+    const activeStatuses = ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat']
+    const hasCheckedOut = !!(todayAttendance?.jam_pulang || todayAttendance?.jamPulang)
+    const isActiveAttendance = todayAttendance && activeStatuses.includes(todayAttendance.status) && !hasCheckedOut
+
+    if (settings.location_tracking_enabled != '1' || !isActiveAttendance) {
+      setTrackingStatus({
+        state: 'idle',
+        message: settings.location_tracking_enabled == '1' ? 'Tracking menunggu presensi hadir' : 'Tracking lokasi nonaktif'
+      })
+      return undefined
+    }
+
+    let cancelled = false
+    let intervalId = null
+    const intervalMinutes = Math.min(Math.max(parseInt(settings.location_tracking_interval_minutes || '15', 10) || 15, 5), 60)
+    const accuracyLimit = Math.min(Math.max(parseInt(settings.location_tracking_accuracy_limit || '100', 10) || 100, 20), 1000)
+
+    const sendTrackingPoint = async () => {
+      try {
+        setTrackingStatus({ state: 'loading', message: 'Mengirim lokasi tracking...' })
+        const location = await getReliableUserLocation({
+          minAccuracy: accuracyLimit,
+          cacheMaxAgeMs: 60000,
+          firstTimeout: 12000,
+          retryTimeout: 8000
+        })
+
+        await locationTrackingAPI.submit({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy
+        })
+
+        if (!cancelled) {
+          setTrackingStatus({
+            state: 'ready',
+            message: `Tracking aktif tiap ${intervalMinutes} menit${location.accuracy ? ` (akurasi ${Math.round(location.accuracy)}m)` : ''}`
+          })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setTrackingStatus({
+            state: 'error',
+            message: error.message || getLocationErrorMessage(error)
+          })
+        }
+      }
+    }
+
+    sendTrackingPoint()
+    intervalId = setInterval(sendTrackingPoint, intervalMinutes * 60 * 1000)
+
+    return () => {
+      cancelled = true
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [
+    todayAttendance?.id,
+    todayAttendance?.status,
+    todayAttendance?.jam_pulang,
+    todayAttendance?.jamPulang,
+    settings.location_tracking_enabled,
+    settings.location_tracking_interval_minutes,
+    settings.location_tracking_accuracy_limit
+  ])
 
   const warmUpLocation = async () => {
     if (settings.mode_testing == '1') {
@@ -181,7 +252,7 @@ function GuruHome({ user }) {
     if (!data) return
 
     if (data.settings) {
-      setSettings(data.settings)
+      setSettings(prev => ({ ...prev, ...data.settings }))
     }
 
     if (data.holiday) {
@@ -302,7 +373,7 @@ function GuruHome({ user }) {
   const loadSettings = async () => {
     try {
       const response = await settingsAPI.getAll()
-      setSettings(response.data)
+      setSettings(prev => ({ ...prev, ...response.data }))
       console.log('⚙️ Settings loaded:', response.data)
     } catch (error) {
       console.error('Failed to load settings:', error)
@@ -758,6 +829,22 @@ function GuruHome({ user }) {
                     ? 'Cek GPS'
                     : 'Siapkan GPS'}
             </button>
+          )}
+          {settings.location_tracking_enabled == '1' && (
+            <span
+              className={`px-2.5 py-1 border rounded-full text-xs font-medium ${
+                trackingStatus.state === 'ready'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : trackingStatus.state === 'loading'
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : trackingStatus.state === 'error'
+                      ? 'bg-amber-50 border-amber-200 text-amber-700'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
+              }`}
+              title={trackingStatus.message}
+            >
+              Tracking {trackingStatus.state === 'ready' ? 'Aktif' : trackingStatus.state === 'loading' ? 'GPS...' : 'Lokasi'}
+            </span>
           )}
           {isPiketToday && jadwalPiketHariIni && (
             <span className="px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-600 font-medium">
