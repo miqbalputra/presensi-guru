@@ -46,6 +46,104 @@ function lt_normalize_date($date)
     return $date;
 }
 
+function lt_parse_coordinate($value)
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+
+    $coordinate = filter_var(str_replace(',', '.', trim((string)$value)), FILTER_VALIDATE_FLOAT);
+    return $coordinate === false ? null : (float)$coordinate;
+}
+
+function lt_calculate_distance_meters($lat1, $lon1, $lat2, $lon2)
+{
+    $earthRadius = 6371000;
+    $toRad = function ($value) {
+        return $value * M_PI / 180;
+    };
+
+    $dLat = $toRad($lat2 - $lat1);
+    $dLon = $toRad($lon2 - $lon1);
+    $a = sin($dLat / 2) * sin($dLat / 2)
+        + cos($toRad($lat1)) * cos($toRad($lat2))
+        * sin($dLon / 2) * sin($dLon / 2);
+
+    return (int)round($earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a)));
+}
+
+function lt_get_geofence_pins($settings)
+{
+    $pinConfigs = [
+        ['Lokasi Sekolah/Pusat', 'sekolah_latitude', 'sekolah_longitude'],
+        ['Pos Guru Laki-laki', 'lokasi_laki_latitude', 'lokasi_laki_longitude'],
+        ['Pos Guru Perempuan', 'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude'],
+        ['Lokasi Apel Senin', 'lokasi_apel_latitude', 'lokasi_apel_longitude']
+    ];
+
+    $pins = [];
+    foreach ($pinConfigs as [$label, $latKey, $lonKey]) {
+        $lat = lt_parse_coordinate($settings[$latKey] ?? null);
+        $lon = lt_parse_coordinate($settings[$lonKey] ?? null);
+        if ($lat === null || $lon === null) {
+            continue;
+        }
+
+        $key = number_format($lat, 7, '.', '') . ',' . number_format($lon, 7, '.', '');
+        if (isset($pins[$key])) {
+            if (strpos($pins[$key]['label'], $label) === false) {
+                $pins[$key]['label'] .= ' / ' . $label;
+            }
+            continue;
+        }
+
+        $pins[$key] = [
+            'label' => $label,
+            'latitude' => $lat,
+            'longitude' => $lon
+        ];
+    }
+
+    return array_values($pins);
+}
+
+function lt_attach_nearest_pin($row, $pins)
+{
+    $row['nearest_pin_label'] = null;
+    $row['nearest_pin_distance'] = null;
+
+    $lat = lt_parse_coordinate($row['latitude'] ?? null);
+    $lon = lt_parse_coordinate($row['longitude'] ?? null);
+    if ($lat === null || $lon === null || count($pins) === 0) {
+        return $row;
+    }
+
+    $nearest = null;
+    foreach ($pins as $pin) {
+        $distance = lt_calculate_distance_meters($lat, $lon, $pin['latitude'], $pin['longitude']);
+        if ($nearest === null || $distance < $nearest['distance']) {
+            $nearest = [
+                'label' => $pin['label'],
+                'distance' => $distance
+            ];
+        }
+    }
+
+    if ($nearest !== null) {
+        $row['nearest_pin_label'] = $nearest['label'];
+        $row['nearest_pin_distance'] = $nearest['distance'];
+    }
+
+    return $row;
+}
+
+function lt_attach_nearest_pins($rows, $pins)
+{
+    return array_map(function ($row) use ($pins) {
+        return lt_attach_nearest_pin($row, $pins);
+    }, $rows);
+}
+
 if ($method === 'POST') {
     if (($_SESSION['role'] ?? '') !== 'guru') {
         sendResponse(false, 'Hanya guru yang dapat mengirim tracking lokasi');
@@ -125,6 +223,8 @@ if ($method === 'GET') {
     $role = $_SESSION['role'] ?? '';
     $action = $_GET['action'] ?? 'latest';
     $date = lt_normalize_date($_GET['date'] ?? null);
+    $settings = lt_get_settings($pdo);
+    $pins = lt_get_geofence_pins($settings);
 
     if ($action === 'history') {
         $userId = validateInt($_GET['user_id'] ?? null, 1);
@@ -153,7 +253,7 @@ if ($method === 'GET') {
                 LIMIT {$limit}
             ");
             $stmt->execute([$userId, $date]);
-            sendResponse(true, 'Riwayat tracking lokasi', $stmt->fetchAll());
+            sendResponse(true, 'Riwayat tracking lokasi', lt_attach_nearest_pins($stmt->fetchAll(), $pins));
         } catch (PDOException $e) {
             handleError($e, 'location_tracking.php - history');
         }
@@ -202,8 +302,9 @@ if ($method === 'GET') {
         $stmt->execute([$date, $date]);
         sendResponse(true, 'Tracking lokasi terbaru', [
             'date' => $date,
-            'settings' => lt_get_settings($pdo),
-            'items' => $stmt->fetchAll()
+            'settings' => $settings,
+            'pins' => $pins,
+            'items' => lt_attach_nearest_pins($stmt->fetchAll(), $pins)
         ]);
     } catch (PDOException $e) {
         handleError($e, 'location_tracking.php - latest');

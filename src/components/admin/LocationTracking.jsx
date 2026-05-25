@@ -19,11 +19,17 @@ function mapsUrl(point) {
 }
 
 function osmEmbedUrl(point) {
-  const lat = parseFloat(point.latitude)
-  const lon = parseFloat(point.longitude)
+  const lat = parseCoordinate(point.latitude)
+  const lon = parseCoordinate(point.longitude)
   const delta = 0.0012
   const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`
   return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${lat}%2C${lon}`
+}
+
+function parseCoordinate(value) {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = parseFloat(String(value).replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -38,8 +44,9 @@ function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   return Math.round(earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
 }
 
-function getConfiguredPins(settings) {
+function getConfiguredPins(settings, apiPins = []) {
   const pins = [
+    ...apiPins.map(pin => [pin.label, pin.latitude, pin.longitude]),
     ['Lokasi Sekolah/Pusat', settings.sekolah_latitude, settings.sekolah_longitude],
     ['Pos Guru Laki-laki', settings.lokasi_laki_latitude, settings.lokasi_laki_longitude],
     ['Pos Guru Perempuan', settings.lokasi_perempuan_latitude, settings.lokasi_perempuan_longitude],
@@ -48,10 +55,14 @@ function getConfiguredPins(settings) {
 
   const uniquePins = []
   pins.forEach(([label, lat, lon]) => {
-    const parsedLat = parseFloat(lat)
-    const parsedLon = parseFloat(lon)
-    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon)) return
-    if (uniquePins.some(pin => pin.lat === parsedLat && pin.lon === parsedLon)) return
+    const parsedLat = parseCoordinate(lat)
+    const parsedLon = parseCoordinate(lon)
+    if (parsedLat === null || parsedLon === null) return
+    const existingPin = uniquePins.find(pin => pin.lat === parsedLat && pin.lon === parsedLon)
+    if (existingPin) {
+      if (!existingPin.label.includes(label)) existingPin.label = `${existingPin.label} / ${label}`
+      return
+    }
     uniquePins.push({ label, lat: parsedLat, lon: parsedLon })
   })
 
@@ -59,10 +70,18 @@ function getConfiguredPins(settings) {
 }
 
 function getNearestPin(point, pins) {
+  if (point?.nearest_pin_label && point.nearest_pin_distance !== null && point.nearest_pin_distance !== undefined) {
+    const distance = parseFloat(point.nearest_pin_distance)
+    return {
+      label: point.nearest_pin_label,
+      distance: Number.isFinite(distance) ? Math.round(distance) : point.nearest_pin_distance
+    }
+  }
+
   if (!point?.latitude || !point?.longitude || pins.length === 0) return null
-  const lat = parseFloat(point.latitude)
-  const lon = parseFloat(point.longitude)
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  const lat = parseCoordinate(point.latitude)
+  const lon = parseCoordinate(point.longitude)
+  if (lat === null || lon === null) return null
 
   return pins.reduce((nearest, pin) => {
     const distance = calculateDistanceMeters(lat, lon, pin.lat, pin.lon)
@@ -83,6 +102,7 @@ function LocationTracking() {
   const [date, setDate] = useState(formatDateForInput(new Date()))
   const [items, setItems] = useState([])
   const [settings, setSettings] = useState({})
+  const [serverPins, setServerPins] = useState([])
   const [selectedUserId, setSelectedUserId] = useState(null)
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
@@ -93,7 +113,7 @@ function LocationTracking() {
     return items.find(item => String(item.user_id) === String(selectedUserId)) || items.find(item => item.track_id) || items[0] || null
   }, [items, selectedUserId])
 
-  const configuredPins = useMemo(() => getConfiguredPins(settings), [settings])
+  const configuredPins = useMemo(() => getConfiguredPins(settings, serverPins), [settings, serverPins])
   const activeCount = items.filter(item => item.attendance_status && !item.jam_pulang).length
   const trackedCount = items.filter(item => item.track_id).length
 
@@ -105,6 +125,7 @@ function LocationTracking() {
       const nextItems = response.data?.items || []
       setItems(nextItems)
       setSettings(response.data?.settings || {})
+      setServerPins(response.data?.pins || [])
       setSelectedUserId(prev => {
         if (prev && nextItems.some(item => String(item.user_id) === String(prev))) return prev
         return nextItems.find(item => item.track_id)?.user_id || nextItems[0]?.user_id || null
