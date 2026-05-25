@@ -10,7 +10,15 @@ function lt_get_settings($pdo)
     $keys = [
         'location_tracking_enabled',
         'location_tracking_interval_minutes',
-        'location_tracking_accuracy_limit'
+        'location_tracking_accuracy_limit',
+        'sekolah_latitude',
+        'sekolah_longitude',
+        'lokasi_laki_latitude',
+        'lokasi_laki_longitude',
+        'lokasi_perempuan_latitude',
+        'lokasi_perempuan_longitude',
+        'lokasi_apel_latitude',
+        'lokasi_apel_longitude'
     ];
     $placeholders = implode(',', array_fill(0, count($keys), '?'));
     $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ({$placeholders})");
