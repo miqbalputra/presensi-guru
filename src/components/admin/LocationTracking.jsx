@@ -21,9 +21,62 @@ function mapsUrl(point) {
 function osmEmbedUrl(point) {
   const lat = parseFloat(point.latitude)
   const lon = parseFloat(point.longitude)
-  const delta = 0.006
+  const delta = 0.0012
   const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`
   return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${lat}%2C${lon}`
+}
+
+function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+  const earthRadius = 6371000
+  const toRad = (value) => (value * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  return Math.round(earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
+}
+
+function getConfiguredPins(settings) {
+  const pins = [
+    ['Lokasi Sekolah/Pusat', settings.sekolah_latitude, settings.sekolah_longitude],
+    ['Pos Guru Laki-laki', settings.lokasi_laki_latitude, settings.lokasi_laki_longitude],
+    ['Pos Guru Perempuan', settings.lokasi_perempuan_latitude, settings.lokasi_perempuan_longitude],
+    ['Lokasi Apel Senin', settings.lokasi_apel_latitude, settings.lokasi_apel_longitude]
+  ]
+
+  const uniquePins = []
+  pins.forEach(([label, lat, lon]) => {
+    const parsedLat = parseFloat(lat)
+    const parsedLon = parseFloat(lon)
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon)) return
+    if (uniquePins.some(pin => pin.lat === parsedLat && pin.lon === parsedLon)) return
+    uniquePins.push({ label, lat: parsedLat, lon: parsedLon })
+  })
+
+  return uniquePins
+}
+
+function getNearestPin(point, pins) {
+  if (!point?.latitude || !point?.longitude || pins.length === 0) return null
+  const lat = parseFloat(point.latitude)
+  const lon = parseFloat(point.longitude)
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+
+  return pins.reduce((nearest, pin) => {
+    const distance = calculateDistanceMeters(lat, lon, pin.lat, pin.lon)
+    if (!nearest || distance < nearest.distance) {
+      return { ...pin, distance }
+    }
+    return nearest
+  }, null)
+}
+
+function formatNearestPin(point, pins) {
+  const nearest = getNearestPin(point, pins)
+  if (!nearest) return 'Pin terdekat belum tersedia'
+  return `${nearest.distance}m dari ${nearest.label}`
 }
 
 function LocationTracking() {
@@ -40,6 +93,7 @@ function LocationTracking() {
     return items.find(item => String(item.user_id) === String(selectedUserId)) || items.find(item => item.track_id) || items[0] || null
   }, [items, selectedUserId])
 
+  const configuredPins = useMemo(() => getConfiguredPins(settings), [settings])
   const activeCount = items.filter(item => item.attendance_status && !item.jam_pulang).length
   const trackedCount = items.filter(item => item.track_id).length
 
@@ -191,6 +245,11 @@ function LocationTracking() {
                         <p className="text-xs text-gray-500 mt-1">
                           {item.track_id ? formatDateTime(item.recorded_at) : 'Belum ada titik lokasi'}
                         </p>
+                        {item.track_id && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            {formatNearestPin(item, configuredPins)}
+                          </p>
+                        )}
                       </div>
                       <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${
                         item.track_id ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
@@ -213,6 +272,9 @@ function LocationTracking() {
                 <p className="text-xs text-gray-500">
                   {selectedItem?.track_id ? `Lokasi terakhir ${formatDateTime(selectedItem.recorded_at)}` : 'Belum ada lokasi terakhir'}
                 </p>
+                {selectedItem?.track_id && (
+                  <p className="text-xs text-blue-600 mt-1">{formatNearestPin(selectedItem, configuredPins)}</p>
+                )}
               </div>
               {selectedItem?.track_id && (
                 <a
@@ -251,6 +313,7 @@ function LocationTracking() {
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Waktu</th>
                     <th className="px-4 py-3 text-left font-semibold">Koordinat</th>
+                    <th className="px-4 py-3 text-left font-semibold">Pin Terdekat</th>
                     <th className="px-4 py-3 text-left font-semibold">Akurasi</th>
                     <th className="px-4 py-3 text-left font-semibold">Aksi</th>
                   </tr>
@@ -258,7 +321,7 @@ function LocationTracking() {
                 <tbody className="divide-y divide-gray-100">
                   {history.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="px-4 py-6 text-center text-gray-500">Belum ada riwayat lokasi.</td>
+                      <td colSpan="5" className="px-4 py-6 text-center text-gray-500">Belum ada riwayat lokasi.</td>
                     </tr>
                   ) : (
                     history.slice(0, 80).map(point => (
@@ -267,6 +330,7 @@ function LocationTracking() {
                         <td className="px-4 py-3 text-gray-700">
                           {parseFloat(point.latitude).toFixed(6)}, {parseFloat(point.longitude).toFixed(6)}
                         </td>
+                        <td className="px-4 py-3 text-gray-700">{formatNearestPin(point, configuredPins)}</td>
                         <td className="px-4 py-3 text-gray-700">{point.accuracy_meters ? `${Math.round(parseFloat(point.accuracy_meters))}m` : '-'}</td>
                         <td className="px-4 py-3">
                           <a
