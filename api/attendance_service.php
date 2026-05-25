@@ -114,26 +114,15 @@ function gp_get_attendance_location_targets($settings, $user, $date, $isCheckout
     $targets = [];
     $school = gp_get_setting_coordinate($settings, 'sekolah_latitude', 'sekolah_longitude');
     $apel = gp_get_setting_coordinate($settings, 'lokasi_apel_latitude', 'lokasi_apel_longitude');
-    $gender = $user['jenis_kelamin'] ?? '';
 
     $isMonday = date('w', strtotime($date)) == 1;
     if ($isMonday && ($settings['apel_senin_enabled'] ?? '0') == '1') {
         gp_add_location_target($targets, 'Lokasi Apel Senin', $apel ?: $school);
-        if ($gender === 'Laki-laki' || $gender === 'Perempuan') {
-            gp_add_location_target($targets, 'Lokasi Sekolah', $school);
-        }
-        return array_values($targets);
     }
 
-    if ($gender === 'Laki-laki') {
-        gp_add_location_target($targets, 'Area Guru Laki-laki', gp_get_setting_coordinate($settings, 'lokasi_laki_latitude', 'lokasi_laki_longitude') ?: $school);
-        gp_add_location_target($targets, 'Lokasi Sekolah', $school);
-    } elseif ($gender === 'Perempuan') {
-        gp_add_location_target($targets, 'Area Guru Perempuan', gp_get_setting_coordinate($settings, 'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude') ?: $school);
-        gp_add_location_target($targets, 'Lokasi Sekolah', $school);
-    } else {
-        gp_add_location_target($targets, 'Lokasi Sekolah', $school);
-    }
+    gp_add_location_target($targets, 'Lokasi Sekolah', $school);
+    gp_add_location_target($targets, 'Area Guru Laki-laki', gp_get_setting_coordinate($settings, 'lokasi_laki_latitude', 'lokasi_laki_longitude'));
+    gp_add_location_target($targets, 'Area Guru Perempuan', gp_get_setting_coordinate($settings, 'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude'));
 
     return array_values($targets);
 }

@@ -214,27 +214,16 @@ function GuruHome({ user }) {
       targets.push({ label, lat: parsedLat, lon: parsedLon })
     }
 
-    const gender = user?.jenis_kelamin || user?.jenisKelamin
     const isMonday = new Date().getDay() === 1
     const isApelEnabled = settings.apel_senin_enabled == '1'
 
     if (isMonday && isApelEnabled) {
       addTarget('apel senin', settings.lokasi_apel_latitude, settings.lokasi_apel_longitude)
-      if (gender === 'Laki-laki' || gender === 'Perempuan') {
-        addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
-      }
-      return targets
     }
 
-    if (gender === 'Laki-laki') {
-      addTarget('pos guru laki-laki', settings.lokasi_laki_latitude, settings.lokasi_laki_longitude)
-      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
-    } else if (gender === 'Perempuan') {
-      addTarget('area guru perempuan', settings.lokasi_perempuan_latitude, settings.lokasi_perempuan_longitude)
-      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
-    } else {
-      addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
-    }
+    addTarget('sekolah', settings.sekolah_latitude, settings.sekolah_longitude)
+    addTarget('pos guru laki-laki', settings.lokasi_laki_latitude, settings.lokasi_laki_longitude)
+    addTarget('area guru perempuan', settings.lokasi_perempuan_latitude, settings.lokasi_perempuan_longitude)
 
     return targets
   }
