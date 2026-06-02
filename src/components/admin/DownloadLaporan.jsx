@@ -210,35 +210,62 @@ function DownloadLaporan() {
       return
     }
 
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-
-    const doc = new jsPDF()
+    const doc = new jsPDF('landscape', 'mm', 'a4')
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const printedAt = new Date().toLocaleString('id-ID')
     
     // Header
-    doc.setFontSize(18)
+    doc.setFillColor(15, 23, 42)
+    doc.rect(0, 0, pageWidth, 34, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(17)
     doc.setFont(undefined, 'bold')
-    doc.text('LAPORAN RINGKASAN PRESENSI', 105, 15, { align: 'center' })
-    doc.text('SEMUA GURU', 105, 23, { align: 'center' })
+    doc.text('LAPORAN RINGKASAN PRESENSI SEMUA GURU', pageWidth / 2, 15, { align: 'center' })
     
-    doc.setFontSize(10)
     doc.setFont(undefined, 'normal')
-    doc.text(`Periode: ${startDate} s/d ${endDate}`, 105, 30, { align: 'center' })
+    doc.setFontSize(10)
+    doc.text(`Periode: ${startDate} s/d ${endDate}`, pageWidth / 2, 23, { align: 'center' })
+    doc.text('Hari tanpa presensi pada hari kerja dihitung sebagai Alfa', pageWidth / 2, 29, { align: 'center' })
     
-    // Summary statistics (gunakan string comparison)
     const totalHariKerja = getRangeWorkdays().length
     const totalPresensi = dataGuru.length * totalHariKerja
+    const summaries = dataGuru.map(guru => ({
+      guru,
+      ...getGuruSummary(guru.id)
+    }))
+    const totalHadir = summaries.reduce((sum, item) => sum + item.hadir, 0)
+    const totalIzin = summaries.reduce((sum, item) => sum + item.izin, 0)
+    const totalSakit = summaries.reduce((sum, item) => sum + item.sakit, 0)
+    const totalAlfa = summaries.reduce((sum, item) => sum + item.alfa, 0)
+    const rataHadir = totalPresensi > 0 ? ((totalHadir / totalPresensi) * 100).toFixed(1) : '0.0'
 
-    doc.setFontSize(9)
-    doc.text(`Total Guru: ${dataGuru.length}`, 14, 40)
-    doc.text(`Total Hari Kerja: ${totalHariKerja}`, 14, 45)
-    doc.text(`Total Slot Presensi: ${totalPresensi}`, 14, 50)
+    const summaryCards = [
+      ['Total Guru', dataGuru.length],
+      ['Hari Kerja', totalHariKerja],
+      ['Hadir', totalHadir],
+      ['Izin', totalIzin],
+      ['Sakit', totalSakit],
+      ['Alfa', totalAlfa],
+      ['Rata-rata Hadir', `${rataHadir}%`]
+    ]
+
+    doc.setTextColor(15, 23, 42)
+    doc.setFontSize(8)
+    summaryCards.forEach(([label, value], index) => {
+      const cardWidth = 37
+      const x = 14 + index * (cardWidth + 2)
+      doc.setFillColor(248, 250, 252)
+      doc.setDrawColor(226, 232, 240)
+      doc.roundedRect(x, 40, cardWidth, 18, 2, 2, 'FD')
+      doc.setFont(undefined, 'normal')
+      doc.setTextColor(100, 116, 139)
+      doc.text(label, x + 3, 47)
+      doc.setFont(undefined, 'bold')
+      doc.setTextColor(15, 23, 42)
+      doc.text(String(value), x + 3, 54)
+    })
     
-    // Prepare table data (gunakan string comparison)
-    const tableData = dataGuru.map((guru, index) => {
-      const { totalHari, hadir, izin, sakit, alfa, persentase } = getGuruSummary(guru.id)
-
-      return [
+    const tableData = summaries.map(({ guru, totalHari, hadir, izin, sakit, alfa, persentase }, index) => [
         index + 1,
         guru.nama,
         Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan,
@@ -248,41 +275,52 @@ function DownloadLaporan() {
         sakit,
         alfa,
         `${persentase}%`
-      ]
-    })
+    ])
 
-    // Create table
     doc.autoTable({
-      startY: 57,
+      startY: 66,
       head: [['No', 'Nama Guru', 'Jabatan', 'Hari Kerja', 'Hadir', 'Izin', 'Sakit', 'Alfa', '% Hadir']],
       body: tableData,
       theme: 'grid',
       headStyles: { 
-        fillColor: [59, 130, 246],
-        fontSize: 9,
+        fillColor: [30, 64, 175],
+        textColor: [255, 255, 255],
+        fontSize: 8,
         fontStyle: 'bold',
-        halign: 'center'
+        halign: 'center',
+        valign: 'middle'
       },
       bodyStyles: { 
-        fontSize: 8 
+        fontSize: 7.5,
+        cellPadding: 2,
+        valign: 'middle',
+        textColor: [31, 41, 55]
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
       },
       columnStyles: {
-        0: { halign: 'center', cellWidth: 10 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 50 },
-        3: { halign: 'center', cellWidth: 15 },
-        4: { halign: 'center', cellWidth: 15 },
-        5: { halign: 'center', cellWidth: 15 },
-        6: { halign: 'center', cellWidth: 15 },
-        7: { halign: 'center', cellWidth: 20 }
+        0: { halign: 'center', cellWidth: 11 },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 68 },
+        3: { halign: 'center', cellWidth: 22 },
+        4: { halign: 'center', cellWidth: 18 },
+        5: { halign: 'center', cellWidth: 18 },
+        6: { halign: 'center', cellWidth: 18 },
+        7: { halign: 'center', cellWidth: 18 },
+        8: { halign: 'center', cellWidth: 21, fontStyle: 'bold' }
       },
-      margin: { left: 14, right: 14 }
+      margin: { left: 14, right: 14, top: 16, bottom: 16 },
+      didDrawPage: () => {
+        const pageHeight = doc.internal.pageSize.getHeight()
+        const pageNumber = doc.internal.getNumberOfPages()
+        doc.setFontSize(8)
+        doc.setFont(undefined, 'normal')
+        doc.setTextColor(100, 116, 139)
+        doc.text(`Dicetak pada: ${printedAt}`, 14, pageHeight - 8)
+        doc.text(`Halaman ${pageNumber}`, pageWidth - 14, pageHeight - 8, { align: 'right' })
+      }
     })
-
-    // Footer
-    const finalY = doc.lastAutoTable.finalY + 10
-    doc.setFontSize(8)
-    doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, finalY)
 
     const fileName = `Laporan_Ringkasan_Semua_Guru_${formatDate(new Date())}.pdf`
     doc.save(fileName)
