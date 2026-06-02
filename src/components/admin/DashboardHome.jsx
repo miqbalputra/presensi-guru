@@ -12,7 +12,7 @@ function DashboardHome() {
   const [filter, setFilter] = useState('today')
   const [attendanceLogs, setAttendanceLogs] = useState([])
   const [totalGuru, setTotalGuru] = useState(0)
-  const [statsSummary, setStatsSummary] = useState({ hadir: 0, izin: 0, sakit: 0 })
+  const [statsSummary, setStatsSummary] = useState({ hadir: 0, izin: 0, sakit: 0, alfa: 0 })
   const [guruBelumPresensi, setGuruBelumPresensi] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -27,7 +27,7 @@ function DashboardHome() {
       const data = response.data || {}
 
       setTotalGuru(data.totalGuru || 0)
-      setStatsSummary(data.stats || { hadir: 0, izin: 0, sakit: 0 })
+      setStatsSummary(data.stats || { hadir: 0, izin: 0, sakit: 0, alfa: 0 })
       setGuruBelumPresensi(data.belumPresensiHariIni || [])
       setAttendanceLogs(data.logs || [])
     } catch (error) {
@@ -43,17 +43,18 @@ function DashboardHome() {
   const hadirCount = statsSummary.hadir || 0
   const izinCount = statsSummary.izin || 0
   const sakitCount = statsSummary.sakit || 0
+  const alfaCount = statsSummary.alfa || 0
   const belumPresensiCount = guruBelumPresensi.length
 
   // Label dinamis berdasarkan filter
   const getStatsLabel = () => {
     switch(filter) {
-      case 'today': return { hadir: 'Hadir Hari Ini', izin: 'Izin Hari Ini', sakit: 'Sakit Hari Ini' }
-      case 'yesterday': return { hadir: 'Hadir Kemarin', izin: 'Izin Kemarin', sakit: 'Sakit Kemarin' }
-      case '7days': return { hadir: 'Hadir (7 Hari)', izin: 'Izin (7 Hari)', sakit: 'Sakit (7 Hari)' }
-      case '14days': return { hadir: 'Hadir (14 Hari)', izin: 'Izin (14 Hari)', sakit: 'Sakit (14 Hari)' }
-      case '30days': return { hadir: 'Hadir (30 Hari)', izin: 'Izin (30 Hari)', sakit: 'Sakit (30 Hari)' }
-      default: return { hadir: 'Hadir', izin: 'Izin', sakit: 'Sakit' }
+      case 'today': return { hadir: 'Hadir Hari Ini', izin: 'Izin Hari Ini', sakit: 'Sakit Hari Ini', alfa: 'Alfa Hari Ini' }
+      case 'yesterday': return { hadir: 'Hadir Kemarin', izin: 'Izin Kemarin', sakit: 'Sakit Kemarin', alfa: 'Alfa Kemarin' }
+      case '7days': return { hadir: 'Hadir (7 Hari)', izin: 'Izin (7 Hari)', sakit: 'Sakit (7 Hari)', alfa: 'Alfa (7 Hari)' }
+      case '14days': return { hadir: 'Hadir (14 Hari)', izin: 'Izin (14 Hari)', sakit: 'Sakit (14 Hari)', alfa: 'Alfa (14 Hari)' }
+      case '30days': return { hadir: 'Hadir (30 Hari)', izin: 'Izin (30 Hari)', sakit: 'Sakit (30 Hari)', alfa: 'Alfa (30 Hari)' }
+      default: return { hadir: 'Hadir', izin: 'Izin', sakit: 'Sakit', alfa: 'Alfa' }
     }
   }
 
@@ -63,7 +64,8 @@ function DashboardHome() {
     { label: 'Total Guru', value: totalGuru, icon: Users, color: 'bg-blue-500' },
     { label: labels.hadir, value: hadirCount, icon: UserCheck, color: 'bg-green-500' },
     { label: labels.izin, value: izinCount, icon: FileText, color: 'bg-yellow-500' },
-    { label: labels.sakit, value: sakitCount, icon: UserX, color: 'bg-red-500' }
+    { label: labels.sakit, value: sakitCount, icon: UserX, color: 'bg-red-500' },
+    { label: labels.alfa, value: alfaCount, icon: AlertCircle, color: 'bg-gray-600' }
   ]
 
   return (
@@ -84,7 +86,7 @@ function DashboardHome() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, index) => (
           <div key={index} className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
@@ -113,7 +115,7 @@ function DashboardHome() {
                   Belum Presensi Hari Ini
                 </h3>
                 <p className="text-sm text-red-600">
-                  {belumPresensiCount} dari {totalGuru} guru belum melakukan presensi
+                  {belumPresensiCount} dari {totalGuru} guru belum melakukan presensi dan akan dihitung alfa
                 </p>
               </div>
               <div className="text-right">

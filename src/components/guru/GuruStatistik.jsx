@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX } from 'lucide-react'
-import { presensiAPI } from '../../services/api'
-import { formatDateForInput } from '../../utils/dateUtils'
+import { holidaysAPI, presensiAPI } from '../../services/api'
+import { formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 
 function GuruStatistik({ user }) {
   const [presensiData, setPresensiData] = useState([])
+  const [holidays, setHolidays] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('bulan_ini')
 
@@ -12,11 +13,54 @@ function GuruStatistik({ user }) {
     loadPresensiData()
   }, [filter])
 
+  const getPeriodRange = () => {
+    const today = new Date()
+    const currentMonth = today.getMonth()
+    const currentYear = today.getFullYear()
+
+    switch(filter) {
+      case 'bulan_ini':
+        return {
+          startDate: formatDateForInput(new Date(currentYear, currentMonth, 1)),
+          endDate: formatDateForInput(today)
+        }
+      case 'bulan_lalu':
+        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
+        const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear
+        return {
+          startDate: formatDateForInput(new Date(lastMonthYear, lastMonth, 1)),
+          endDate: formatDateForInput(new Date(lastMonthYear, lastMonth + 1, 0))
+        }
+      case '3_bulan':
+        const threeMonthsAgo = new Date()
+        threeMonthsAgo.setMonth(today.getMonth() - 3)
+        return {
+          startDate: formatDateForInput(threeMonthsAgo),
+          endDate: formatDateForInput(today)
+        }
+      case 'tahun_ini':
+        return {
+          startDate: formatDateForInput(new Date(currentYear, 0, 1)),
+          endDate: formatDateForInput(today)
+        }
+      default:
+        return {
+          startDate: formatDateForInput(new Date(currentYear, currentMonth, 1)),
+          endDate: formatDateForInput(today)
+        }
+    }
+  }
+
   const loadPresensiData = async () => {
     try {
       setLoading(true)
-      const response = await presensiAPI.getAll({ user_id: user.id })
-      setPresensiData(response.data)
+      const { startDate, endDate } = getPeriodRange()
+      const [presensiResponse, holidaysResponse] = await Promise.all([
+        presensiAPI.getAll({ user_id: user.id, start_date: startDate, end_date: endDate }),
+        holidaysAPI.getAll({ start_date: startDate, end_date: endDate })
+      ])
+      setPresensiData(presensiResponse.data)
+      setHolidays(holidaysResponse.data)
     } catch (error) {
       console.error('Failed to load presensi data:', error)
     } finally {
@@ -25,48 +69,33 @@ function GuruStatistik({ user }) {
   }
 
   const getFilteredData = () => {
-    const today = new Date()
-    const currentMonth = today.getMonth()
-    const currentYear = today.getFullYear()
-
-    switch(filter) {
-      case 'bulan_ini':
-        return presensiData.filter(log => {
-          const logDate = new Date(log.tanggal)
-          return logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear
-        })
-      case 'bulan_lalu':
-        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
-        const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear
-        return presensiData.filter(log => {
-          const logDate = new Date(log.tanggal)
-          return logDate.getMonth() === lastMonth && logDate.getFullYear() === lastMonthYear
-        })
-      case '3_bulan':
-        const threeMonthsAgo = new Date()
-        threeMonthsAgo.setMonth(today.getMonth() - 3)
-        return presensiData.filter(log => new Date(log.tanggal) >= threeMonthsAgo)
-      case 'tahun_ini':
-        return presensiData.filter(log => {
-          const logDate = new Date(log.tanggal)
-          return logDate.getFullYear() === currentYear
-        })
-      default:
-        return presensiData.filter(log => {
-          const logDate = new Date(log.tanggal)
-          return logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear
-        })
-    }
+    const { startDate, endDate } = getPeriodRange()
+    return presensiData.filter(log => log.tanggal >= startDate && log.tanggal <= endDate)
   }
 
   const filteredData = getFilteredData()
+  const { startDate, endDate } = getPeriodRange()
+  const workdayDates = getWorkdayDates(startDate, endDate, holidays)
+  const logsByDate = new Map(filteredData.map(log => [log.tanggal, log]))
+  const displayData = workdayDates
+    .map(date => logsByDate.get(date) || {
+      id: `alfa-${date}`,
+      tanggal: date,
+      status: 'alfa',
+      jam_masuk: '-',
+      jam_hadir: '-',
+      jam_pulang: '-',
+      keterangan: 'Tidak presensi'
+    })
+    .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
 
   // Hitung statistik
   const totalHadir = filteredData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
   const totalTerlambat = filteredData.filter(log => log.status === 'hadir_terlambat').length
   const totalIzin = filteredData.filter(log => log.status === 'izin').length
   const totalSakit = filteredData.filter(log => log.status === 'sakit').length
-  const totalPresensi = filteredData.length
+  const totalPresensi = workdayDates.length
+  const totalAlfa = Math.max(totalPresensi - filteredData.length, 0)
 
   // Hitung persentase kehadiran
   const persentaseHadir = totalPresensi > 0 ? ((totalHadir / totalPresensi) * 100).toFixed(1) : 0
@@ -123,6 +152,16 @@ function GuruStatistik({ user }) {
       bgColor: 'bg-red-50',
       textColor: 'text-red-600',
       percentage: totalPresensi > 0 ? ((totalSakit / totalPresensi) * 100).toFixed(1) : 0
+    },
+    {
+      label: 'Alfa',
+      sublabel: '(Tidak Presensi)',
+      value: totalAlfa,
+      icon: AlertCircle,
+      color: 'bg-gray-600',
+      bgColor: 'bg-gray-50',
+      textColor: 'text-gray-700',
+      percentage: totalPresensi > 0 ? ((totalAlfa / totalPresensi) * 100).toFixed(1) : 0
     }
   ]
 
@@ -161,7 +200,7 @@ function GuruStatistik({ user }) {
             <p className="text-blue-100 text-sm">Persentase Kehadiran</p>
             <p className="text-4xl font-bold mt-2">{persentaseHadir}%</p>
             <p className="text-blue-100 text-sm mt-2">
-              {totalHadir} dari {totalPresensi} hari
+              {totalHadir} dari {totalPresensi} hari kerja
             </p>
           </div>
           <div className="p-4 bg-white bg-opacity-20 rounded-lg">
@@ -171,7 +210,7 @@ function GuruStatistik({ user }) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, index) => (
           <div key={index} className={`${stat.bgColor} rounded-lg shadow p-6`}>
             <div className="flex items-center justify-between mb-3">
@@ -211,7 +250,7 @@ function GuruStatistik({ user }) {
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-800">Riwayat Presensi Terbaru</h3>
-          <p className="text-sm text-gray-500 mt-1">10 presensi terakhir</p>
+          <p className="text-sm text-gray-500 mt-1">10 hari kerja terakhir, termasuk alfa</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -225,7 +264,7 @@ function GuruStatistik({ user }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredData.slice(0, 10).map((log) => (
+              {displayData.slice(0, 10).map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.tanggal}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -241,19 +280,21 @@ function GuruStatistik({ user }) {
                       ${log.status === 'hadir_izin_terlambat' ? 'bg-blue-100 text-blue-800' : ''}
                       ${log.status === 'izin' ? 'bg-blue-100 text-blue-800' : ''}
                       ${log.status === 'sakit' ? 'bg-red-100 text-red-800' : ''}
+                      ${log.status === 'alfa' ? 'bg-gray-200 text-gray-800' : ''}
                     `}>
                       {log.status === 'hadir' ? 'Hadir' :
                        log.status === 'hadir_terlambat' ? 'Terlambat' : 
                        log.status === 'hadir_izin_terlambat' ? 'Izin Terlambat' : 
                        log.status === 'izin' ? 'Izin' :
                        log.status === 'sakit' ? 'Sakit' :
+                       log.status === 'alfa' ? 'Alfa' :
                        log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{log.keterangan || '-'}</td>
                 </tr>
               ))}
-              {filteredData.length === 0 && (
+              {displayData.length === 0 && (
                 <tr>
                   <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
                     Belum ada data presensi untuk periode ini

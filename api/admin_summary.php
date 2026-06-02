@@ -7,6 +7,46 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     sendResponse(false, 'Invalid request method');
 }
 
+function buildDateRange($start, $end)
+{
+    $dates = [];
+    $current = strtotime($start);
+    $last = strtotime($end);
+    while ($current <= $last) {
+        $dates[] = date('Y-m-d', $current);
+        $current = strtotime('+1 day', $current);
+    }
+    return $dates;
+}
+
+function getWorkdayDates($pdo, $start, $end)
+{
+    $stmt = $pdo->prepare("
+        SELECT tanggal, jenis, is_workday
+        FROM holidays
+        WHERE tanggal BETWEEN ? AND ?
+    ");
+    $stmt->execute([$start, $end]);
+
+    $holidays = [];
+    foreach ($stmt->fetchAll() as $holiday) {
+        $holidays[$holiday['tanggal']] = $holiday;
+    }
+
+    $workdays = [];
+    foreach (buildDateRange($start, $end) as $date) {
+        $holiday = $holidays[$date] ?? null;
+        $isWeekend = in_array((int)date('w', strtotime($date)), [0, 6], true);
+        $isSpecialWorkday = $holiday && ((int)$holiday['is_workday'] === 1 || $holiday['jenis'] === 'sekolah');
+
+        if ($isSpecialWorkday || (!$holiday && !$isWeekend)) {
+            $workdays[] = $date;
+        }
+    }
+
+    return $workdays;
+}
+
 try {
     $period = $_GET['period'] ?? 'today';
     $today = date('Y-m-d');
@@ -40,7 +80,8 @@ try {
     $statusCounts = [
         'hadir' => 0,
         'izin' => 0,
-        'sakit' => 0
+        'sakit' => 0,
+        'alfa' => 0
     ];
 
     foreach ($statsStmt->fetchAll() as $row) {
@@ -54,6 +95,10 @@ try {
             $statusCounts['sakit'] += $count;
         }
     }
+
+    $totalHariAktif = count(getWorkdayDates($pdo, $startDate, $endDate));
+    $totalTercatat = $statusCounts['hadir'] + $statusCounts['izin'] + $statusCounts['sakit'];
+    $statusCounts['alfa'] = max(($totalGuru * $totalHariAktif) - $totalTercatat, 0);
 
     $logsStmt = $pdo->prepare("
         SELECT id, user_id, nama, tanggal, status, jam_masuk, jam_pulang, jam_hadir,
@@ -75,16 +120,20 @@ try {
     }
     unset($log);
 
-    $missingStmt = $pdo->prepare("
-        SELECT u.id, u.nama, u.jabatan
-        FROM users u
-        LEFT JOIN attendance_logs a ON a.user_id = u.id AND a.tanggal = ?
-        WHERE u.role = 'guru'
-          AND a.id IS NULL
-        ORDER BY u.nama ASC
-    ");
-    $missingStmt->execute([$today]);
-    $missingGuru = $missingStmt->fetchAll();
+    if (in_array($today, getWorkdayDates($pdo, $today, $today), true)) {
+        $missingStmt = $pdo->prepare("
+            SELECT u.id, u.nama, u.jabatan
+            FROM users u
+            LEFT JOIN attendance_logs a ON a.user_id = u.id AND a.tanggal = ?
+            WHERE u.role = 'guru'
+              AND a.id IS NULL
+            ORDER BY u.nama ASC
+        ");
+        $missingStmt->execute([$today]);
+        $missingGuru = $missingStmt->fetchAll();
+    } else {
+        $missingGuru = [];
+    }
 
     foreach ($missingGuru as &$guru) {
         if (!empty($guru['jabatan'])) {
@@ -101,6 +150,7 @@ try {
         'startDate' => $startDate,
         'endDate' => $endDate,
         'totalGuru' => $totalGuru,
+        'totalHariAktif' => $totalHariAktif,
         'stats' => $statusCounts,
         'belumPresensiHariIni' => $missingGuru,
         'logs' => $logs

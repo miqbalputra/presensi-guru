@@ -8,6 +8,7 @@ function PersentaseKehadiran() {
     hadir: 0,
     izin: 0,
     sakit: 0,
+    alfa: 0,
     belumAbsen: 0,
     total: 0,
     persentase: 0
@@ -26,6 +27,7 @@ function PersentaseKehadiran() {
         hadir: 0,
         izin: 0,
         sakit: 0,
+        alfa: 0,
         belumAbsen: 0,
         total: 0,
         persentase: 0
@@ -148,14 +150,14 @@ function PersentaseKehadiran() {
             </div>
           </div>
 
-          {/* Belum Absen */}
+          {/* Alfa */}
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
             <div className="p-2 bg-gray-500 rounded-lg">
               <Users className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-xs text-gray-600">Belum Absen</p>
-              <p className="text-lg font-bold text-gray-700">{stats.belumAbsen}</p>
+              <p className="text-xs text-gray-600">Alfa</p>
+              <p className="text-lg font-bold text-gray-700">{stats.alfa ?? stats.belumAbsen}</p>
             </div>
           </div>
         </div>

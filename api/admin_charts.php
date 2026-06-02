@@ -35,6 +35,34 @@ function buildDateRange($start, $end)
     return $dates;
 }
 
+function getWorkdayDates($pdo, $start, $end)
+{
+    $stmt = $pdo->prepare("
+        SELECT tanggal, jenis, is_workday
+        FROM holidays
+        WHERE tanggal BETWEEN ? AND ?
+    ");
+    $stmt->execute([$start, $end]);
+
+    $holidays = [];
+    foreach ($stmt->fetchAll() as $holiday) {
+        $holidays[$holiday['tanggal']] = $holiday;
+    }
+
+    $workdays = [];
+    foreach (buildDateRange($start, $end) as $date) {
+        $holiday = $holidays[$date] ?? null;
+        $isWeekend = in_array((int)date('w', strtotime($date)), [0, 6], true);
+        $isSpecialWorkday = $holiday && ((int)$holiday['is_workday'] === 1 || $holiday['jenis'] === 'sekolah');
+
+        if ($isSpecialWorkday || (!$holiday && !$isWeekend)) {
+            $workdays[] = $date;
+        }
+    }
+
+    return $workdays;
+}
+
 function timeToMinutesValue($time)
 {
     if (empty($time) || $time === '-' || $time === '00:00:00') {
@@ -141,7 +169,8 @@ try {
                 'tanggal' => dayLabel($date),
                 'date' => $date,
                 'hadir' => 0,
-                'tidakHadir' => 0
+                'tidakHadir' => 0,
+                'tercatat' => 0
             ];
         }
 
@@ -158,6 +187,7 @@ try {
                 continue;
             }
 
+            $trend[$date]['tercatat'] += (int)$row['total'];
             if (in_array($row['status'], ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true)) {
                 $trend[$date]['hadir'] += (int)$row['total'];
             } else {
@@ -168,6 +198,15 @@ try {
         $totalGuruStmt = $pdo->prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'guru'");
         $totalGuruStmt->execute();
         $totalGuru = (int)($totalGuruStmt->fetch()['total'] ?? 0);
+
+        $workdayMap = array_flip(getWorkdayDates($pdo, $startDate, $today));
+        foreach ($trend as $date => &$day) {
+            if (isset($workdayMap[$date])) {
+                $day['tidakHadir'] += max($totalGuru - $day['tercatat'], 0);
+            }
+            unset($day['tercatat']);
+        }
+        unset($day);
 
         $todayStmt = $pdo->prepare("
             SELECT status, COUNT(*) AS total
@@ -180,6 +219,7 @@ try {
             'hadir' => 0,
             'izin' => 0,
             'sakit' => 0,
+            'alfa' => 0,
             'belumAbsen' => $totalGuru,
             'total' => $totalGuru,
             'persentase' => 0
@@ -198,6 +238,7 @@ try {
 
         $sudahAbsen = $todayStats['hadir'] + $todayStats['izin'] + $todayStats['sakit'];
         $todayStats['belumAbsen'] = max($totalGuru - $sudahAbsen, 0);
+        $todayStats['alfa'] = $todayStats['belumAbsen'];
         $todayStats['persentase'] = $totalGuru > 0 ? (int)round(($sudahAbsen / $totalGuru) * 100) : 0;
 
         sendResponse(true, 'Data grafik admin berhasil diambil', [
@@ -218,16 +259,15 @@ try {
             sendResponse(false, 'Invalid period');
         }
 
-        $dateFilter = $startDate ? "AND tanggal BETWEEN ? AND ?" : "";
-        $params = $startDate ? [$startDate, $today] : [];
+        if ($period === 'all') {
+            $minDateStmt = $pdo->prepare("SELECT MIN(tanggal) AS tanggal_awal FROM attendance_logs");
+            $minDateStmt->execute();
+            $startDate = $minDateStmt->fetch()['tanggal_awal'] ?? $today;
+        }
 
-        $datesStmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT tanggal) AS total
-            FROM attendance_logs
-            WHERE 1=1 {$dateFilter}
-        ");
-        $datesStmt->execute($params);
-        $totalHariAktif = (int)($datesStmt->fetch()['total'] ?? 0);
+        $dateFilter = "AND tanggal BETWEEN ? AND ?";
+        $params = [$startDate, $today];
+        $totalHariAktif = count(getWorkdayDates($pdo, $startDate, $today));
 
         $usersStmt = $pdo->prepare("
             SELECT id, nama, jabatan

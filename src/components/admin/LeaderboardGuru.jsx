@@ -292,7 +292,7 @@ function LeaderboardGuru() {
                           </span>
                           {guru.tidakPresensi > 0 && (
                             <span className="text-xs text-red-600">
-                              {guru.tidakPresensi}× tidak presensi
+                              {guru.tidakPresensi}× alfa
                             </span>
                           )}
                         </div>

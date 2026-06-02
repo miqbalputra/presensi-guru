@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
 import { Download, FileText, Users, User } from 'lucide-react'
-import { formatDate, formatDateForInput } from '../../utils/dateUtils'
+import { formatDate, formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { guruAPI, presensiAPI, jadwalPiketAPI } from '../../services/api'
+import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI } from '../../services/api'
 
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
   const [dataGuru, setDataGuru] = useState([])
   const [attendanceLogs, setAttendanceLogs] = useState([])
+  const [holidays, setHolidays] = useState([])
   const [selectedGuru, setSelectedGuru] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -24,15 +25,17 @@ function DownloadLaporan() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [guruResponse, presensiResponse, piketResponse] = await Promise.all([
+      const [guruResponse, presensiResponse, piketResponse, holidaysResponse] = await Promise.all([
         guruAPI.getAll(),
         presensiAPI.getAll(),
-        jadwalPiketAPI.getAll()
+        jadwalPiketAPI.getAll(),
+        holidaysAPI.getAll()
       ])
       
       setDataGuru(guruResponse.data)
       setAttendanceLogs(presensiResponse.data)
       setJadwalPiket(piketResponse.data)
+      setHolidays(holidaysResponse.data)
     } catch (error) {
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message)
@@ -57,16 +60,40 @@ function DownloadLaporan() {
     setTimeout(() => setNotification({ show: false, message: '' }), 3000)
   }
 
-  const getFilteredLogs = () => {
-    if (!selectedGuru) return []
+  const getRangeWorkdays = () => getWorkdayDates(startDate, endDate, holidays)
 
-    const guru = dataGuru.find(g => g.id === parseInt(selectedGuru))
-    if (!guru) return []
-
-    // Gunakan string comparison untuk konsistensi dengan Dashboard
+  const getGuruLogsInRange = (guruId) => {
     return attendanceLogs.filter(log => {
-      if (log.userId !== guru.id) return false
+      if (log.userId !== guruId) return false
       return log.tanggal >= startDate && log.tanggal <= endDate
+    })
+  }
+
+  const getGuruSummary = (guruId) => {
+    const guruLogs = getGuruLogsInRange(guruId)
+    const totalHari = getRangeWorkdays().length
+    const hadir = guruLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
+    const izin = guruLogs.filter(l => l.status === 'izin').length
+    const sakit = guruLogs.filter(l => l.status === 'sakit').length
+    const alfa = Math.max(totalHari - guruLogs.length, 0)
+    const persentase = totalHari > 0 ? ((hadir / totalHari) * 100).toFixed(1) : 0
+
+    return { guruLogs, totalHari, hadir, izin, sakit, alfa, persentase }
+  }
+
+  const getGuruReportRows = (guruId) => {
+    const logsByDate = new Map(getGuruLogsInRange(guruId).map(log => [log.tanggal, log]))
+
+    return getRangeWorkdays().map(date => {
+      const log = logsByDate.get(date)
+      return log || {
+        id: `alfa-${guruId}-${date}`,
+        tanggal: date,
+        jamMasuk: '-',
+        jamPulang: '-',
+        status: 'alfa',
+        keterangan: 'Tidak presensi'
+      }
     })
   }
 
@@ -77,10 +104,11 @@ function DownloadLaporan() {
     }
 
     const guru = dataGuru.find(g => g.id === parseInt(selectedGuru))
-    const logs = getFilteredLogs()
+    const logs = getGuruReportRows(guru.id)
+    const summary = getGuruSummary(guru.id)
 
-    if (logs.length === 0) {
-      alert('Tidak ada data presensi untuk periode ini!')
+    if (summary.totalHari === 0) {
+      alert('Tidak ada hari kerja untuk periode ini!')
       return
     }
 
@@ -95,16 +123,11 @@ function DownloadLaporan() {
     
     const tableData = logs.map(log => [
       log.tanggal,
-      log.jamMasuk,
+      log.jamMasuk || log.jam_masuk || log.jamHadir || log.jam_hadir || '-',
       log.jamPulang || '-',
       log.status.toUpperCase(),
       log.keterangan || '-'
     ])
-
-    // Hitung statistik
-    const hadir = logs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-    const izin = logs.filter(l => l.status === 'izin').length
-    const sakit = logs.filter(l => l.status === 'sakit').length
 
     doc.autoTable({
       startY: 40,
@@ -115,10 +138,12 @@ function DownloadLaporan() {
     // Tambahkan statistik
     const finalY = doc.lastAutoTable.finalY + 10
     doc.setFontSize(10)
-    doc.text(`Total Hari: ${logs.length}`, 14, finalY)
-    doc.text(`Hadir: ${hadir} hari`, 14, finalY + 5)
-    doc.text(`Izin: ${izin} hari`, 14, finalY + 10)
-    doc.text(`Sakit: ${sakit} hari`, 14, finalY + 15)
+    doc.text(`Total Hari Kerja: ${summary.totalHari}`, 14, finalY)
+    doc.text(`Hadir: ${summary.hadir} hari`, 14, finalY + 5)
+    doc.text(`Izin: ${summary.izin} hari`, 14, finalY + 10)
+    doc.text(`Sakit: ${summary.sakit} hari`, 14, finalY + 15)
+    doc.text(`Alfa: ${summary.alfa} hari`, 14, finalY + 20)
+    doc.text(`Persentase Hadir: ${summary.persentase}%`, 14, finalY + 25)
 
     const safeNama = guru.nama.replace(/\s+/g, '_')
     const fileName = `Laporan_${safeNama}_${formatDate(new Date())}.pdf`
@@ -133,32 +158,30 @@ function DownloadLaporan() {
     }
 
     const guru = dataGuru.find(g => g.id === parseInt(selectedGuru))
-    const logs = getFilteredLogs()
+    const logs = getGuruReportRows(guru.id)
+    const summary = getGuruSummary(guru.id)
 
-    if (logs.length === 0) {
-      alert('Tidak ada data presensi untuk periode ini!')
+    if (summary.totalHari === 0) {
+      alert('Tidak ada hari kerja untuk periode ini!')
       return
     }
 
     const exportData = logs.map(log => ({
       'Tanggal': log.tanggal,
-      'Jam Masuk': log.jamMasuk,
+      'Jam Masuk': log.jamMasuk || log.jam_masuk || log.jamHadir || log.jam_hadir || '-',
       'Jam Pulang': log.jamPulang || '-',
       'Status': log.status.toUpperCase(),
       'Keterangan': log.keterangan || '-'
     }))
 
-    // Tambahkan statistik di bawah
-    const hadir = logs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-    const izin = logs.filter(l => l.status === 'izin').length
-    const sakit = logs.filter(l => l.status === 'sakit').length
-
     exportData.push({})
     exportData.push({ 'Tanggal': 'STATISTIK' })
-    exportData.push({ 'Tanggal': 'Total Hari', 'Jam Masuk': logs.length })
-    exportData.push({ 'Tanggal': 'Hadir', 'Jam Masuk': hadir })
-    exportData.push({ 'Tanggal': 'Izin', 'Jam Masuk': izin })
-    exportData.push({ 'Tanggal': 'Sakit', 'Jam Masuk': sakit })
+    exportData.push({ 'Tanggal': 'Total Hari Kerja', 'Jam Masuk': summary.totalHari })
+    exportData.push({ 'Tanggal': 'Hadir', 'Jam Masuk': summary.hadir })
+    exportData.push({ 'Tanggal': 'Izin', 'Jam Masuk': summary.izin })
+    exportData.push({ 'Tanggal': 'Sakit', 'Jam Masuk': summary.sakit })
+    exportData.push({ 'Tanggal': 'Alfa', 'Jam Masuk': summary.alfa })
+    exportData.push({ 'Tanggal': 'Persentase Hadir', 'Jam Masuk': `${summary.persentase}%` })
 
     const ws = XLSX.utils.json_to_sheet(exportData)
     const wb = XLSX.utils.book_new()
@@ -178,7 +201,8 @@ function DownloadLaporan() {
   }
 
   const selectedGuruData = dataGuru.find(g => g.id === parseInt(selectedGuru))
-  const filteredLogs = getFilteredLogs()
+  const selectedGuruSummary = selectedGuruData ? getGuruSummary(selectedGuruData.id) : null
+  const selectedReportRows = selectedGuruData ? getGuruReportRows(selectedGuruData.id) : []
 
   const downloadSemuaGuruPDF = () => {
     if (dataGuru.length === 0) {
@@ -202,42 +226,35 @@ function DownloadLaporan() {
     doc.text(`Periode: ${startDate} s/d ${endDate}`, 105, 30, { align: 'center' })
     
     // Summary statistics (gunakan string comparison)
-    const totalPresensi = attendanceLogs.filter(log => {
-      return log.tanggal >= startDate && log.tanggal <= endDate
-    }).length
+    const totalHariKerja = getRangeWorkdays().length
+    const totalPresensi = dataGuru.length * totalHariKerja
 
     doc.setFontSize(9)
     doc.text(`Total Guru: ${dataGuru.length}`, 14, 40)
-    doc.text(`Total Presensi: ${totalPresensi}`, 14, 45)
+    doc.text(`Total Hari Kerja: ${totalHariKerja}`, 14, 45)
+    doc.text(`Total Slot Presensi: ${totalPresensi}`, 14, 50)
     
     // Prepare table data (gunakan string comparison)
     const tableData = dataGuru.map((guru, index) => {
-      const guruLogs = attendanceLogs.filter(log => {
-        if (log.userId !== guru.id) return false
-        return log.tanggal >= startDate && log.tanggal <= endDate
-      })
-
-      const hadir = guruLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-      const izin = guruLogs.filter(l => l.status === 'izin').length
-      const sakit = guruLogs.filter(l => l.status === 'sakit').length
-      const persentase = guruLogs.length > 0 ? ((hadir / guruLogs.length) * 100).toFixed(1) : 0
+      const { totalHari, hadir, izin, sakit, alfa, persentase } = getGuruSummary(guru.id)
 
       return [
         index + 1,
         guru.nama,
         Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan,
-        guruLogs.length,
+        totalHari,
         hadir,
         izin,
         sakit,
+        alfa,
         `${persentase}%`
       ]
     })
 
     // Create table
     doc.autoTable({
-      startY: 52,
-      head: [['No', 'Nama Guru', 'Jabatan', 'Total', 'Hadir', 'Izin', 'Sakit', '% Hadir']],
+      startY: 57,
+      head: [['No', 'Nama Guru', 'Jabatan', 'Hari Kerja', 'Hadir', 'Izin', 'Sakit', 'Alfa', '% Hadir']],
       body: tableData,
       theme: 'grid',
       headStyles: { 
@@ -282,23 +299,17 @@ function DownloadLaporan() {
 
     // Summary sheet (gunakan string comparison)
     const summaryData = dataGuru.map(guru => {
-      const guruLogs = attendanceLogs.filter(log => {
-        if (log.userId !== guru.id) return false
-        return log.tanggal >= startDate && log.tanggal <= endDate
-      })
-
-      const hadir = guruLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-      const izin = guruLogs.filter(l => l.status === 'izin').length
-      const sakit = guruLogs.filter(l => l.status === 'sakit').length
+      const { totalHari, hadir, izin, sakit, alfa, persentase } = getGuruSummary(guru.id)
 
       return {
         'Nama': guru.nama,
         'Jabatan': Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan,
-        'Total Hari': guruLogs.length,
+        'Total Hari Kerja': totalHari,
         'Hadir': hadir,
         'Izin': izin,
         'Sakit': sakit,
-        'Persentase Hadir': guruLogs.length > 0 ? `${((hadir / guruLogs.length) * 100).toFixed(1)}%` : '0%'
+        'Alfa': alfa,
+        'Persentase Hadir': `${persentase}%`
       }
     })
 
@@ -366,16 +377,13 @@ function DownloadLaporan() {
 
     // Detail sheet for each guru (gunakan string comparison)
     dataGuru.forEach(guru => {
-      const guruLogs = attendanceLogs.filter(log => {
-        if (log.userId !== guru.id) return false
-        return log.tanggal >= startDate && log.tanggal <= endDate
-      })
+      const guruLogs = getGuruReportRows(guru.id)
 
       if (guruLogs.length === 0) return
 
       const detailData = guruLogs.map(log => ({
         'Tanggal': log.tanggal,
-        'Jam Masuk': log.jamMasuk,
+        'Jam Masuk': log.jamMasuk || log.jam_masuk || log.jamHadir || log.jam_hadir || '-',
         'Jam Pulang': log.jamPulang || '-',
         'Status': log.status.toUpperCase(),
         'Keterangan': log.keterangan || '-'
@@ -545,26 +553,17 @@ function DownloadLaporan() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Guru</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jabatan</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total Hari</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hari Kerja</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hadir</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Izin</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Sakit</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Alfa</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">% Hadir</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {dataGuru.map((guru, index) => {
-                      // Filter logs untuk guru ini dalam range tanggal (string comparison)
-                      const guruLogs = attendanceLogs.filter(log => {
-                        if (log.userId !== guru.id) return false
-                        // Gunakan string comparison untuk konsistensi dengan Dashboard
-                        return log.tanggal >= startDate && log.tanggal <= endDate
-                      })
-
-                      const hadir = guruLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-                      const izin = guruLogs.filter(l => l.status === 'izin').length
-                      const sakit = guruLogs.filter(l => l.status === 'sakit').length
-                      const persentase = guruLogs.length > 0 ? ((hadir / guruLogs.length) * 100).toFixed(1) : 0
+                      const { totalHari, hadir, izin, sakit, alfa, persentase } = getGuruSummary(guru.id)
 
                       return (
                         <tr key={guru.id} className="hover:bg-gray-50">
@@ -573,7 +572,7 @@ function DownloadLaporan() {
                           <td className="px-4 py-3 text-sm text-gray-600">
                             {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center">{guruLogs.length}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 text-center">{totalHari}</td>
                           <td className="px-4 py-3 text-center">
                             <span className="inline-flex items-center justify-center w-12 h-8 bg-green-100 text-green-800 rounded text-sm font-semibold">
                               {hadir}
@@ -587,6 +586,11 @@ function DownloadLaporan() {
                           <td className="px-4 py-3 text-center">
                             <span className="inline-flex items-center justify-center w-12 h-8 bg-red-100 text-red-800 rounded text-sm font-semibold">
                               {sakit}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center justify-center w-12 h-8 bg-gray-100 text-gray-800 rounded text-sm font-semibold">
+                              {alfa}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -740,36 +744,42 @@ function DownloadLaporan() {
                 <span className="ml-2 text-gray-900">{startDate} s/d {endDate}</span>
               </div>
               <div>
-                <span className="font-medium text-gray-700">Total Data:</span>
-                <span className="ml-2 text-gray-900">{filteredLogs.length} hari</span>
+                <span className="font-medium text-gray-700">Total Hari Kerja:</span>
+                <span className="ml-2 text-gray-900">{selectedGuruSummary?.totalHari || 0} hari</span>
               </div>
             </div>
           </div>
 
           {/* Statistik */}
-          {filteredLogs.length > 0 && (
-            <div className="grid grid-cols-4 gap-4 mb-4">
+          {selectedGuruSummary && selectedGuruSummary.totalHari > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
               <div className="bg-gray-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-gray-800">{filteredLogs.length}</p>
-                <p className="text-sm text-gray-600">Total Hari</p>
+                <p className="text-2xl font-bold text-gray-800">{selectedGuruSummary.totalHari}</p>
+                <p className="text-sm text-gray-600">Hari Kerja</p>
               </div>
               <div className="bg-green-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-green-600">
-                  {filteredLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length}
+                  {selectedGuruSummary.hadir}
                 </p>
                 <p className="text-sm text-gray-600">Hadir</p>
               </div>
               <div className="bg-yellow-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-yellow-600">
-                  {filteredLogs.filter(l => l.status === 'izin').length}
+                  {selectedGuruSummary.izin}
                 </p>
                 <p className="text-sm text-gray-600">Izin</p>
               </div>
               <div className="bg-red-50 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-red-600">
-                  {filteredLogs.filter(l => l.status === 'sakit').length}
+                  {selectedGuruSummary.sakit}
                 </p>
                 <p className="text-sm text-gray-600">Sakit</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold text-gray-700">
+                  {selectedGuruSummary.alfa}
+                </p>
+                <p className="text-sm text-gray-600">Alfa</p>
               </div>
             </div>
           )}
@@ -787,10 +797,10 @@ function DownloadLaporan() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredLogs.length > 0 ? filteredLogs.slice().reverse().map((log) => (
+                {selectedReportRows.length > 0 ? selectedReportRows.slice().reverse().map((log) => (
                   <tr key={log.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">{log.tanggal}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{log.jamMasuk}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{log.jamMasuk || log.jam_masuk || log.jamHadir || log.jam_hadir || '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{log.jamPulang || '-'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold
@@ -799,6 +809,7 @@ function DownloadLaporan() {
                         ${log.status === 'hadir_izin_terlambat' ? 'bg-blue-100 text-blue-800' : ''}
                         ${log.status === 'izin' ? 'bg-yellow-100 text-yellow-800' : ''}
                         ${log.status === 'sakit' ? 'bg-red-100 text-red-800' : ''}
+                        ${log.status === 'alfa' ? 'bg-gray-200 text-gray-800' : ''}
                       `}>
                         {log.status === 'hadir_izin_terlambat' ? 'HADIR - IZIN TERLAMBAT' : log.status.toUpperCase()}
                       </span>
