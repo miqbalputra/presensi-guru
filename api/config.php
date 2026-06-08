@@ -105,4 +105,23 @@ function requireApiKey($envKey = 'N8N_API_KEY')
         exit();
     }
 }
+
+function requireAnyApiKey($envKeys = ['N8N_API_KEY'])
+{
+    $requestKey = $_SERVER['HTTP_X_API_KEY'] ?? $_GET['api_key'] ?? '';
+
+    foreach ($envKeys as $envKey) {
+        $expectedKey = envValue($envKey, '');
+        if ($expectedKey !== '' && hash_equals($expectedKey, $requestKey)) {
+            return;
+        }
+    }
+
+    http_response_code(401);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Unauthorized: Invalid API Key'
+    ]);
+    exit();
+}
 ?>

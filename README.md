@@ -13,6 +13,69 @@ Ringkasnya:
 4. Isi environment variable `APP_URL`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, dan `N8N_API_KEY`.
 5. Deploy. Frontend akan memakai API same-origin di `/api`.
 
+## API Hermes Agent
+
+Endpoint koneksi yang bisa langsung diberikan ke Hermes:
+
+```bash
+GET /api/hermes_connect.php
+Header: X-API-Key: <HERMES_API_KEY>
+```
+
+Contoh cek koneksi:
+
+```bash
+curl -H "X-API-Key: $HERMES_API_KEY" \
+  "https://geo.griyaquran.web.id/api/hermes_connect.php"
+```
+
+Response sukses akan berisi status koneksi database, kemampuan Hermes, dan daftar endpoint baca/edit presensi yang tersedia.
+
+Endpoint khusus untuk cek data presensi menyeluruh:
+
+```bash
+GET /api/hermes_presensi_overview.php
+Header: X-API-Key: <HERMES_API_KEY>
+```
+
+Jika `HERMES_API_KEY` belum diset, endpoint akan menerima `N8N_API_KEY` sebagai fallback.
+
+Parameter opsional:
+
+- `period`: `today`, `yesterday`, `7days`, `14days`, `30days`, `month`, atau `all` (default: `today`)
+- `start_date` dan `end_date`: format `YYYY-MM-DD`, menggantikan `period`
+- `user_id`: filter satu guru
+- `include_logs=1`: sertakan log presensi mentah
+- `limit`: batas log mentah saat `include_logs=1` (1-2000, default 500)
+
+Contoh:
+
+```bash
+curl -H "X-API-Key: $HERMES_API_KEY" \
+  "https://geo.griyaquran.web.id/api/hermes_presensi_overview.php?period=30days&include_logs=1"
+```
+
+Endpoint untuk melihat semua data presensi serta menambah/mengedit record:
+
+```bash
+GET /api/hermes_presensi.php
+POST /api/hermes_presensi.php
+PUT /api/hermes_presensi.php
+Header: X-API-Key: <HERMES_API_KEY>
+```
+
+Filter `GET` opsional: `id`, `user_id`, `tanggal`, `start_date`, `end_date`, `status`, `limit`, `offset`. Tanpa filter tanggal, endpoint mengembalikan data presensi dari semua tanggal.
+
+Contoh edit presensi:
+
+```bash
+curl -X PUT -H "X-API-Key: $HERMES_API_KEY" -H "Content-Type: application/json" \
+  -d '{"id":930,"status":"hadir","jamMasuk":"07:15","jamPulang":"13:00","keterangan":"Diedit oleh Hermes"}' \
+  "https://geo.griyaquran.web.id/api/hermes_presensi.php"
+```
+
+Field payload yang didukung: `id`, `userId`/`user_id`, `tanggal`, `status`, `jamMasuk`/`jam_masuk`, `jamPulang`/`jam_pulang`, `jamHadir`/`jam_hadir`, `jamIzin`/`jam_izin`, `jamSakit`/`jam_sakit`, `keterangan`, `latitude`, `longitude`, dan `metode`.
+
 Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat, transparan, dan real-time. Menggunakan validasi Geofencing (GPS) dan QR Code untuk menjamin kehadiran fisik guru di sekolah.
 
 ---
