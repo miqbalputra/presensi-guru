@@ -31,6 +31,11 @@ function GuruHome({ user }) {
     lokasi_apel_longitude: '',
     mode_testing: '1',
     button_enabled: '0',
+    weekend_workday_enabled: '0',
+    saturday_male_workday_enabled: '0',
+    saturday_female_workday_enabled: '0',
+    sunday_male_workday_enabled: '0',
+    sunday_female_workday_enabled: '0',
     qr_enabled: '1',
     location_tracking_enabled: '0',
     location_tracking_interval_minutes: '15',
@@ -393,7 +398,7 @@ function GuruHome({ user }) {
       const today = formatDateForInput(new Date())
       console.log('🔍 Checking holiday for:', today)
 
-      const response = await holidaysAPI.checkDate(today)
+      const response = await holidaysAPI.checkDate(today, { jenis_kelamin: user?.jenisKelamin || user?.jenis_kelamin || '' })
       console.log('📅 Holiday API response:', response)
 
       if (response && response.success && response.data) {

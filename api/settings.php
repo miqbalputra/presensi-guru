@@ -49,7 +49,10 @@ if ($method === 'PUT') {
             'lokasi_laki_latitude', 'lokasi_laki_longitude', 'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude',
             'lokasi_apel_latitude', 'lokasi_apel_longitude', 'apel_senin_enabled',
             'location_tracking_enabled', 'location_tracking_interval_minutes', 'location_tracking_accuracy_limit',
-            'qr_secret', 'qr_enabled', 'piket_terlambat_adalah_terlambat', 'jam_piket_default', 'button_enabled'
+            'qr_secret', 'qr_enabled', 'piket_terlambat_adalah_terlambat', 'jam_piket_default', 'button_enabled',
+            'weekend_workday_enabled',
+            'saturday_male_workday_enabled', 'saturday_female_workday_enabled',
+            'sunday_male_workday_enabled', 'sunday_female_workday_enabled'
         ];
         if (!in_array($data['setting_key'], $allowedKeys)) {
             sendResponse(false, 'Setting key tidak valid: ' . $data['setting_key']);
@@ -57,6 +60,18 @@ if ($method === 'PUT') {
 
         if ($data['setting_key'] === 'location_tracking_enabled' && !in_array((string)$data['setting_value'], ['0', '1'], true)) {
             sendResponse(false, 'Nilai tracking lokasi harus 0 atau 1');
+        }
+
+        $weekendWorkdayKeys = [
+            'weekend_workday_enabled',
+            'saturday_male_workday_enabled',
+            'saturday_female_workday_enabled',
+            'sunday_male_workday_enabled',
+            'sunday_female_workday_enabled'
+        ];
+
+        if (in_array($data['setting_key'], $weekendWorkdayKeys, true) && !in_array((string)$data['setting_value'], ['0', '1'], true)) {
+            sendResponse(false, 'Nilai presensi Sabtu/Minggu harus 0 atau 1');
         }
 
         if ($data['setting_key'] === 'location_tracking_interval_minutes') {

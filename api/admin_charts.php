@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'workday_service.php';
 
 requireAuth(['admin', 'kepala_sekolah']);
 
@@ -35,32 +36,9 @@ function buildDateRange($start, $end)
     return $dates;
 }
 
-function getWorkdayDates($pdo, $start, $end)
+function getWorkdayDates($pdo, $start, $end, $gender = null)
 {
-    $stmt = $pdo->prepare("
-        SELECT tanggal, jenis, is_workday
-        FROM holidays
-        WHERE tanggal BETWEEN ? AND ?
-    ");
-    $stmt->execute([$start, $end]);
-
-    $holidays = [];
-    foreach ($stmt->fetchAll() as $holiday) {
-        $holidays[$holiday['tanggal']] = $holiday;
-    }
-
-    $workdays = [];
-    foreach (buildDateRange($start, $end) as $date) {
-        $holiday = $holidays[$date] ?? null;
-        $isWeekend = in_array((int)date('w', strtotime($date)), [0, 6], true);
-        $isSpecialWorkday = $holiday && ((int)$holiday['is_workday'] === 1 || $holiday['jenis'] === 'sekolah');
-
-        if ($isSpecialWorkday || (!$holiday && !$isWeekend)) {
-            $workdays[] = $date;
-        }
-    }
-
-    return $workdays;
+    return gpw_get_workday_dates($pdo, $start, $end, $gender);
 }
 
 function timeToMinutesValue($time)
@@ -174,11 +152,26 @@ try {
             ];
         }
 
+        $guruStmt = $pdo->prepare("SELECT id, jenis_kelamin FROM users WHERE role = 'guru'");
+        $guruStmt->execute();
+        $guruRows = $guruStmt->fetchAll();
+
+        $expectedByDate = [];
+        foreach (array_keys($trend) as $date) {
+            $expectedByDate[$date] = 0;
+            foreach ($guruRows as $guru) {
+                if (in_array($date, getWorkdayDates($pdo, $date, $date, $guru['jenis_kelamin']), true)) {
+                    $expectedByDate[$date]++;
+                }
+            }
+        }
+
         $trendStmt = $pdo->prepare("
-            SELECT tanggal, status, COUNT(*) AS total
-            FROM attendance_logs
-            WHERE tanggal BETWEEN ? AND ?
-            GROUP BY tanggal, status
+            SELECT a.user_id, a.tanggal, a.status, u.jenis_kelamin
+            FROM attendance_logs a
+            JOIN users u ON u.id = a.user_id
+            WHERE a.tanggal BETWEEN ? AND ?
+              AND u.role = 'guru'
         ");
         $trendStmt->execute([$startDate, $today]);
         foreach ($trendStmt->fetchAll() as $row) {
@@ -186,33 +179,35 @@ try {
             if (!isset($trend[$date])) {
                 continue;
             }
+            if (!in_array($date, getWorkdayDates($pdo, $date, $date, $row['jenis_kelamin']), true)) {
+                continue;
+            }
 
-            $trend[$date]['tercatat'] += (int)$row['total'];
+            $trend[$date]['tercatat']++;
             if (in_array($row['status'], ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true)) {
-                $trend[$date]['hadir'] += (int)$row['total'];
+                $trend[$date]['hadir']++;
             } else {
-                $trend[$date]['tidakHadir'] += (int)$row['total'];
+                $trend[$date]['tidakHadir']++;
             }
         }
 
-        $totalGuruStmt = $pdo->prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'guru'");
-        $totalGuruStmt->execute();
-        $totalGuru = (int)($totalGuruStmt->fetch()['total'] ?? 0);
+        $totalGuru = count($guruRows);
 
         $workdayMap = array_flip(getWorkdayDates($pdo, $startDate, $today));
         foreach ($trend as $date => &$day) {
             if (isset($workdayMap[$date])) {
-                $day['tidakHadir'] += max($totalGuru - $day['tercatat'], 0);
+                $day['tidakHadir'] += max(($expectedByDate[$date] ?? 0) - $day['tercatat'], 0);
             }
             unset($day['tercatat']);
         }
         unset($day);
 
         $todayStmt = $pdo->prepare("
-            SELECT status, COUNT(*) AS total
-            FROM attendance_logs
-            WHERE tanggal = ?
-            GROUP BY status
+            SELECT a.status, u.jenis_kelamin
+            FROM attendance_logs a
+            JOIN users u ON u.id = a.user_id
+            WHERE a.tanggal = ?
+              AND u.role = 'guru'
         ");
         $todayStmt->execute([$today]);
         $todayStats = [
@@ -226,20 +221,25 @@ try {
         ];
 
         foreach ($todayStmt->fetchAll() as $row) {
-            $count = (int)$row['total'];
+            if (!in_array($today, getWorkdayDates($pdo, $today, $today, $row['jenis_kelamin']), true)) {
+                continue;
+            }
+
             if (in_array($row['status'], ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true)) {
-                $todayStats['hadir'] += $count;
+                $todayStats['hadir']++;
             } elseif ($row['status'] === 'izin') {
-                $todayStats['izin'] += $count;
+                $todayStats['izin']++;
             } elseif ($row['status'] === 'sakit') {
-                $todayStats['sakit'] += $count;
+                $todayStats['sakit']++;
             }
         }
 
         $sudahAbsen = $todayStats['hadir'] + $todayStats['izin'] + $todayStats['sakit'];
-        $todayStats['belumAbsen'] = max($totalGuru - $sudahAbsen, 0);
+        $todayExpected = $expectedByDate[$today] ?? 0;
+        $todayStats['belumAbsen'] = max($todayExpected - $sudahAbsen, 0);
         $todayStats['alfa'] = $todayStats['belumAbsen'];
-        $todayStats['persentase'] = $totalGuru > 0 ? (int)round(($sudahAbsen / $totalGuru) * 100) : 0;
+        $todayStats['total'] = $todayExpected;
+        $todayStats['persentase'] = $todayExpected > 0 ? (int)round(($sudahAbsen / $todayExpected) * 100) : 0;
 
         sendResponse(true, 'Data grafik admin berhasil diambil', [
             'trend7Days' => array_values($trend),
@@ -270,7 +270,7 @@ try {
         $totalHariAktif = count(getWorkdayDates($pdo, $startDate, $today));
 
         $usersStmt = $pdo->prepare("
-            SELECT id, nama, jabatan
+            SELECT id, nama, jabatan, jenis_kelamin
             FROM users
             WHERE role = 'guru'
             ORDER BY nama ASC
@@ -279,16 +279,23 @@ try {
         $guruRows = $usersStmt->fetchAll();
 
         $statsStmt = $pdo->prepare("
-            SELECT user_id, status, COUNT(*) AS total
+            SELECT user_id, tanggal, status
             FROM attendance_logs
             WHERE 1=1 {$dateFilter}
-            GROUP BY user_id, status
         ");
         $statsStmt->execute($params);
 
         $byUser = [];
+        $genderByUser = [];
+        foreach ($guruRows as $guru) {
+            $genderByUser[(int)$guru['id']] = $guru['jenis_kelamin'];
+        }
         foreach ($statsStmt->fetchAll() as $row) {
             $userId = (int)$row['user_id'];
+            if (!in_array($row['tanggal'], getWorkdayDates($pdo, $row['tanggal'], $row['tanggal'], $genderByUser[$userId] ?? null), true)) {
+                continue;
+            }
+
             if (!isset($byUser[$userId])) {
                 $byUser[$userId] = [
                     'hadir' => 0,
@@ -300,19 +307,18 @@ try {
                 ];
             }
 
-            $count = (int)$row['total'];
-            $byUser[$userId]['records'] += $count;
+            $byUser[$userId]['records']++;
 
             if ($row['status'] === 'hadir') {
-                $byUser[$userId]['hadir'] += $count;
-                $byUser[$userId]['tepatWaktu'] += $count;
+                $byUser[$userId]['hadir']++;
+                $byUser[$userId]['tepatWaktu']++;
             } elseif (in_array($row['status'], ['hadir_terlambat', 'hadir_izin_terlambat'], true)) {
-                $byUser[$userId]['hadir'] += $count;
-                $byUser[$userId]['terlambat'] += $count;
+                $byUser[$userId]['hadir']++;
+                $byUser[$userId]['terlambat']++;
             } elseif ($row['status'] === 'izin') {
-                $byUser[$userId]['izin'] += $count;
+                $byUser[$userId]['izin']++;
             } elseif ($row['status'] === 'sakit') {
-                $byUser[$userId]['sakit'] += $count;
+                $byUser[$userId]['sakit']++;
             }
         }
 
@@ -327,8 +333,9 @@ try {
                 'records' => 0
             ];
 
-            $tidakPresensi = max($totalHariAktif - $userStats['records'], 0);
-            $persentaseKehadiran = $totalHariAktif > 0 ? ($userStats['hadir'] / $totalHariAktif) * 100 : 0;
+            $userTotalHariAktif = count(getWorkdayDates($pdo, $startDate, $today, $guru['jenis_kelamin']));
+            $tidakPresensi = max($userTotalHariAktif - $userStats['records'], 0);
+            $persentaseKehadiran = $userTotalHariAktif > 0 ? ($userStats['hadir'] / $userTotalHariAktif) * 100 : 0;
             $persentaseTepatWaktu = $userStats['hadir'] > 0 ? ($userStats['tepatWaktu'] / $userStats['hadir']) * 100 : 0;
             $skor = ($persentaseKehadiran * 0.7) + ($persentaseTepatWaktu * 0.3);
 
@@ -342,7 +349,7 @@ try {
                 'izin' => $userStats['izin'],
                 'sakit' => $userStats['sakit'],
                 'tidakPresensi' => $tidakPresensi,
-                'totalHariAktif' => $totalHariAktif,
+                'totalHariAktif' => $userTotalHariAktif,
                 'persentaseKehadiran' => round($persentaseKehadiran, 1),
                 'persentaseTepatWaktu' => round($persentaseTepatWaktu, 1),
                 'skor' => round($skor, 1)

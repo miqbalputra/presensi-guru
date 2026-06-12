@@ -5,6 +5,7 @@
  */
 
 require_once 'config.php';
+require_once 'workday_service.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -41,7 +42,8 @@ try {
     // LOGIKA BARU: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR (untuk Guru)
     $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
     
-    if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
+    $dateStatus = gpw_get_date_status($pdo, $today);
+    if (!$isSpecialWorkday && ($holiday || ($isWeekend && !$dateStatus['isWeekendWorkday']))) {
         echo json_encode([
             'success' => true,
             'message' => $holiday ? 'Hari ini adalah hari libur: ' . $holiday['nama'] : 'Hari ini adalah hari libur (Weekend)',
@@ -69,7 +71,9 @@ try {
     ");
     
     $stmt->execute([$today]);
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $users = array_values(array_filter($stmt->fetchAll(PDO::FETCH_ASSOC), function ($user) use ($pdo, $today) {
+        return gpw_get_date_status($pdo, $today, $user['jenis_kelamin'])['isWorkday'];
+    }));
     
     // Format response
     foreach ($users as &$user) {

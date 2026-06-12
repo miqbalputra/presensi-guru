@@ -5,6 +5,7 @@
  */
 
 require_once 'config.php';
+require_once 'workday_service.php';
 
 // Fungsi untuk log error
 function logError($message) {
@@ -39,7 +40,8 @@ try {
     // LOGIKA BARU: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR (untuk Guru)
     $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
     
-    if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
+    $dateStatus = gpw_get_date_status($pdo, $today);
+    if (!$isSpecialWorkday && ($holiday || ($isWeekend && !$dateStatus['isWeekendWorkday']))) {
         $reason = $holiday ? 'Hari libur: ' . $holiday['nama'] : 'Weekend';
         logSuccess($reason . '. Skip reminder.');
         exit($reason . ', skip reminder');
@@ -47,7 +49,7 @@ try {
     
     // 3. Ambil daftar guru yang belum presensi hari ini
     $stmt = $pdo->prepare("
-        SELECT u.id, u.nama, u.no_hp 
+        SELECT u.id, u.nama, u.no_hp, u.jenis_kelamin
         FROM users u
         WHERE u.role = 'guru' 
         AND u.id NOT IN (
@@ -57,7 +59,9 @@ try {
         ORDER BY u.nama
     ");
     $stmt->execute([$today]);
-    $guruBelumPresensi = $stmt->fetchAll();
+    $guruBelumPresensi = array_values(array_filter($stmt->fetchAll(), function ($guru) use ($pdo, $today) {
+        return gpw_get_date_status($pdo, $today, $guru['jenis_kelamin'])['isWorkday'];
+    }));
     
     if (empty($guruBelumPresensi)) {
         logSuccess('Semua guru sudah presensi. Skip reminder.');

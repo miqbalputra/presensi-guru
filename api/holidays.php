@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'workday_service.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -24,20 +25,16 @@ if ($method === 'GET' && isset($_GET['check'])) {
             sendResponse(false, 'Format tanggal tidak valid');
         }
         
-        // Check if date is holiday (tanpa is_active karena kolom tidak ada)
-        $stmt = $pdo->prepare("SELECT * FROM holidays WHERE tanggal = ?");
-        $stmt->execute([$tanggal]);
-        $holiday = $stmt->fetch();
-        
-        // Check if date is weekend (Saturday = 6, Sunday = 0)
-        $dayOfWeek = date('w', strtotime($tanggal));
-        $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
+        $dateStatus = gpw_get_date_status($pdo, $tanggal, $_GET['jenis_kelamin'] ?? null);
+        $holiday = $dateStatus['holiday'];
+        $dayOfWeek = $dateStatus['dayOfWeek'];
         
         $response = [
             'tanggal' => $tanggal,
             'isHoliday' => $holiday ? true : false,
-            'isWeekend' => $isWeekend,
-            'isWorkday' => $holiday ? ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah') : (!$isWeekend),
+            'isWeekend' => $dateStatus['isWeekend'],
+            'isWeekendWorkday' => $dateStatus['isWeekendWorkday'],
+            'isWorkday' => $dateStatus['isWorkday'],
             'jamMasukKhusus' => $holiday ? $holiday['jam_masuk_khusus'] : null,
             'holidayName' => $holiday ? $holiday['nama'] : null,
             'holidayType' => $holiday ? $holiday['jenis'] : null,

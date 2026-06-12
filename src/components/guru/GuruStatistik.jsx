@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX } from 'lucide-react'
-import { holidaysAPI, presensiAPI } from '../../services/api'
+import { holidaysAPI, presensiAPI, settingsAPI } from '../../services/api'
 import { formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 
 function GuruStatistik({ user }) {
   const [presensiData, setPresensiData] = useState([])
   const [holidays, setHolidays] = useState([])
+  const [settings, setSettings] = useState({
+    weekend_workday_enabled: '0',
+    saturday_male_workday_enabled: '0',
+    saturday_female_workday_enabled: '0',
+    sunday_male_workday_enabled: '0',
+    sunday_female_workday_enabled: '0'
+  })
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('bulan_ini')
 
@@ -55,12 +62,14 @@ function GuruStatistik({ user }) {
     try {
       setLoading(true)
       const { startDate, endDate } = getPeriodRange()
-      const [presensiResponse, holidaysResponse] = await Promise.all([
+      const [presensiResponse, holidaysResponse, settingsResponse] = await Promise.all([
         presensiAPI.getAll({ user_id: user.id, start_date: startDate, end_date: endDate }),
-        holidaysAPI.getAll({ start_date: startDate, end_date: endDate })
+        holidaysAPI.getAll({ start_date: startDate, end_date: endDate }),
+        settingsAPI.getAll()
       ])
       setPresensiData(presensiResponse.data)
       setHolidays(holidaysResponse.data)
+      setSettings(prev => ({ ...prev, ...settingsResponse.data }))
     } catch (error) {
       console.error('Failed to load presensi data:', error)
     } finally {
@@ -75,8 +84,17 @@ function GuruStatistik({ user }) {
 
   const filteredData = getFilteredData()
   const { startDate, endDate } = getPeriodRange()
-  const workdayDates = getWorkdayDates(startDate, endDate, holidays)
-  const logsByDate = new Map(filteredData.map(log => [log.tanggal, log]))
+  const workdayDates = getWorkdayDates(startDate, endDate, holidays, {
+    weekendWorkdayEnabled: settings.weekend_workday_enabled,
+    saturday_male_workday_enabled: settings.saturday_male_workday_enabled,
+    saturday_female_workday_enabled: settings.saturday_female_workday_enabled,
+    sunday_male_workday_enabled: settings.sunday_male_workday_enabled,
+    sunday_female_workday_enabled: settings.sunday_female_workday_enabled,
+    gender: user?.jenisKelamin || user?.jenis_kelamin || ''
+  })
+  const workdaySet = new Set(workdayDates)
+  const workdayData = filteredData.filter(log => workdaySet.has(log.tanggal))
+  const logsByDate = new Map(workdayData.map(log => [log.tanggal, log]))
   const displayData = workdayDates
     .map(date => logsByDate.get(date) || {
       id: `alfa-${date}`,
@@ -90,12 +108,12 @@ function GuruStatistik({ user }) {
     .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
 
   // Hitung statistik
-  const totalHadir = filteredData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
-  const totalTerlambat = filteredData.filter(log => log.status === 'hadir_terlambat').length
-  const totalIzin = filteredData.filter(log => log.status === 'izin').length
-  const totalSakit = filteredData.filter(log => log.status === 'sakit').length
+  const totalHadir = workdayData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
+  const totalTerlambat = workdayData.filter(log => log.status === 'hadir_terlambat').length
+  const totalIzin = workdayData.filter(log => log.status === 'izin').length
+  const totalSakit = workdayData.filter(log => log.status === 'sakit').length
   const totalPresensi = workdayDates.length
-  const totalAlfa = Math.max(totalPresensi - filteredData.length, 0)
+  const totalAlfa = Math.max(totalPresensi - workdayData.length, 0)
 
   // Hitung persentase kehadiran
   const persentaseHadir = totalPresensi > 0 ? ((totalHadir / totalPresensi) * 100).toFixed(1) : 0

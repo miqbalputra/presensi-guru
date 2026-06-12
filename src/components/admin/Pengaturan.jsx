@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube } from 'lucide-react'
+import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck } from 'lucide-react'
 import { settingsAPI } from '../../services/api'
 
 function Pengaturan() {
@@ -13,6 +13,11 @@ function Pengaturan() {
     mode_testing: '1',
     piket_terlambat_adalah_terlambat: '0',
     button_enabled: '1',
+    weekend_workday_enabled: '0',
+    saturday_male_workday_enabled: '0',
+    saturday_female_workday_enabled: '0',
+    sunday_male_workday_enabled: '0',
+    sunday_female_workday_enabled: '0',
     apel_senin_enabled: '1',
     location_tracking_enabled: '0',
     location_tracking_interval_minutes: '15',
@@ -62,6 +67,12 @@ function Pengaturan() {
     setSettings(prev => ({ ...prev, [key]: value }))
   }
 
+  const toggleSetting = (key) => {
+    const newValue = settings[key] == '1' ? '0' : '1'
+    handleChange(key, newValue)
+    handleSave(key, newValue)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -74,6 +85,67 @@ function Pengaturan() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Pengaturan Sistem</h1>
+      </div>
+
+      {/* Presensi Akhir Pekan */}
+      <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
+        <div className="flex items-start gap-4">
+          <div className={`p-3 rounded-lg ${
+            settings.saturday_male_workday_enabled == '1' ||
+            settings.saturday_female_workday_enabled == '1' ||
+            settings.sunday_male_workday_enabled == '1' ||
+            settings.sunday_female_workday_enabled == '1'
+              ? 'bg-emerald-100'
+              : 'bg-gray-100'
+          }`}>
+            <CalendarCheck className={`w-6 h-6 ${
+              settings.saturday_male_workday_enabled == '1' ||
+              settings.saturday_female_workday_enabled == '1' ||
+              settings.sunday_male_workday_enabled == '1' ||
+              settings.sunday_female_workday_enabled == '1'
+                ? 'text-emerald-600'
+                : 'text-gray-600'
+            }`} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Presensi Akhir Pekan</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Aktifkan sesuai jadwal kegiatan sekolah. Hari dan kelompok yang aktif akan bisa presensi dan ikut dihitung dalam rekap.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                { key: 'saturday_male_workday_enabled', day: 'Sabtu', group: 'Ustadz / Guru Laki-laki' },
+                { key: 'saturday_female_workday_enabled', day: 'Sabtu', group: 'Ustadzah / Guru Perempuan' },
+                { key: 'sunday_male_workday_enabled', day: 'Minggu', group: 'Ustadz / Guru Laki-laki' },
+                { key: 'sunday_female_workday_enabled', day: 'Minggu', group: 'Ustadzah / Guru Perempuan' }
+              ].map(item => (
+                <div key={item.key} className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 p-4">
+                  <div>
+                    <p className="font-bold text-gray-800">{item.day}</p>
+                    <p className="text-xs text-gray-500">{item.group}</p>
+                    <p className={`text-xs font-semibold mt-1 ${settings[item.key] == '1' ? 'text-emerald-600' : 'text-gray-500'}`}>
+                      {settings[item.key] == '1' ? 'Dihitung hari masuk' : 'Libur'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => toggleSetting(item.key)}
+                    disabled={saving}
+                    className={`relative inline-flex h-8 w-16 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                      settings[item.key] == '1' ? 'bg-emerald-600' : 'bg-gray-400'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                        settings[item.key] == '1' ? 'translate-x-9' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Visibilitas Tombol Hadir Manual */}

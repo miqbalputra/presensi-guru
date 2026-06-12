@@ -6,6 +6,7 @@
 
 require_once 'config.php';
 require_once 'attendance_service.php';
+require_once 'workday_service.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -53,18 +54,16 @@ function hermes_get_workday_dates($pdo, $start, $end)
 
     $workdays = [];
     $excludedDates = [];
-
     foreach (hermes_build_date_range($start, $end) as $date) {
         $holiday = $holidays[$date] ?? null;
-        $isWeekend = in_array((int)date('w', strtotime($date)), [0, 6], true);
-        $isSpecialWorkday = $holiday && ((int)$holiday['is_workday'] === 1 || $holiday['jenis'] === 'sekolah');
+        $dateStatus = gpw_get_date_status($pdo, $date);
 
-        if ($isSpecialWorkday || (!$holiday && !$isWeekend)) {
+        if ($dateStatus['isWorkday']) {
             $workdays[] = $date;
         } else {
             $excludedDates[] = [
                 'tanggal' => $date,
-                'reason' => $holiday ? $holiday['nama'] : ($isWeekend ? 'Weekend' : 'Non-workday')
+                'reason' => $holiday ? $holiday['nama'] : ($dateStatus['isWeekend'] ? 'Weekend' : 'Non-workday')
             ];
         }
     }
@@ -172,6 +171,7 @@ try {
     $guruById = [];
     foreach ($guruRows as $guru) {
         $guruId = (int)$guru['id'];
+        $userWorkdays = gpw_get_workday_dates($pdo, $startDate, $endDate, $guru['jenis_kelamin']);
         $guruById[$guruId] = [
             'id' => $guruId,
             'idGuru' => $guru['id_guru'],
@@ -189,7 +189,9 @@ try {
             'totalTercatat' => 0,
             'lupaPulang' => 0,
             'izinPulangAwal' => 0,
-            'persentaseKehadiran' => 0
+            'persentaseKehadiran' => 0,
+            'totalHariAktif' => count($userWorkdays),
+            '_workdayMap' => array_flip($userWorkdays)
         ];
     }
 
@@ -230,7 +232,7 @@ try {
         $uid = (int)$mapped['user_id'];
         $status = $mapped['status'];
         $date = $mapped['tanggal'];
-        $isWorkday = isset($workdayMap[$date]);
+        $isWorkday = isset($guruById[$uid]['_workdayMap'][$date]);
 
         if ($isWorkday) {
             $presentKeys[$uid . '|' . $date] = true;
@@ -308,8 +310,8 @@ try {
     $missingToday = [];
     $missingByDate = [];
 
-    foreach ($workdays as $workday) {
-        foreach ($guruById as $guruId => &$guru) {
+    foreach ($guruById as $guruId => &$guru) {
+        foreach (array_keys($guru['_workdayMap']) as $workday) {
             if (!isset($presentKeys[$guruId . '|' . $workday])) {
                 $guru['alfa']++;
 
@@ -328,20 +330,21 @@ try {
                 }
             }
         }
-        unset($guru);
     }
+    unset($guru);
 
     foreach ($guruById as &$guru) {
-        $guru['persentaseKehadiran'] = $totalHariAktif > 0
-            ? round(($guru['hadir'] / $totalHariAktif) * 100, 1)
+        $guru['persentaseKehadiran'] = $guru['totalHariAktif'] > 0
+            ? round(($guru['hadir'] / $guru['totalHariAktif']) * 100, 1)
             : 0;
+        unset($guru['_workdayMap']);
     }
     unset($guru);
 
     $statusCounts['alfa'] = array_sum(array_column($guruById, 'alfa'));
     $totalHadir = $statusCounts['hadir'] + $statusCounts['hadirTerlambat'] + $statusCounts['hadirIzinTerlambat'];
     $totalTercatat = $totalHadir + $statusCounts['izin'] + $statusCounts['sakit'];
-    $totalExpected = $totalGuru * $totalHariAktif;
+    $totalExpected = array_sum(array_column($guruById, 'totalHariAktif'));
 
     $response = [
         'generatedAt' => date('c'),

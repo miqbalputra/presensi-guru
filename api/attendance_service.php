@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/workday_service.php';
 
 function gp_map_attendance_record($record)
 {
@@ -192,17 +193,17 @@ function gp_get_holiday($pdo, $date)
     return $stmt->fetch();
 }
 
-function gp_validate_workday($pdo, $date)
+function gp_validate_workday($pdo, $date, $gender = null)
 {
-    $holiday = gp_get_holiday($pdo, $date);
-    $dayOfWeek = (int)date('w', strtotime($date));
-    $isWeekend = ($dayOfWeek === 0 || $dayOfWeek === 6);
-    $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
+    $status = gpw_get_date_status($pdo, $date, $gender);
+    $holiday = $status['holiday'];
+    $isWeekend = $status['isWeekend'];
+    $isSpecialWorkday = $status['isSpecialWorkday'];
 
-    if (!$isSpecialWorkday && ($holiday || $isWeekend)) {
+    if (!$status['isWorkday']) {
         $message = $holiday
             ? 'Tidak dapat melakukan presensi pada hari libur: ' . $holiday['nama']
-            : 'Tidak dapat melakukan presensi pada hari weekend';
+            : 'Tidak dapat melakukan presensi pada hari weekend untuk kelompok Anda';
         sendResponse(false, $message);
     }
 
@@ -272,7 +273,7 @@ function gp_create_attendance($pdo, $options)
         sendResponse(false, 'Anda sudah melakukan presensi hari ini.');
     }
 
-    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date);
+    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
     $settings = gp_get_settings($pdo, ['jam_masuk_normal', 'toleransi_terlambat', 'apel_senin_enabled']);
 
     $status = $requestedStatus;
@@ -366,13 +367,13 @@ function gp_checkout_attendance($pdo, $options)
         sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul 09:00 WIB');
     }
 
-    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date);
-    if (!empty($options['validate_location'])) {
-        $user = gp_get_guru($pdo, $record['user_id']);
-        if (!$user) {
-            sendResponse(false, 'Data guru tidak ditemukan');
-        }
+    $user = gp_get_guru($pdo, $record['user_id']);
+    if (!$user) {
+        sendResponse(false, 'Data guru tidak ditemukan');
+    }
 
+    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
+    if (!empty($options['validate_location'])) {
         $settings = gp_get_settings($pdo, [
             'sekolah_latitude', 'sekolah_longitude', 'radius_gps', 'mode_testing',
             'lokasi_laki_latitude', 'lokasi_laki_longitude',

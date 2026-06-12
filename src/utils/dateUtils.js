@@ -35,8 +35,42 @@ export const eachDateInRange = (startDate, endDate) => {
   return dates
 }
 
-export const getWorkdayDates = (startDate, endDate, holidays = []) => {
+export const getWorkdayDates = (startDate, endDate, holidays = [], options = {}) => {
   const holidaysByDate = new Map(holidays.map(holiday => [holiday.tanggal, holiday]))
+  const isEnabled = (value) => value === true || value === '1' || value === 1
+  const normalizeGender = (gender) => {
+    const value = String(gender || '').toLowerCase().trim()
+    if (['laki-laki', 'laki laki', 'male'].includes(value)) return 'male'
+    if (['perempuan', 'female'].includes(value)) return 'female'
+    return null
+  }
+  const gender = normalizeGender(options.gender || options.jenisKelamin)
+  const hasSpecificWeekendSettings = [
+    'saturday_male_workday_enabled',
+    'saturday_female_workday_enabled',
+    'sunday_male_workday_enabled',
+    'sunday_female_workday_enabled'
+  ].some(key => Object.prototype.hasOwnProperty.call(options, key))
+
+  const isWeekendWorkday = (day) => {
+    if (!hasSpecificWeekendSettings) {
+      return isEnabled(options.weekendWorkdayEnabled)
+    }
+
+    if (day === 6) {
+      if (gender === 'male') return isEnabled(options.saturday_male_workday_enabled)
+      if (gender === 'female') return isEnabled(options.saturday_female_workday_enabled)
+      return isEnabled(options.saturday_male_workday_enabled) || isEnabled(options.saturday_female_workday_enabled)
+    }
+
+    if (day === 0) {
+      if (gender === 'male') return isEnabled(options.sunday_male_workday_enabled)
+      if (gender === 'female') return isEnabled(options.sunday_female_workday_enabled)
+      return isEnabled(options.sunday_male_workday_enabled) || isEnabled(options.sunday_female_workday_enabled)
+    }
+
+    return false
+  }
 
   return eachDateInRange(startDate, endDate).filter(date => {
     const holiday = holidaysByDate.get(date)
@@ -44,7 +78,7 @@ export const getWorkdayDates = (startDate, endDate, holidays = []) => {
     const isWeekend = day === 0 || day === 6
     const isSpecialWorkday = holiday && (Number(holiday.is_workday) === 1 || holiday.jenis === 'sekolah')
 
-    return isSpecialWorkday || (!holiday && !isWeekend)
+    return isSpecialWorkday || (!holiday && (!isWeekend || isWeekendWorkday(day)))
   })
 }
 

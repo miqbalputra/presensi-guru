@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'workday_service.php';
 
 requireAuth(['guru']);
 
@@ -11,6 +12,10 @@ try {
     $userId = $_SESSION['user_id'];
     $today = date('Y-m-d');
 
+    $userStmt = $pdo->prepare("SELECT jenis_kelamin FROM users WHERE id = ? AND role = 'guru' LIMIT 1");
+    $userStmt->execute([$userId]);
+    $currentUser = $userStmt->fetch();
+
     $settingsStmt = $pdo->prepare("SELECT setting_key, setting_value FROM settings");
     $settingsStmt->execute();
     $settingsRows = $settingsStmt->fetchAll();
@@ -19,23 +24,15 @@ try {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 
-    $holidayStmt = $pdo->prepare("
-        SELECT tanggal, nama, jenis, is_workday, jam_masuk_khusus
-        FROM holidays
-        WHERE tanggal = ?
-        LIMIT 1
-    ");
-    $holidayStmt->execute([$today]);
-    $holiday = $holidayStmt->fetch();
-
-    $dayOfWeek = date('w');
-    $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
-    $isWorkday = $holiday ? ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah') : (!$isWeekend);
+    $dateStatus = gpw_get_date_status($pdo, $today, $currentUser['jenis_kelamin'] ?? null);
+    $holiday = $dateStatus['holiday'];
+    $dayOfWeek = $dateStatus['dayOfWeek'];
     $holidayData = [
         'tanggal' => $today,
         'isHoliday' => $holiday ? true : false,
-        'isWeekend' => $isWeekend,
-        'isWorkday' => $isWorkday,
+        'isWeekend' => $dateStatus['isWeekend'],
+        'isWeekendWorkday' => $dateStatus['isWeekendWorkday'],
+        'isWorkday' => $dateStatus['isWorkday'],
         'jamMasukKhusus' => $holiday ? $holiday['jam_masuk_khusus'] : null,
         'holidayName' => $holiday ? $holiday['nama'] : null,
         'holidayType' => $holiday ? $holiday['jenis'] : null,

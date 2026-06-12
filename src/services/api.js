@@ -157,8 +157,9 @@ export const holidaysAPI = {
     })
   },
 
-  checkDate: async (tanggal) => {
-    return fetchAPI(`/holidays.php?check=${tanggal}`, {
+  checkDate: async (tanggal, params = {}) => {
+    const query = new URLSearchParams({ check: tanggal, ...params })
+    return fetchAPI(`/holidays.php?${query}`, {
       method: 'GET',
     })
   },

@@ -4,13 +4,20 @@ import { formatDate, formatDateForInput, getWorkdayDates } from '../../utils/dat
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI } from '../../services/api'
+import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI } from '../../services/api'
 
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
   const [dataGuru, setDataGuru] = useState([])
   const [attendanceLogs, setAttendanceLogs] = useState([])
   const [holidays, setHolidays] = useState([])
+  const [settings, setSettings] = useState({
+    weekend_workday_enabled: '0',
+    saturday_male_workday_enabled: '0',
+    saturday_female_workday_enabled: '0',
+    sunday_male_workday_enabled: '0',
+    sunday_female_workday_enabled: '0'
+  })
   const [selectedGuru, setSelectedGuru] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -25,17 +32,19 @@ function DownloadLaporan() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [guruResponse, presensiResponse, piketResponse, holidaysResponse] = await Promise.all([
+      const [guruResponse, presensiResponse, piketResponse, holidaysResponse, settingsResponse] = await Promise.all([
         guruAPI.getAll(),
         presensiAPI.getAll(),
         jadwalPiketAPI.getAll(),
-        holidaysAPI.getAll()
+        holidaysAPI.getAll(),
+        settingsAPI.getAll()
       ])
       
       setDataGuru(guruResponse.data)
       setAttendanceLogs(presensiResponse.data)
       setJadwalPiket(piketResponse.data)
       setHolidays(holidaysResponse.data)
+      setSettings(prev => ({ ...prev, ...settingsResponse.data }))
     } catch (error) {
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message)
@@ -60,7 +69,16 @@ function DownloadLaporan() {
     setTimeout(() => setNotification({ show: false, message: '' }), 3000)
   }
 
-  const getRangeWorkdays = () => getWorkdayDates(startDate, endDate, holidays)
+  const getGender = (guru) => guru?.jenisKelamin || guru?.jenis_kelamin || ''
+
+  const getRangeWorkdays = (guru = null) => getWorkdayDates(startDate, endDate, holidays, {
+    weekendWorkdayEnabled: settings.weekend_workday_enabled,
+    saturday_male_workday_enabled: settings.saturday_male_workday_enabled,
+    saturday_female_workday_enabled: settings.saturday_female_workday_enabled,
+    sunday_male_workday_enabled: settings.sunday_male_workday_enabled,
+    sunday_female_workday_enabled: settings.sunday_female_workday_enabled,
+    gender: getGender(guru)
+  })
 
   const getGuruLogsInRange = (guruId) => {
     return attendanceLogs.filter(log => {
@@ -70,8 +88,11 @@ function DownloadLaporan() {
   }
 
   const getGuruSummary = (guruId) => {
-    const guruLogs = getGuruLogsInRange(guruId)
-    const totalHari = getRangeWorkdays().length
+    const guru = dataGuru.find(g => g.id === guruId)
+    const workdays = getRangeWorkdays(guru)
+    const workdaySet = new Set(workdays)
+    const guruLogs = getGuruLogsInRange(guruId).filter(log => workdaySet.has(log.tanggal))
+    const totalHari = workdays.length
     const hadir = guruLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
     const izin = guruLogs.filter(l => l.status === 'izin').length
     const sakit = guruLogs.filter(l => l.status === 'sakit').length
@@ -82,9 +103,10 @@ function DownloadLaporan() {
   }
 
   const getGuruReportRows = (guruId) => {
+    const guru = dataGuru.find(g => g.id === guruId)
     const logsByDate = new Map(getGuruLogsInRange(guruId).map(log => [log.tanggal, log]))
 
-    return getRangeWorkdays().map(date => {
+    return getRangeWorkdays(guru).map(date => {
       const log = logsByDate.get(date)
       return log || {
         id: `alfa-${guruId}-${date}`,
@@ -227,12 +249,12 @@ function DownloadLaporan() {
     doc.text(`Periode: ${startDate} s/d ${endDate}`, pageWidth / 2, 23, { align: 'center' })
     doc.text('Hari tanpa presensi pada hari kerja dihitung sebagai Alfa', pageWidth / 2, 29, { align: 'center' })
     
-    const totalHariKerja = getRangeWorkdays().length
-    const totalPresensi = dataGuru.length * totalHariKerja
     const summaries = dataGuru.map(guru => ({
       guru,
       ...getGuruSummary(guru.id)
     }))
+    const totalHariKerja = summaries.reduce((sum, item) => sum + item.totalHari, 0)
+    const totalPresensi = totalHariKerja
     const totalHadir = summaries.reduce((sum, item) => sum + item.hadir, 0)
     const totalIzin = summaries.reduce((sum, item) => sum + item.izin, 0)
     const totalSakit = summaries.reduce((sum, item) => sum + item.sakit, 0)
@@ -241,7 +263,7 @@ function DownloadLaporan() {
 
     const summaryCards = [
       ['Total Guru', dataGuru.length],
-      ['Hari Kerja', totalHariKerja],
+      ['Hari Kerja Guru', totalHariKerja],
       ['Hadir', totalHadir],
       ['Izin', totalIzin],
       ['Sakit', totalSakit],
