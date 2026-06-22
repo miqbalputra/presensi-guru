@@ -84,35 +84,50 @@ function GuruStatistik({ user }) {
 
   const filteredData = getFilteredData()
   const { startDate, endDate } = getPeriodRange()
-  const workdayDates = getWorkdayDates(startDate, endDate, holidays, {
+
+  // Normalisasi gender dari berbagai kemungkinan field user
+  const userGender = user?.jenisKelamin || user?.jenis_kelamin || user?.gender || ''
+
+  // Opsi hari kerja weekend berdasarkan gender guru
+  const weekendOptions = {
     weekendWorkdayEnabled: settings.weekend_workday_enabled,
     saturday_male_workday_enabled: settings.saturday_male_workday_enabled,
     saturday_female_workday_enabled: settings.saturday_female_workday_enabled,
     sunday_male_workday_enabled: settings.sunday_male_workday_enabled,
     sunday_female_workday_enabled: settings.sunday_female_workday_enabled,
-    gender: user?.jenisKelamin || user?.jenis_kelamin || ''
-  })
-  const workdaySet = new Set(workdayDates)
-  const workdayData = filteredData.filter(log => workdaySet.has(log.tanggal))
-  const logsByDate = new Map(workdayData.map(log => [log.tanggal, log]))
-  const displayData = workdayDates
-    .map(date => logsByDate.get(date) || {
-      id: `alfa-${date}`,
-      tanggal: date,
-      status: 'alfa',
-      jam_masuk: '-',
-      jam_hadir: '-',
-      jam_pulang: '-',
-      keterangan: 'Tidak presensi'
-    })
-    .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
+    gender: userGender
+  }
 
-  // Hitung statistik
+  const workdayDates = getWorkdayDates(startDate, endDate, holidays, weekendOptions)
+  const workdaySet = new Set(workdayDates)
+
+  // Presensi aktual milik guru dalam periode (termasuk Sabtu/Minggu insidental)
+  const allUserLogs = filteredData
+  const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal))
+
+  // Gabungkan tanggal hari kerja dan tanggal yang memiliki presensi aktual
+  // agar Sabtu/Minggu insidental tetap masuk statistik.
+  const datesWithPresence = new Set(allUserLogs.map(log => log.tanggal))
+  const relevantDatesSet = new Set([...workdayDates, ...datesWithPresence])
+  const relevantDates = Array.from(relevantDatesSet).sort().reverse()
+
+  const logsByDate = new Map(allUserLogs.map(log => [log.tanggal, log]))
+  const displayData = relevantDates.map(date => logsByDate.get(date) || {
+    id: `alfa-${date}`,
+    tanggal: date,
+    status: 'alfa',
+    jam_masuk: '-',
+    jam_hadir: '-',
+    jam_pulang: '-',
+    keterangan: 'Tidak presensi'
+  })
+
+  // Hitung statistik berdasarkan tanggal yang relevan (hari kerja + tanggal dengan presensi)
   const totalHadir = workdayData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
   const totalTerlambat = workdayData.filter(log => log.status === 'hadir_terlambat').length
   const totalIzin = workdayData.filter(log => log.status === 'izin').length
   const totalSakit = workdayData.filter(log => log.status === 'sakit').length
-  const totalPresensi = workdayDates.length
+  const totalPresensi = relevantDates.length
   const totalAlfa = Math.max(totalPresensi - workdayData.length, 0)
 
   // Hitung persentase kehadiran
