@@ -62,8 +62,10 @@ function GuruStatistik({ user }) {
     try {
       setLoading(true)
       const { startDate, endDate } = getPeriodRange()
+      // Ambil SEMUA presensi guru tanpa filter tanggal (sama seperti Riwayat)
+      // agar data insidental Sabtu/Minggu tidak terlewat karena filter backend.
       const [presensiResponse, holidaysResponse, settingsResponse] = await Promise.all([
-        presensiAPI.getAll({ user_id: user.id, start_date: startDate, end_date: endDate }),
+        presensiAPI.getAll({ user_id: user.id }),
         holidaysAPI.getAll({ start_date: startDate, end_date: endDate }),
         settingsAPI.getAll()
       ])
@@ -103,13 +105,21 @@ function GuruStatistik({ user }) {
 
   // Presensi aktual milik guru dalam periode (termasuk Sabtu/Minggu insidental)
   const allUserLogs = filteredData
-  const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal))
 
-  // Gabungkan tanggal hari kerja dan tanggal yang memiliki presensi aktual
-  // agar Sabtu/Minggu insidental tetap masuk statistik.
+  // Tanggal-tanggal yang memiliki presensi aktual di dalam periode.
+  // Ini menangkap data Sabtu/Minggu insidental yang mungkin tidak dianggap hari kerja umum.
   const datesWithPresence = new Set(allUserLogs.map(log => log.tanggal))
+
+  // Gabungkan hari kerja normal dengan tanggal yang punya presensi aktual,
+  // lalu filter hanya yang berada di dalam periode yang dipilih.
   const relevantDatesSet = new Set([...workdayDates, ...datesWithPresence])
-  const relevantDates = Array.from(relevantDatesSet).sort().reverse()
+  const relevantDates = Array.from(relevantDatesSet)
+    .filter(date => date >= startDate && date <= endDate)
+    .sort()
+    .reverse()
+
+  // Data presensi yang relevan: yang masuk di hari kerja normal ATAU tanggal dengan presensi aktual.
+  const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal) || datesWithPresence.has(log.tanggal))
 
   const logsByDate = new Map(allUserLogs.map(log => [log.tanggal, log]))
   const displayData = relevantDates.map(date => logsByDate.get(date) || {
