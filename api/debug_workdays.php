@@ -1,6 +1,8 @@
 <?php
 // Endpoint debug tanpa autentikasi untuk memverifikasi perhitungan hari kerja backend.
 // Hanya untuk development/debugging, tidak untuk production public secara permanen.
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
 require_once 'config.php';
 require_once 'workday_service.php';
 
