@@ -394,6 +394,16 @@ export const teacherWorkdaysAPI = {
   },
 }
 
+// Bulk Teachers Workdays API - all teachers workdays in one call
+export const teachersWorkdaysAPI = {
+  getAll: async (startDate, endDate) => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+    return fetchAPI(`/teachers_workdays.php?${params}`, {
+      method: 'GET',
+    })
+  },
+}
+
 // Weekend Override API
 export const weekendOverridesAPI = {
   getAll: async (params = {}) => {
@@ -461,4 +471,5 @@ export default {
   manualEntryAPI,
   weekendOverridesAPI,
   teacherWorkdaysAPI,
+  teachersWorkdaysAPI,
 }

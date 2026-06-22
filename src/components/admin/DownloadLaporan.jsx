@@ -4,7 +4,7 @@ import { formatDate, formatDateForInput, getWorkdayDates } from '../../utils/dat
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI, teacherWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
+import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI, teacherWorkdaysAPI, teachersWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
 
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
@@ -70,9 +70,25 @@ function DownloadLaporan() {
     }
   }
 
+  // Preload workday backend data for ALL teachers when date range changes
+  const loadAllWorkdays = async () => {
+    if (!startDate || !endDate) return
+    try {
+      const allResponse = await teachersWorkdaysAPI.getAll(startDate, endDate)
+      const newCache = {}
+      if (allResponse.data?.teachers) {
+        Object.values(allResponse.data.teachers).forEach(t => {
+          newCache[`${t.user_id}_${startDate}_${endDate}`] = t.workday_dates || []
+        })
+      }
+      setWorkdaysCache(newCache)
+    } catch (error) {
+      console.error('Failed to load workdays:', error)
+    }
+  }
+
   useEffect(() => {
     if (dataGuru.length > 0) {
-      // Set default date range (bulan ini agar sesuai dengan load override)
       const today = new Date()
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
       setStartDate(formatDateForInput(firstDay))
@@ -80,29 +96,13 @@ function DownloadLaporan() {
     }
   }, [dataGuru])
 
-  // Reload override setiap kali periode tanggal berubah
+  // Reload workdays dan override setiap kali periode tanggal berubah
   useEffect(() => {
     if (startDate && endDate) {
+      loadAllWorkdays()
       loadOverrides()
     }
   }, [startDate, endDate])
-
-  // Preload workday backend data for selected guru when date range changes
-  useEffect(() => {
-    if (!startDate || !endDate || !selectedGuru) return
-    const loadWorkdays = async () => {
-      try {
-        const response = await teacherWorkdaysAPI.getWorkdays(selectedGuru, startDate, endDate)
-        setWorkdaysCache(prev => ({
-          ...prev,
-          [`${selectedGuru}_${startDate}_${endDate}`]: response.data?.workday_dates || []
-        }))
-      } catch (error) {
-        console.error('Failed to load workdays:', error)
-      }
-    }
-    loadWorkdays()
-  }, [selectedGuru, startDate, endDate])
 
   const showNotification = (message) => {
     setNotification({ show: true, message })
@@ -112,10 +112,12 @@ function DownloadLaporan() {
   const getGender = (guru) => guru?.jenisKelamin || guru?.jenis_kelamin || ''
 
   const getRangeWorkdays = (guru = null) => {
-    if (guru?.id && selectedGuru === String(guru.id)) {
+    // Gunakan backend-calculated workdays untuk semua guru jika tersedia di cache
+    if (guru?.id) {
       const cached = workdaysCache[`${guru.id}_${startDate}_${endDate}`]
       if (cached) return cached
     }
+    // Fallback ke perhitungan lokal tanpa override (hanya untuk sementara jika backend belum siap)
     return getWorkdayDates(startDate, endDate, holidays, {
       weekendWorkdayEnabled: settings.weekend_workday_enabled,
       saturday_male_workday_enabled: settings.saturday_male_workday_enabled,
