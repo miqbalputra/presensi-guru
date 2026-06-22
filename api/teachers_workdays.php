@@ -81,6 +81,8 @@ try {
 
             if (isset($userOverrides[$date]) && $isWeekend) {
                 $isWorkday = $userOverrides[$date] === 1;
+            } elseif (isset($optionalWorkdays[$date])) {
+                $isWorkday = false;
             } else {
                 $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
                 $isSpecialWorkday = gpw_is_special_workday($holiday);
@@ -89,6 +91,10 @@ try {
 
             if ($isWorkday) {
                 $workdayDates[] = $date;
+            } elseif (isset($optionalWorkdays[$date])) {
+                // optional day: not a mandatory workday
+            } else {
+                $nonWorkdayDates[] = $date;
             }
         }
 

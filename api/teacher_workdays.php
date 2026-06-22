@@ -74,8 +74,10 @@ try {
         $override = $overridesByDate[$date] ?? null;
         $isOptional = isset($optionalWorkdays[$date]);
 
-        // Compute workday status: override wins for weekend dates, otherwise normal rules
-        if ($override && $isWeekend) {
+        // Optional workdays are NOT mandatory workdays; they only count if the teacher attends.
+        if ($isOptional) {
+            $isWorkday = false;
+        } elseif ($override && $isWeekend) {
             $isWorkday = (int)$override['is_workday'] === 1;
         } else {
             $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
@@ -97,6 +99,8 @@ try {
         $breakdown[] = $entry;
         if ($isWorkday) {
             $workdayDates[] = $date;
+        } elseif ($isOptional) {
+            // optional days are tracked separately, not as workdays nor non-workdays for alfa purposes
         } else {
             $nonWorkdayDates[] = $date;
         }
