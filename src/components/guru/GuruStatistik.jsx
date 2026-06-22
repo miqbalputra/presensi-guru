@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX } from 'lucide-react'
-import { holidaysAPI, presensiAPI, settingsAPI, weekendOverridesAPI } from '../../services/api'
+import { holidaysAPI, presensiAPI, settingsAPI, teacherWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
 import { formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 
 function GuruStatistik({ user }) {
   const [presensiData, setPresensiData] = useState([])
   const [holidays, setHolidays] = useState([])
   const [overrides, setOverrides] = useState([])
+  const [workdaysData, setWorkdaysData] = useState(null)
   const [settings, setSettings] = useState({
     weekend_workday_enabled: '0',
     saturday_male_workday_enabled: '0',
@@ -63,18 +64,14 @@ function GuruStatistik({ user }) {
     try {
       setLoading(true)
       const { startDate, endDate } = getPeriodRange()
-      // Ambil SEMUA presensi guru tanpa filter tanggal (sama seperti Riwayat)
-      // agar data insidental Sabtu/Minggu tidak terlewat karena filter backend.
-      const [presensiResponse, holidaysResponse, settingsResponse, overridesResponse] = await Promise.all([
+      const [presensiResponse, settingsResponse, workdaysResponse] = await Promise.all([
         presensiAPI.getAll({ user_id: user.id }),
-        holidaysAPI.getAll({ start_date: startDate, end_date: endDate }),
         settingsAPI.getAll(),
-        weekendOverridesAPI.getAll({ user_id: user.id, start_date: startDate, end_date: endDate })
+        teacherWorkdaysAPI.getWorkdays(user.id, startDate, endDate)
       ])
       setPresensiData(presensiResponse.data)
-      setHolidays(holidaysResponse.data)
       setSettings(prev => ({ ...prev, ...settingsResponse.data }))
-      setOverrides(overridesResponse.data || [])
+      setWorkdaysData(workdaysResponse.data)
     } catch (error) {
       console.error('Failed to load presensi data:', error)
     } finally {
@@ -93,32 +90,8 @@ function GuruStatistik({ user }) {
   // Normalisasi gender dari berbagai kemungkinan field user
   const userGender = user?.jenisKelamin || user?.jenis_kelamin || user?.gender || ''
 
-  // Opsi hari kerja weekend berdasarkan gender guru
-  const weekendOptions = {
-    weekendWorkdayEnabled: settings.weekend_workday_enabled,
-    saturday_male_workday_enabled: settings.saturday_male_workday_enabled,
-    saturday_female_workday_enabled: settings.saturday_female_workday_enabled,
-    sunday_male_workday_enabled: settings.sunday_male_workday_enabled,
-    sunday_female_workday_enabled: settings.sunday_female_workday_enabled,
-    gender: userGender
-  }
-
-  // Map override per user per tanggal (cocokkan user_id/userId dan angka/string)
-  const overrideByDate = new Map(
-    (overrides || [])
-      .filter(o => String(o.user_id || o.userId) === String(user.id))
-      .map(o => [o.tanggal, o.is_workday == 1])
-  )
-
-  // Hitung hari kerja dengan mempertimbangkan override per user
-  const rawWorkdayDates = getWorkdayDates(startDate, endDate, holidays, weekendOptions)
-  const workdayDates = rawWorkdayDates.map(date => {
-    if (overrideByDate.has(date)) {
-      return { date, isWorkday: overrideByDate.get(date) }
-    }
-    return { date, isWorkday: true }
-  }).filter(item => item.isWorkday).map(item => item.date)
-
+  // Gunakan backend-calculated workday dates yang sudah mempertimbangkan override per guru
+  const workdayDates = workdaysData?.workday_dates || []
   const workdaySet = new Set(workdayDates)
 
   // Presensi aktual milik guru dalam periode (termasuk Sabtu/Minggu insidental)
@@ -127,6 +100,13 @@ function GuruStatistik({ user }) {
   // Tanggal-tanggal yang memiliki presensi aktual di dalam periode.
   // Ini menangkap data Sabtu/Minggu insidental yang mungkin tidak dianggap hari kerja umum.
   const datesWithPresence = new Set(allUserLogs.map(log => log.tanggal))
+
+  // Override map untuk status tampilan (is_workday/off)
+  const overrideByDate = new Map(
+    (workdaysData?.breakdown || [])
+      .filter(d => d.override)
+      .map(d => [d.tanggal, d.override.is_workday == 1])
+  )
 
   // Gabungkan hari kerja normal (setelah override) dengan tanggal yang punya presensi aktual,
   // lalu filter hanya yang berada di dalam periode yang dipilih.

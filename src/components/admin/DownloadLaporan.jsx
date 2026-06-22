@@ -4,7 +4,7 @@ import { formatDate, formatDateForInput, getWorkdayDates } from '../../utils/dat
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI, weekendOverridesAPI } from '../../services/api'
+import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI, teacherWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
 
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
@@ -23,6 +23,7 @@ function DownloadLaporan() {
   const [endDate, setEndDate] = useState('')
   const [jadwalPiket, setJadwalPiket] = useState([])
   const [overrides, setOverrides] = useState([])
+  const [workdaysCache, setWorkdaysCache] = useState({})
   const [notification, setNotification] = useState({ show: false, message: '' })
   const [loading, setLoading] = useState(true)
 
@@ -86,6 +87,23 @@ function DownloadLaporan() {
     }
   }, [startDate, endDate])
 
+  // Preload workday backend data for selected guru when date range changes
+  useEffect(() => {
+    if (!startDate || !endDate || !selectedGuru) return
+    const loadWorkdays = async () => {
+      try {
+        const response = await teacherWorkdaysAPI.getWorkdays(selectedGuru, startDate, endDate)
+        setWorkdaysCache(prev => ({
+          ...prev,
+          [`${selectedGuru}_${startDate}_${endDate}`]: response.data?.workday_dates || []
+        }))
+      } catch (error) {
+        console.error('Failed to load workdays:', error)
+      }
+    }
+    loadWorkdays()
+  }, [selectedGuru, startDate, endDate])
+
   const showNotification = (message) => {
     setNotification({ show: true, message })
     setTimeout(() => setNotification({ show: false, message: '' }), 3000)
@@ -93,14 +111,20 @@ function DownloadLaporan() {
 
   const getGender = (guru) => guru?.jenisKelamin || guru?.jenis_kelamin || ''
 
-  const getRangeWorkdays = (guru = null) => getWorkdayDates(startDate, endDate, holidays, {
-    weekendWorkdayEnabled: settings.weekend_workday_enabled,
-    saturday_male_workday_enabled: settings.saturday_male_workday_enabled,
-    saturday_female_workday_enabled: settings.saturday_female_workday_enabled,
-    sunday_male_workday_enabled: settings.sunday_male_workday_enabled,
-    sunday_female_workday_enabled: settings.sunday_female_workday_enabled,
-    gender: getGender(guru)
-  })
+  const getRangeWorkdays = (guru = null) => {
+    if (guru?.id && selectedGuru === String(guru.id)) {
+      const cached = workdaysCache[`${guru.id}_${startDate}_${endDate}`]
+      if (cached) return cached
+    }
+    return getWorkdayDates(startDate, endDate, holidays, {
+      weekendWorkdayEnabled: settings.weekend_workday_enabled,
+      saturday_male_workday_enabled: settings.saturday_male_workday_enabled,
+      saturday_female_workday_enabled: settings.saturday_female_workday_enabled,
+      sunday_male_workday_enabled: settings.sunday_male_workday_enabled,
+      sunday_female_workday_enabled: settings.sunday_female_workday_enabled,
+      gender: getGender(guru)
+    })
+  }
 
   const getUserOverrides = (guruId) => {
     return new Map(

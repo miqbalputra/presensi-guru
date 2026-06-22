@@ -384,6 +384,16 @@ export const locationTrackingAPI = {
   },
 }
 
+// Teacher Workdays API - backend-calculated workdays with overrides
+export const teacherWorkdaysAPI = {
+  getWorkdays: async (userId, startDate, endDate) => {
+    const params = new URLSearchParams({ user_id: userId, start_date: startDate, end_date: endDate })
+    return fetchAPI(`/teacher_workdays.php?${params}`, {
+      method: 'GET',
+    })
+  },
+}
+
 // Weekend Override API
 export const weekendOverridesAPI = {
   getAll: async (params = {}) => {
@@ -450,4 +460,5 @@ export default {
   locationTrackingAPI,
   manualEntryAPI,
   weekendOverridesAPI,
+  teacherWorkdaysAPI,
 }
