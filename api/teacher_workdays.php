@@ -22,6 +22,12 @@ try {
         $userId = (int)$_SESSION['user_id'];
     }
 
+    // Normalisasi userId: untuk admin/kepala_sekolah jika user_id tidak valid
+    // atau tidak diberikan, gunakan session user_id agar tidak kosong.
+    if ($userId === null || $userId === false) {
+        $userId = (int)($_SESSION['user_id'] ?? 0);
+    }
+
     if (!validateDate($startDate) || !validateDate($endDate)) {
         http_response_code(400);
         sendResponse(false, 'Format tanggal tidak valid');
@@ -32,7 +38,8 @@ try {
         sendResponse(false, 'Tanggal awal tidak boleh lebih besar dari tanggal akhir');
     }
 
-    if ($userId === null || $userId === false) {
+    if ($userId <= 0) {
+        http_response_code(400);
         sendResponse(false, 'user_id harus diisi');
     }
 
@@ -84,11 +91,14 @@ try {
         $override = $overridesByDate[$date] ?? null;
         $isOptional = isset($optionalWorkdays[$date]);
 
-        // Optional workdays are NOT mandatory workdays; they only count if the teacher attends.
-        if ($isOptional) {
-            $isWorkday = false;
-        } elseif ($override && $isWeekend) {
+        // Override per user mengalahkan semua aturan gender/global untuk hari Sabtu/Minggu.
+        // Override juga mengalahkan status optional workday agar optional tidak lagi dianggap hari libur.
+        if ($override && $isWeekend) {
             $isWorkday = (int)$override['is_workday'] === 1;
+            $isOptional = false;
+        } elseif ($isOptional) {
+            // Optional workdays are NOT mandatory workdays; they only count if the teacher attends.
+            $isWorkday = false;
         } else {
             $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
             $isSpecialWorkday = gpw_is_special_workday($holiday);

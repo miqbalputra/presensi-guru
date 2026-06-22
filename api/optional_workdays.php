@@ -2,7 +2,7 @@
 require_once 'config.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
-requireAuth(['admin', 'kepala_sekolah']);
+requireAuth(['admin', 'kepala_sekolah', 'guru']);
 
 function sendError($message, $code = 400)
 {

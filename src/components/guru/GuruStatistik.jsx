@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX } from 'lucide-react'
-import { holidaysAPI, optionalWorkdaysAPI, presensiAPI, settingsAPI, teacherWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
+import { optionalWorkdaysAPI, presensiAPI, settingsAPI, teacherWorkdaysAPI } from '../../services/api'
 import { formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 
 function GuruStatistik({ user }) {
   const [presensiData, setPresensiData] = useState([])
-  const [holidays, setHolidays] = useState([])
-  const [overrides, setOverrides] = useState([])
   const [workdaysData, setWorkdaysData] = useState(null)
   const [optionalWorkdays, setOptionalWorkdays] = useState([])
   const [settings, setSettings] = useState({
@@ -20,8 +18,10 @@ function GuruStatistik({ user }) {
   const [filter, setFilter] = useState('bulan_ini')
 
   useEffect(() => {
-    loadPresensiData()
-  }, [filter])
+    if (user?.id) {
+      loadPresensiData()
+    }
+  }, [filter, user?.id])
 
   const getPeriodRange = () => {
     const today = new Date()
@@ -65,17 +65,46 @@ function GuruStatistik({ user }) {
     try {
       setLoading(true)
       const { startDate, endDate } = getPeriodRange()
-      const [presensiResponse, settingsResponse, workdaysResponse, optionalResponse] = await Promise.all([
-        presensiAPI.getAll({ user_id: user.id }),
+
+      // Pastikan user.id valid numerik sebelum memanggil API
+      const numericUserId = user?.id != null ? Number(user.id) : null
+      if (!numericUserId || Number.isNaN(numericUserId)) {
+        console.error('GuruStatistik: user.id tidak valid', user)
+        setLoading(false)
+        return
+      }
+
+      const [presensiResponse, settingsResponse, workdaysResponse, optionalResponse] = await Promise.allSettled([
+        presensiAPI.getAll({ user_id: numericUserId }),
         settingsAPI.getAll(),
-        teacherWorkdaysAPI.getWorkdays(user.id, startDate, endDate),
+        teacherWorkdaysAPI.getWorkdays(numericUserId, startDate, endDate),
         optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
       ])
-      setPresensiData(presensiResponse.data)
-      setSettings(prev => ({ ...prev, ...settingsResponse.data }))
-      setWorkdaysData(workdaysResponse.data)
-      const optionalDates = (optionalResponse.data || []).map(o => o.tanggal || o)
-      setOptionalWorkdays(optionalDates.length > 0 ? optionalDates : (workdaysResponse.data?.optional_dates || []))
+
+      if (presensiResponse.status === 'fulfilled') {
+        setPresensiData(presensiResponse.value.data)
+      } else {
+        console.error('GuruStatistik presensiAPI failed:', presensiResponse.reason)
+      }
+
+      if (settingsResponse.status === 'fulfilled') {
+        setSettings(prev => ({ ...prev, ...settingsResponse.value.data }))
+      } else {
+        console.error('GuruStatistik settingsAPI failed:', settingsResponse.reason)
+      }
+
+      if (workdaysResponse.status === 'fulfilled') {
+        setWorkdaysData(workdaysResponse.value.data)
+      } else {
+        console.error('GuruStatistik teacherWorkdaysAPI failed:', workdaysResponse.reason)
+      }
+
+      if (optionalResponse.status === 'fulfilled') {
+        const optionalDates = (optionalResponse.value.data || []).map(o => o.tanggal || o)
+        setOptionalWorkdays(optionalDates.length > 0 ? optionalDates : (workdaysResponse.status === 'fulfilled' ? (workdaysResponse.value.data?.optional_dates || []) : []))
+      } else {
+        console.error('GuruStatistik optionalWorkdaysAPI failed:', optionalResponse.reason)
+      }
     } catch (error) {
       console.error('Failed to load presensi data:', error)
     } finally {
