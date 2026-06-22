@@ -384,6 +384,37 @@ export const locationTrackingAPI = {
   },
 }
 
+// Weekend Override API
+export const weekendOverridesAPI = {
+  getAll: async (params = {}) => {
+    const queryString = new URLSearchParams(params).toString()
+    return fetchAPI(`/weekend_overrides.php${queryString ? '?' + queryString : ''}`, {
+      method: 'GET',
+    })
+  },
+
+  create: async (payload) => {
+    return fetchAPI('/weekend_overrides.php', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  update: async (id, data) => {
+    return fetchAPI('/weekend_overrides.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...data }),
+    })
+  },
+
+  delete: async (id) => {
+    return fetchAPI('/weekend_overrides.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    })
+  },
+}
+
 // Manual Entry API (Admin only)
 export const manualEntryAPI = {
   // Get list of guru for dropdown
@@ -418,4 +449,5 @@ export default {
   qrGenerateAPI,
   locationTrackingAPI,
   manualEntryAPI,
+  weekendOverridesAPI,
 }

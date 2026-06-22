@@ -14,6 +14,7 @@ const QRCodeGenerator = lazy(() => import('../components/admin/QRCodeGenerator')
 const ManualEntry = lazy(() => import('../components/admin/ManualEntry'))
 const LokasiGeofence = lazy(() => import('../components/admin/LokasiGeofence'))
 const LocationTracking = lazy(() => import('../components/admin/LocationTracking'))
+const OverrideWeekend = lazy(() => import('../components/admin/OverrideWeekend'))
 
 function SectionLoading() {
   return (
@@ -86,6 +87,7 @@ function AdminDashboard({ user, onLogout }) {
               <Route path="/manual-entry" element={<ManualEntry />} />
               <Route path="/lokasi-geofence" element={<LokasiGeofence user={user} />} />
               <Route path="/tracking-lokasi" element={<LocationTracking />} />
+              <Route path="/override-weekend" element={<OverrideWeekend />} />
               <Route path="*" element={<Navigate to="/admin" />} />
             </Routes>
           </Suspense>

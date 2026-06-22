@@ -4,7 +4,7 @@ import { formatDate, formatDateForInput, getWorkdayDates } from '../../utils/dat
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI } from '../../services/api'
+import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI, weekendOverridesAPI } from '../../services/api'
 
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
@@ -22,6 +22,7 @@ function DownloadLaporan() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [jadwalPiket, setJadwalPiket] = useState([])
+  const [overrides, setOverrides] = useState([])
   const [notification, setNotification] = useState({ show: false, message: '' })
   const [loading, setLoading] = useState(true)
 
@@ -32,19 +33,26 @@ function DownloadLaporan() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [guruResponse, presensiResponse, piketResponse, holidaysResponse, settingsResponse] = await Promise.all([
+      const today = new Date()
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+      const monthStart = formatDateForInput(firstDay)
+      const monthEnd = formatDateForInput(today)
+
+      const [guruResponse, presensiResponse, piketResponse, holidaysResponse, settingsResponse, overridesResponse] = await Promise.all([
         guruAPI.getAll(),
         presensiAPI.getAll(),
         jadwalPiketAPI.getAll(),
         holidaysAPI.getAll(),
-        settingsAPI.getAll()
+        settingsAPI.getAll(),
+        weekendOverridesAPI.getAll({ start_date: monthStart, end_date: monthEnd })
       ])
-      
+
       setDataGuru(guruResponse.data)
       setAttendanceLogs(presensiResponse.data)
       setJadwalPiket(piketResponse.data)
       setHolidays(holidaysResponse.data)
       setSettings(prev => ({ ...prev, ...settingsResponse.data }))
+      setOverrides(overridesResponse.data || [])
     } catch (error) {
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message)
@@ -80,6 +88,14 @@ function DownloadLaporan() {
     gender: getGender(guru)
   })
 
+  const getUserOverrides = (guruId) => {
+    return new Map(
+      (overrides || [])
+        .filter(o => o.user_id === guruId)
+        .map(o => [o.tanggal, o.is_workday == 1])
+    )
+  }
+
   const getGuruLogsInRange = (guruId) => {
     return attendanceLogs.filter(log => {
       if (log.userId !== guruId) return false
@@ -88,7 +104,15 @@ function DownloadLaporan() {
   }
 
   const getRelevantDates = (guru) => {
-    const workdays = getRangeWorkdays(guru)
+    const rawWorkdays = getRangeWorkdays(guru)
+    const userOverrides = getUserOverrides(guru.id)
+
+    // Terapkan override per user: tanggal yang di-override off dihapus dari workdays
+    const workdays = rawWorkdays.filter(date => {
+      if (userOverrides.has(date)) return userOverrides.get(date)
+      return true
+    })
+
     const guruLogs = getGuruLogsInRange(guru.id)
     const datesWithPresence = new Set(guruLogs.map(log => log.tanggal))
     const relevantSet = new Set([...workdays, ...datesWithPresence])
@@ -97,12 +121,10 @@ function DownloadLaporan() {
 
   const getGuruSummary = (guruId) => {
     const guru = dataGuru.find(g => g.id === guruId)
-    const workdays = getRangeWorkdays(guru)
-    const workdaySet = new Set(workdays)
+    const relevantDates = getRelevantDates(guru)
     const guruLogs = getGuruLogsInRange(guruId)
     // Presensi yang relevan: semua presensi guru dalam periode (termasuk Sabtu/Minggu insidental)
     const relevantLogs = guruLogs
-    const relevantDates = getRelevantDates(guru)
     const totalHari = relevantDates.length
     const hadir = relevantLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
     const izin = relevantLogs.filter(l => l.status === 'izin').length
@@ -116,16 +138,18 @@ function DownloadLaporan() {
   const getGuruReportRows = (guruId) => {
     const guru = dataGuru.find(g => g.id === guruId)
     const logsByDate = new Map(getGuruLogsInRange(guruId).map(log => [log.tanggal, log]))
+    const userOverrides = getUserOverrides(guru.id)
 
     return getRelevantDates(guru).map(date => {
       const log = logsByDate.get(date)
+      const isOverrideOff = userOverrides.has(date) && !userOverrides.get(date)
       return log || {
         id: `alfa-${guruId}-${date}`,
         tanggal: date,
         jamMasuk: '-',
         jamPulang: '-',
-        status: 'alfa',
-        keterangan: 'Tidak presensi'
+        status: isOverrideOff ? 'libur_override' : 'alfa',
+        keterangan: isOverrideOff ? 'Libur khusus (override admin)' : 'Tidak presensi'
       }
     })
   }
@@ -881,8 +905,11 @@ function DownloadLaporan() {
                         ${log.status === 'izin' ? 'bg-yellow-100 text-yellow-800' : ''}
                         ${log.status === 'sakit' ? 'bg-red-100 text-red-800' : ''}
                         ${log.status === 'alfa' ? 'bg-gray-200 text-gray-800' : ''}
+                        ${log.status === 'libur_override' ? 'bg-purple-100 text-purple-800' : ''}
                       `}>
-                        {log.status === 'hadir_izin_terlambat' ? 'HADIR - IZIN TERLAMBAT' : log.status.toUpperCase()}
+                        {log.status === 'hadir_izin_terlambat' ? 'HADIR - IZIN TERLAMBAT' :
+                         log.status === 'libur_override' ? 'LIBUR KHUSUS' :
+                         log.status.toUpperCase()}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{log.keterangan || '-'}</td>

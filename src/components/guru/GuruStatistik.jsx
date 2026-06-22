@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX } from 'lucide-react'
-import { holidaysAPI, presensiAPI, settingsAPI } from '../../services/api'
+import { holidaysAPI, presensiAPI, settingsAPI, weekendOverridesAPI } from '../../services/api'
 import { formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 
 function GuruStatistik({ user }) {
   const [presensiData, setPresensiData] = useState([])
   const [holidays, setHolidays] = useState([])
+  const [overrides, setOverrides] = useState([])
   const [settings, setSettings] = useState({
     weekend_workday_enabled: '0',
     saturday_male_workday_enabled: '0',
@@ -64,14 +65,16 @@ function GuruStatistik({ user }) {
       const { startDate, endDate } = getPeriodRange()
       // Ambil SEMUA presensi guru tanpa filter tanggal (sama seperti Riwayat)
       // agar data insidental Sabtu/Minggu tidak terlewat karena filter backend.
-      const [presensiResponse, holidaysResponse, settingsResponse] = await Promise.all([
+      const [presensiResponse, holidaysResponse, settingsResponse, overridesResponse] = await Promise.all([
         presensiAPI.getAll({ user_id: user.id }),
         holidaysAPI.getAll({ start_date: startDate, end_date: endDate }),
-        settingsAPI.getAll()
+        settingsAPI.getAll(),
+        weekendOverridesAPI.getAll({ user_id: user.id, start_date: startDate, end_date: endDate })
       ])
       setPresensiData(presensiResponse.data)
       setHolidays(holidaysResponse.data)
       setSettings(prev => ({ ...prev, ...settingsResponse.data }))
+      setOverrides(overridesResponse.data || [])
     } catch (error) {
       console.error('Failed to load presensi data:', error)
     } finally {
@@ -100,7 +103,18 @@ function GuruStatistik({ user }) {
     gender: userGender
   }
 
-  const workdayDates = getWorkdayDates(startDate, endDate, holidays, weekendOptions)
+  // Map override per user per tanggal
+  const overrideByDate = new Map((overrides || []).map(o => [o.tanggal, o.is_workday == 1]))
+
+  // Hitung hari kerja dengan mempertimbangkan override per user
+  const rawWorkdayDates = getWorkdayDates(startDate, endDate, holidays, weekendOptions)
+  const workdayDates = rawWorkdayDates.map(date => {
+    if (overrideByDate.has(date)) {
+      return { date, isWorkday: overrideByDate.get(date) }
+    }
+    return { date, isWorkday: true }
+  }).filter(item => item.isWorkday).map(item => item.date)
+
   const workdaySet = new Set(workdayDates)
 
   // Presensi aktual milik guru dalam periode (termasuk Sabtu/Minggu insidental)
@@ -110,7 +124,7 @@ function GuruStatistik({ user }) {
   // Ini menangkap data Sabtu/Minggu insidental yang mungkin tidak dianggap hari kerja umum.
   const datesWithPresence = new Set(allUserLogs.map(log => log.tanggal))
 
-  // Gabungkan hari kerja normal dengan tanggal yang punya presensi aktual,
+  // Gabungkan hari kerja normal (setelah override) dengan tanggal yang punya presensi aktual,
   // lalu filter hanya yang berada di dalam periode yang dipilih.
   const relevantDatesSet = new Set([...workdayDates, ...datesWithPresence])
   const relevantDates = Array.from(relevantDatesSet)
@@ -118,18 +132,23 @@ function GuruStatistik({ user }) {
     .sort()
     .reverse()
 
-  // Data presensi yang relevan: yang masuk di hari kerja normal ATAU tanggal dengan presensi aktual.
+  // Data presensi yang relevan: yang masuk di hari kerja normal (post-override) ATAU tanggal dengan presensi aktual.
   const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal) || datesWithPresence.has(log.tanggal))
 
   const logsByDate = new Map(allUserLogs.map(log => [log.tanggal, log]))
-  const displayData = relevantDates.map(date => logsByDate.get(date) || {
-    id: `alfa-${date}`,
-    tanggal: date,
-    status: 'alfa',
-    jam_masuk: '-',
-    jam_hadir: '-',
-    jam_pulang: '-',
-    keterangan: 'Tidak presensi'
+  const displayData = relevantDates.map(date => {
+    const log = logsByDate.get(date)
+    const isOverride = overrideByDate.has(date)
+    const isWorkday = workdaySet.has(date)
+    return log || {
+      id: `alfa-${date}`,
+      tanggal: date,
+      status: isOverride && !isWorkday ? 'libur_override' : 'alfa',
+      jam_masuk: '-',
+      jam_hadir: '-',
+      jam_pulang: '-',
+      keterangan: isOverride && !isWorkday ? 'Libur khusus (override admin)' : 'Tidak presensi'
+    }
   })
 
   // Hitung statistik berdasarkan tanggal yang relevan (hari kerja + tanggal dengan presensi)
@@ -324,6 +343,7 @@ function GuruStatistik({ user }) {
                       ${log.status === 'izin' ? 'bg-blue-100 text-blue-800' : ''}
                       ${log.status === 'sakit' ? 'bg-red-100 text-red-800' : ''}
                       ${log.status === 'alfa' ? 'bg-gray-200 text-gray-800' : ''}
+                      ${log.status === 'libur_override' ? 'bg-purple-100 text-purple-800' : ''}
                     `}>
                       {log.status === 'hadir' ? 'Hadir' :
                        log.status === 'hadir_terlambat' ? 'Terlambat' : 
@@ -331,6 +351,7 @@ function GuruStatistik({ user }) {
                        log.status === 'izin' ? 'Izin' :
                        log.status === 'sakit' ? 'Sakit' :
                        log.status === 'alfa' ? 'Alfa' :
+                       log.status === 'libur_override' ? 'Libur Khusus' :
                        log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                     </span>
                   </td>
