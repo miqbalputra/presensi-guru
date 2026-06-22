@@ -86,7 +86,8 @@ function DownloadLaporan() {
         })
       }
       setWorkdaysCache(newCache)
-      setOptionalWorkdays(optionalResponse.data || allResponse.data?.optional_dates || [])
+      const optionalDates = (optionalResponse.data || []).map(o => o.tanggal || o)
+      setOptionalWorkdays(optionalDates.length > 0 ? optionalDates : (allResponse.data?.optional_dates || []))
     } catch (error) {
       console.error('Failed to load workdays:', error)
     }

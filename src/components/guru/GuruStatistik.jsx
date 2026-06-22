@@ -74,7 +74,8 @@ function GuruStatistik({ user }) {
       setPresensiData(presensiResponse.data)
       setSettings(prev => ({ ...prev, ...settingsResponse.data }))
       setWorkdaysData(workdaysResponse.data)
-      setOptionalWorkdays(optionalResponse.data || workdaysResponse.data?.optional_dates || [])
+      const optionalDates = (optionalResponse.data || []).map(o => o.tanggal || o)
+      setOptionalWorkdays(optionalDates.length > 0 ? optionalDates : (workdaysResponse.data?.optional_dates || []))
     } catch (error) {
       console.error('Failed to load presensi data:', error)
     } finally {
