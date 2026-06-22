@@ -38,7 +38,7 @@ function hermes_build_date_range($start, $end)
     return $dates;
 }
 
-function hermes_get_workday_dates($pdo, $start, $end)
+function hermes_get_workday_dates($pdo, $start, $end, $gender = null)
 {
     $stmt = $pdo->prepare("
         SELECT tanggal, jenis, is_workday, nama
@@ -56,7 +56,7 @@ function hermes_get_workday_dates($pdo, $start, $end)
     $excludedDates = [];
     foreach (hermes_build_date_range($start, $end) as $date) {
         $holiday = $holidays[$date] ?? null;
-        $dateStatus = gpw_get_date_status($pdo, $date);
+        $dateStatus = gpw_get_date_status($pdo, $date, $gender);
 
         if ($dateStatus['isWorkday']) {
             $workdays[] = $date;
@@ -142,9 +142,6 @@ function hermes_resolve_date_range($pdo)
 
 try {
     [$startDate, $endDate, $period] = hermes_resolve_date_range($pdo);
-    [$workdays, $excludedDates] = hermes_get_workday_dates($pdo, $startDate, $endDate);
-    $workdayMap = array_flip($workdays);
-    $totalHariAktif = count($workdays);
     $today = date('Y-m-d');
 
     $userId = isset($_GET['user_id']) ? validateInt($_GET['user_id'], 1) : null;
@@ -169,9 +166,21 @@ try {
     $guruRows = $guruStmt->fetchAll();
 
     $guruById = [];
+    $globalExcludedDates = [];
+    $globalWorkdays = [];
+
     foreach ($guruRows as $guru) {
         $guruId = (int)$guru['id'];
-        $userWorkdays = gpw_get_workday_dates($pdo, $startDate, $endDate, $guru['jenis_kelamin']);
+        [$userWorkdays, $userExcludedDates] = hermes_get_workday_dates($pdo, $startDate, $endDate, $guru['jenis_kelamin']);
+
+        $workdayMap = array_flip($userWorkdays);
+        foreach ($userWorkdays as $date) {
+            $globalWorkdays[$date] = true;
+        }
+        foreach ($userExcludedDates as $excluded) {
+            $globalExcludedDates[$excluded['tanggal']] = $excluded;
+        }
+
         $guruById[$guruId] = [
             'id' => $guruId,
             'idGuru' => $guru['id_guru'],
@@ -191,9 +200,14 @@ try {
             'izinPulangAwal' => 0,
             'persentaseKehadiran' => 0,
             'totalHariAktif' => count($userWorkdays),
-            '_workdayMap' => array_flip($userWorkdays)
+            '_workdayMap' => $workdayMap
         ];
     }
+
+    $workdays = array_keys($globalWorkdays);
+    sort($workdays);
+    $excludedDates = array_values($globalExcludedDates);
+    $totalHariAktif = count($workdays);
 
     $totalGuru = count($guruRows);
     $params = [$startDate, $endDate];
