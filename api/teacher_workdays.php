@@ -16,11 +16,10 @@ try {
     $startDate = $_GET['start_date'] ?? date('Y-m-01');
     $endDate = $_GET['end_date'] ?? date('Y-m-d');
 
-    // Guru hanya boleh melihat data workday miliknya sendiri
+    // Guru hanya boleh melihat data workday miliknya sendiri.
+    // Jika user_id tidak diberikan, gunakan session user_id milik guru.
     if ($_SESSION['role'] === 'guru') {
-        if ($userId === null || $userId !== (int)$_SESSION['user_id']) {
-            sendResponse(false, 'Forbidden: Anda hanya bisa melihat statistik kehadiran Anda sendiri');
-        }
+        $userId = (int)$_SESSION['user_id'];
     }
 
     if (!validateDate($startDate) || !validateDate($endDate)) {
@@ -31,6 +30,10 @@ try {
     if ($startDate > $endDate) {
         http_response_code(400);
         sendResponse(false, 'Tanggal awal tidak boleh lebih besar dari tanggal akhir');
+    }
+
+    if ($userId === null || $userId === false) {
+        sendResponse(false, 'user_id harus diisi');
     }
 
     $gender = null;
