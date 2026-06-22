@@ -84,6 +84,42 @@ if ($method === 'POST') {
             $isWorkday = isset($item['is_workday']) ? (int)$item['is_workday'] : 1;
             $keterangan = trim($item['keterangan'] ?? '');
 
+            // Mode bulk by gender: jika ada apply_to_gender, expand ke semua guru gender tersebut
+            $applyToGender = $item['apply_to_gender'] ?? null;
+            if ($applyToGender) {
+                $genderValues = is_array($applyToGender) ? $applyToGender : [$applyToGender];
+                $normalizedGenders = [];
+                foreach ($genderValues as $g) {
+                    $g = strtolower(trim((string)$g));
+                    if ($g === 'laki-laki' || $g === 'laki laki' || $g === 'male') {
+                        $normalizedGenders[] = 'Laki-laki';
+                    } elseif ($g === 'perempuan' || $g === 'female') {
+                        $normalizedGenders[] = 'Perempuan';
+                    }
+                }
+                if (empty($normalizedGenders) || !validateDate($tanggal)) {
+                    $pdo->rollBack();
+                    sendError('Data tidak valid: gender (Laki-laki/Perempuan) dan tanggal harus diisi dengan benar');
+                }
+                $placeholders = implode(',', array_fill(0, count($normalizedGenders), '?'));
+                $userStmt = $pdo->prepare("
+                    SELECT id FROM users
+                    WHERE jenis_kelamin IN ({$placeholders}) AND (role = 'guru' OR role = 'kepala_sekolah')
+                ");
+                $userStmt->execute($normalizedGenders);
+                foreach ($userStmt->fetchAll() as $u) {
+                    $insertStmt->execute([(int)$u['id'], $tanggal, $isWorkday ? 1 : 0, $keterangan, $createdBy]);
+                    if ($insertStmt->rowCount() > 0) {
+                        if ($pdo->lastInsertId() > 0) {
+                            $inserted++;
+                        } else {
+                            $updated++;
+                        }
+                    }
+                }
+                continue;
+            }
+
             if ($userId === false || !validateDate($tanggal)) {
                 $pdo->rollBack();
                 sendError('Data tidak valid: user_id dan tanggal (YYYY-MM-DD) harus diisi dengan benar');

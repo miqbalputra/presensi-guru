@@ -17,6 +17,13 @@ function OverrideWeekend() {
   const [periodEnd, setPeriodEnd] = useState('')
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' })
 
+  // State untuk bulk override berdasarkan gender
+  const [bulkDate, setBulkDate] = useState('')
+  const [bulkGenders, setBulkGenders] = useState([])
+  const [bulkType, setBulkType] = useState('workday')
+  const [bulkKeterangan, setBulkKeterangan] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
+
   useEffect(() => {
     const today = new Date()
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -72,6 +79,47 @@ function OverrideWeekend() {
     setSelectedGurus(prev =>
       prev.includes(guruId) ? prev.filter(id => id !== guruId) : [...prev, guruId]
     )
+  }
+
+  const handleToggleBulkGender = (gender) => {
+    setBulkGenders(prev =>
+      prev.includes(gender) ? prev.filter(g => g !== gender) : [...prev, gender]
+    )
+  }
+
+  const handleBulkSave = async () => {
+    if (bulkGenders.length === 0) {
+      showNotification('Pilih minimal satu gender', 'error')
+      return
+    }
+    if (!bulkDate) {
+      showNotification('Pilih tanggal Sabtu/Minggu', 'error')
+      return
+    }
+    if (!isWeekendDate(bulkDate)) {
+      showNotification('Override hanya untuk hari Sabtu atau Minggu', 'error')
+      return
+    }
+
+    try {
+      setBulkSaving(true)
+      const payload = {
+        tanggal: bulkDate,
+        apply_to_gender: bulkGenders,
+        is_workday: bulkType === 'workday' ? 1 : 0,
+        keterangan: bulkKeterangan || (bulkType === 'workday' ? 'Wajib hadir' : 'Libur')
+      }
+
+      await weekendOverridesAPI.create(payload)
+      showNotification(`Override berhasil disimpan untuk gender ${bulkGenders.join(', ')}`, 'success')
+      setBulkGenders([])
+      setBulkKeterangan('')
+      loadOverrides()
+    } catch (error) {
+      showNotification('Gagal menyimpan override gender: ' + error.message, 'error')
+    } finally {
+      setBulkSaving(false)
+    }
   }
 
   const getFilteredGurus = () => {
@@ -169,9 +217,103 @@ function OverrideWeekend() {
         </p>
       </div>
 
+      {/* Bulk Override Berdasarkan Gender */}
+      <div className="bg-white rounded-lg shadow p-6 space-y-6">
+        <h2 className="text-lg font-semibold text-gray-800">Override Berdasarkan Gender</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Sabtu/Minggu</label>
+            <input
+              type="date"
+              value={bulkDate}
+              onChange={(e) => setBulkDate(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            {bulkDate && (
+              <p className="text-xs mt-1 text-gray-500">{getDayName(bulkDate)}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Gender yang Diterapkan</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={bulkGenders.includes('Laki-laki')}
+                  onChange={() => handleToggleBulkGender('Laki-laki')}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span className="text-sm text-gray-700">Laki-laki</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={bulkGenders.includes('Perempuan')}
+                  onChange={() => handleToggleBulkGender('Perempuan')}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span className="text-sm text-gray-700">Perempuan</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBulkType('workday')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
+                  bulkType === 'workday'
+                    ? 'border-green-500 bg-green-50 text-green-700'
+                    : 'border-gray-200 hover:border-green-300'
+                }`}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Wajib Hadir
+              </button>
+              <button
+                onClick={() => setBulkType('off')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
+                  bulkType === 'off'
+                    ? 'border-red-500 bg-red-50 text-red-700'
+                    : 'border-gray-200 hover:border-red-300'
+                }`}
+              >
+                <XCircle className="w-4 h-4" />
+                Libur
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Keterangan (opsional)</label>
+            <input
+              type="text"
+              value={bulkKeterangan}
+              onChange={(e) => setBulkKeterangan(e.target.value)}
+              placeholder="Contoh: Kegiatan Maulid"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleBulkSave}
+          disabled={bulkSaving || bulkGenders.length === 0 || !bulkDate}
+          className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+        >
+          <Users className="w-5 h-5" />
+          {bulkSaving ? 'Menyimpan...' : 'Simpan Override Gender'}
+        </button>
+      </div>
+
       {/* Form Override */}
       <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <h2 className="text-lg font-semibold text-gray-800">Tambah Override</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Tambah Override Manual (Per Guru)</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
