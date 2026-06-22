@@ -11,6 +11,6 @@ if (file_exists($gitHeadFile)) {
 sendResponse(true, 'Deployment version info', [
     'version' => $version,
     'php_time' => date('Y-m-d H:i:s'),
-    'teacher_workdays_role' => json_encode(['admin', 'kepala_sekolah', 'guru']),
-    'optional_workdays_role' => json_encode(['admin', 'kepala_sekolah', 'guru'])
+    'teacher_workdays_role' => ['admin', 'kepala_sekolah', 'guru'],
+    'optional_workdays_role' => ['admin', 'kepala_sekolah', 'guru']
 ]);
