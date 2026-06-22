@@ -118,6 +118,7 @@ function GuruStatistik({ user }) {
   // Data presensi yang relevan: hari kerja wajib + hari opsional (bonus)
   const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal))
   const optionalData = allUserLogs.filter(log => optionalSet.has(log.tanggal))
+  const optionalHadir = optionalData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
 
   const logsByDate = new Map(allUserLogs.map(log => [log.tanggal, log]))
   const optionalDatesWithPresence = optionalWorkdays.filter(d => logsByDate.has(d) && d >= startDate && d <= endDate)
@@ -137,15 +138,14 @@ function GuruStatistik({ user }) {
     }
   })
 
-  // Hitung statistik berdasarkan tanggal yang relevan (hari kerja saja)
-  const totalHadir = workdayData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
-    + optionalData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
+  // Hari opsional yang dihadiri menambah total hari kerja; yang tidak hadir tidak menambah dan tidak alfa
+  const totalPresensi = relevantDates.length + optionalHadir
+  const totalHadir = workdayData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length + optionalHadir
   const totalTerlambat = workdayData.filter(log => log.status === 'hadir_terlambat').length
     + optionalData.filter(log => log.status === 'hadir_terlambat').length
   const totalIzin = workdayData.filter(log => log.status === 'izin').length
   const totalSakit = workdayData.filter(log => log.status === 'sakit').length
-  const totalPresensi = relevantDates.length
-  const totalAlfa = Math.max(totalPresensi - workdayData.length, 0)
+  const totalAlfa = Math.max(relevantDates.length - workdayData.length, 0)
 
   // Hitung persentase kehadiran
   const persentaseHadir = totalPresensi > 0 ? ((totalHadir / totalPresensi) * 100).toFixed(1) : 0

@@ -169,13 +169,14 @@ function DownloadLaporan() {
     const workdayLogs = guruLogs.filter(l => workdaySet.has(l.tanggal))
     // Presensi di hari opsional (bonus, hanya yang hadir)
     const optionalLogs = guruLogs.filter(l => optionalSet.has(l.tanggal))
+    const optionalHadir = optionalLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
 
-    const totalHari = relevantDates.length
-    const hadir = workdayLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-      + optionalLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
+    // Hari opsional yang dihadiri guru menambah total hari kerja mereka; yang tidak hadir tidak menambah dan tidak alfa
+    const totalHari = relevantDates.length + optionalHadir
+    const hadir = workdayLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length + optionalHadir
     const izin = workdayLogs.filter(l => l.status === 'izin').length
     const sakit = workdayLogs.filter(l => l.status === 'sakit').length
-    const alfa = Math.max(totalHari - workdayLogs.length, 0)
+    const alfa = Math.max(relevantDates.length - workdayLogs.length, 0)
     const persentase = totalHari > 0 ? ((hadir / totalHari) * 100).toFixed(1) : 0
 
     return { guruLogs: [...workdayLogs, ...optionalLogs], totalHari, hadir, izin, sakit, alfa, persentase }
