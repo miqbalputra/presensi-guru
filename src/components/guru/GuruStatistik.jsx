@@ -108,34 +108,31 @@ function GuruStatistik({ user }) {
       .map(d => [d.tanggal, d.override.is_workday == 1])
   )
 
-  // Gabungkan hari kerja normal (setelah override) dengan tanggal yang punya presensi aktual,
-  // lalu filter hanya yang berada di dalam periode yang dipilih.
-  const relevantDatesSet = new Set([...workdayDates, ...datesWithPresence])
-  const relevantDates = Array.from(relevantDatesSet)
+  // Hari kerja sudah dihitung backend (dengan override). Presensi di hari non-workday
+  // tidak dimasukkan ke total hari kerja; hanya hari kerja yang dianggap relevan.
+  const relevantDates = workdayDates
     .filter(date => date >= startDate && date <= endDate)
     .sort()
     .reverse()
 
-  // Data presensi yang relevan: yang masuk di hari kerja normal (post-override) ATAU tanggal dengan presensi aktual.
-  const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal) || datesWithPresence.has(log.tanggal))
+  // Data presensi yang relevan: hanya yang jatuh pada hari kerja.
+  const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal))
 
   const logsByDate = new Map(allUserLogs.map(log => [log.tanggal, log]))
   const displayData = relevantDates.map(date => {
     const log = logsByDate.get(date)
-    const isOverride = overrideByDate.has(date)
-    const isWorkday = workdaySet.has(date)
     return log || {
       id: `alfa-${date}`,
       tanggal: date,
-      status: isOverride && !isWorkday ? 'libur_override' : 'alfa',
+      status: 'alfa',
       jam_masuk: '-',
       jam_hadir: '-',
       jam_pulang: '-',
-      keterangan: isOverride && !isWorkday ? 'Libur khusus (override admin)' : 'Tidak presensi'
+      keterangan: 'Tidak presensi'
     }
   })
 
-  // Hitung statistik berdasarkan tanggal yang relevan (hari kerja + tanggal dengan presensi)
+  // Hitung statistik berdasarkan tanggal yang relevan (hari kerja saja)
   const totalHadir = workdayData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
   const totalTerlambat = workdayData.filter(log => log.status === 'hadir_terlambat').length
   const totalIzin = workdayData.filter(log => log.status === 'izin').length

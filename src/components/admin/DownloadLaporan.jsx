@@ -146,27 +146,18 @@ function DownloadLaporan() {
   }
 
   const getRelevantDates = (guru) => {
-    const rawWorkdays = getRangeWorkdays(guru)
-    const userOverrides = getUserOverrides(guru.id)
-
-    // Terapkan override per user: tanggal yang di-override off dihapus dari workdays
-    const workdays = rawWorkdays.filter(date => {
-      if (userOverrides.has(date)) return userOverrides.get(date)
-      return true
-    })
-
-    const guruLogs = getGuruLogsInRange(guru.id)
-    const datesWithPresence = new Set(guruLogs.map(log => log.tanggal))
-    const relevantSet = new Set([...workdays, ...datesWithPresence])
-    return Array.from(relevantSet).sort()
+    // Hari kerja sudah dihitung backend (dengan override). Presensi di hari non-workday
+    // tidak lagi dimasukkan ke total hari kerja; hanya hari kerja yang dianggap relevan.
+    return getRangeWorkdays(guru)
   }
 
   const getGuruSummary = (guruId) => {
     const guru = dataGuru.find(g => g.id === guruId)
     const relevantDates = getRelevantDates(guru)
+    const workdaySet = new Set(relevantDates)
     const guruLogs = getGuruLogsInRange(guruId)
-    // Presensi yang relevan: semua presensi guru dalam periode (termasuk Sabtu/Minggu insidental)
-    const relevantLogs = guruLogs
+    // Hanya hitung presensi/izin/sakit yang jatuh pada hari kerja
+    const relevantLogs = guruLogs.filter(l => workdaySet.has(l.tanggal))
     const totalHari = relevantDates.length
     const hadir = relevantLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
     const izin = relevantLogs.filter(l => l.status === 'izin').length
