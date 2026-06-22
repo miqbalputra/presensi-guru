@@ -148,6 +148,37 @@ export const activityAPI = {
   },
 }
 
+// Optional Workdays API
+export const optionalWorkdaysAPI = {
+  getAll: async (params = {}) => {
+    const queryString = new URLSearchParams(params).toString()
+    return fetchAPI(`/optional_workdays.php${queryString ? '?' + queryString : ''}`, {
+      method: 'GET',
+    })
+  },
+
+  create: async (data) => {
+    return fetchAPI('/optional_workdays.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  update: async (id, data) => {
+    return fetchAPI('/optional_workdays.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...data }),
+    })
+  },
+
+  delete: async (id) => {
+    return fetchAPI('/optional_workdays.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    })
+  },
+}
+
 // Holidays API
 export const holidaysAPI = {
   getAll: async (params = {}) => {
@@ -472,4 +503,5 @@ export default {
   weekendOverridesAPI,
   teacherWorkdaysAPI,
   teachersWorkdaysAPI,
+  optionalWorkdaysAPI,
 }

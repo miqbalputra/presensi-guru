@@ -15,6 +15,7 @@ const ManualEntry = lazy(() => import('../components/admin/ManualEntry'))
 const LokasiGeofence = lazy(() => import('../components/admin/LokasiGeofence'))
 const LocationTracking = lazy(() => import('../components/admin/LocationTracking'))
 const OverrideWeekend = lazy(() => import('../components/admin/OverrideWeekend'))
+const OptionalWorkdays = lazy(() => import('../components/admin/OptionalWorkdays'))
 
 function SectionLoading() {
   return (
@@ -88,6 +89,7 @@ function AdminDashboard({ user, onLogout }) {
               <Route path="/lokasi-geofence" element={<LokasiGeofence user={user} />} />
               <Route path="/tracking-lokasi" element={<LocationTracking />} />
               <Route path="/override-weekend" element={<OverrideWeekend />} />
+              <Route path="/hari-kerja-opsional" element={<OptionalWorkdays />} />
               <Route path="*" element={<Navigate to="/admin" />} />
             </Routes>
           </Suspense>
