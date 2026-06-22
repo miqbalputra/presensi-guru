@@ -87,26 +87,37 @@ function DownloadLaporan() {
     })
   }
 
+  const getRelevantDates = (guru) => {
+    const workdays = getRangeWorkdays(guru)
+    const guruLogs = getGuruLogsInRange(guru.id)
+    const datesWithPresence = new Set(guruLogs.map(log => log.tanggal))
+    const relevantSet = new Set([...workdays, ...datesWithPresence])
+    return Array.from(relevantSet).sort()
+  }
+
   const getGuruSummary = (guruId) => {
     const guru = dataGuru.find(g => g.id === guruId)
     const workdays = getRangeWorkdays(guru)
     const workdaySet = new Set(workdays)
-    const guruLogs = getGuruLogsInRange(guruId).filter(log => workdaySet.has(log.tanggal))
-    const totalHari = workdays.length
-    const hadir = guruLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-    const izin = guruLogs.filter(l => l.status === 'izin').length
-    const sakit = guruLogs.filter(l => l.status === 'sakit').length
-    const alfa = Math.max(totalHari - guruLogs.length, 0)
+    const guruLogs = getGuruLogsInRange(guruId)
+    // Presensi yang relevan: semua presensi guru dalam periode (termasuk Sabtu/Minggu insidental)
+    const relevantLogs = guruLogs
+    const relevantDates = getRelevantDates(guru)
+    const totalHari = relevantDates.length
+    const hadir = relevantLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
+    const izin = relevantLogs.filter(l => l.status === 'izin').length
+    const sakit = relevantLogs.filter(l => l.status === 'sakit').length
+    const alfa = Math.max(totalHari - relevantLogs.length, 0)
     const persentase = totalHari > 0 ? ((hadir / totalHari) * 100).toFixed(1) : 0
 
-    return { guruLogs, totalHari, hadir, izin, sakit, alfa, persentase }
+    return { guruLogs: relevantLogs, totalHari, hadir, izin, sakit, alfa, persentase }
   }
 
   const getGuruReportRows = (guruId) => {
     const guru = dataGuru.find(g => g.id === guruId)
     const logsByDate = new Map(getGuruLogsInRange(guruId).map(log => [log.tanggal, log]))
 
-    return getRangeWorkdays(guru).map(date => {
+    return getRelevantDates(guru).map(date => {
       const log = logsByDate.get(date)
       return log || {
         id: `alfa-${guruId}-${date}`,
