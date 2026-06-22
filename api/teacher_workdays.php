@@ -4,8 +4,8 @@ require_once 'workday_service.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Semua endpoint memerlukan autentikasi admin/kepala_sekolah
-requireAuth(['admin', 'kepala_sekolah']);
+// Admin/kepala_sekolah bisa akses semua user; guru hanya bisa akses workday dirinya sendiri
+requireAuth(['admin', 'kepala_sekolah', 'guru']);
 
 if ($method !== 'GET') {
     sendResponse(false, 'Invalid request method');
@@ -15,6 +15,13 @@ try {
     $userId = isset($_GET['user_id']) ? validateInt($_GET['user_id'], 1) : null;
     $startDate = $_GET['start_date'] ?? date('Y-m-01');
     $endDate = $_GET['end_date'] ?? date('Y-m-d');
+
+    // Guru hanya boleh melihat data workday miliknya sendiri
+    if ($_SESSION['role'] === 'guru') {
+        if ($userId === null || $userId !== (int)$_SESSION['user_id']) {
+            sendResponse(false, 'Forbidden: Anda hanya bisa melihat statistik kehadiran Anda sendiri');
+        }
+    }
 
     if (!validateDate($startDate) || !validateDate($endDate)) {
         http_response_code(400);
