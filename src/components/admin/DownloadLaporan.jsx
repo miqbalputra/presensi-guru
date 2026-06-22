@@ -4,7 +4,7 @@ import { formatDate, formatDateForInput, getWorkdayDates } from '../../utils/dat
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { guruAPI, holidaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI, teacherWorkdaysAPI, teachersWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
+import { guruAPI, holidaysAPI, optionalWorkdaysAPI, presensiAPI, jadwalPiketAPI, settingsAPI, teacherWorkdaysAPI, teachersWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
 
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
@@ -24,6 +24,7 @@ function DownloadLaporan() {
   const [jadwalPiket, setJadwalPiket] = useState([])
   const [overrides, setOverrides] = useState([])
   const [workdaysCache, setWorkdaysCache] = useState({})
+  const [optionalWorkdays, setOptionalWorkdays] = useState([])
   const [notification, setNotification] = useState({ show: false, message: '' })
   const [loading, setLoading] = useState(true)
 
@@ -70,11 +71,14 @@ function DownloadLaporan() {
     }
   }
 
-  // Preload workday backend data for ALL teachers when date range changes
+  // Preload workday backend data for ALL teachers and optional workdays when date range changes
   const loadAllWorkdays = async () => {
     if (!startDate || !endDate) return
     try {
-      const allResponse = await teachersWorkdaysAPI.getAll(startDate, endDate)
+      const [allResponse, optionalResponse] = await Promise.all([
+        teachersWorkdaysAPI.getAll(startDate, endDate),
+        optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
+      ])
       const newCache = {}
       if (allResponse.data?.teachers) {
         Object.values(allResponse.data.teachers).forEach(t => {
@@ -82,6 +86,7 @@ function DownloadLaporan() {
         })
       }
       setWorkdaysCache(newCache)
+      setOptionalWorkdays(optionalResponse.data || allResponse.data?.optional_dates || [])
     } catch (error) {
       console.error('Failed to load workdays:', error)
     }
@@ -157,28 +162,51 @@ function DownloadLaporan() {
     const guru = dataGuru.find(g => g.id === guruId)
     const relevantDates = getRelevantDates(guru)
     const workdaySet = new Set(relevantDates)
+    const optionalSet = new Set(optionalWorkdays)
     const guruLogs = getGuruLogsInRange(guruId)
-    // Hanya hitung presensi/izin/sakit yang jatuh pada hari kerja
-    const relevantLogs = guruLogs.filter(l => workdaySet.has(l.tanggal))
+
+    // Presensi di hari kerja wajib
+    const workdayLogs = guruLogs.filter(l => workdaySet.has(l.tanggal))
+    // Presensi di hari opsional (bonus, hanya yang hadir)
+    const optionalLogs = guruLogs.filter(l => optionalSet.has(l.tanggal))
+
     const totalHari = relevantDates.length
-    const hadir = relevantLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
-    const izin = relevantLogs.filter(l => l.status === 'izin').length
-    const sakit = relevantLogs.filter(l => l.status === 'sakit').length
-    const alfa = Math.max(totalHari - relevantLogs.length, 0)
+    const hadir = workdayLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
+      + optionalLogs.filter(l => l.status === 'hadir' || l.status === 'hadir_terlambat' || l.status === 'hadir_izin_terlambat').length
+    const izin = workdayLogs.filter(l => l.status === 'izin').length
+    const sakit = workdayLogs.filter(l => l.status === 'sakit').length
+    const alfa = Math.max(totalHari - workdayLogs.length, 0)
     const persentase = totalHari > 0 ? ((hadir / totalHari) * 100).toFixed(1) : 0
 
-    return { guruLogs: relevantLogs, totalHari, hadir, izin, sakit, alfa, persentase }
+    return { guruLogs: [...workdayLogs, ...optionalLogs], totalHari, hadir, izin, sakit, alfa, persentase }
   }
 
   const getGuruReportRows = (guruId) => {
     const guru = dataGuru.find(g => g.id === guruId)
     const logsByDate = new Map(getGuruLogsInRange(guruId).map(log => [log.tanggal, log]))
     const userOverrides = getUserOverrides(guru.id)
+    const optionalSet = new Set(optionalWorkdays)
 
-    return getRelevantDates(guru).map(date => {
+    // Gabungkan hari kerja wajib dengan hari opsional yang punya presensi
+    const workdayDates = getRelevantDates(guru)
+    const optionalDatesWithPresence = optionalWorkdays.filter(d => logsByDate.has(d))
+    const allDates = Array.from(new Set([...workdayDates, ...optionalDatesWithPresence])).sort()
+
+    return allDates.map(date => {
       const log = logsByDate.get(date)
       const isOverrideOff = userOverrides.has(date) && !userOverrides.get(date)
-      return log || {
+      if (log) return log
+      if (optionalSet.has(date)) {
+        return {
+          id: `opsional-${guruId}-${date}`,
+          tanggal: date,
+          jamMasuk: '-',
+          jamPulang: '-',
+          status: 'opsional',
+          keterangan: 'Hari kerja opsional (tidak hadir)'
+        }
+      }
+      return {
         id: `alfa-${guruId}-${date}`,
         tanggal: date,
         jamMasuk: '-',

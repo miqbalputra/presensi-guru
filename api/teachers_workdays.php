@@ -58,6 +58,15 @@ try {
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
     $dateRange = gpw_build_date_range($startDate, $endDate);
 
+    $optionalStmt = $pdo->prepare("SELECT tanggal, nama, keterangan FROM optional_workdays WHERE tanggal BETWEEN ? AND ?");
+    $optionalStmt->execute([$startDate, $endDate]);
+    $optionalWorkdays = [];
+    $optionalDates = [];
+    foreach ($optionalStmt->fetchAll() as $row) {
+        $optionalWorkdays[$row['tanggal']] = $row;
+        $optionalDates[] = $row['tanggal'];
+    }
+
     $result = [];
     foreach ($users as $user) {
         $userId = (int)$user['id'];
@@ -95,6 +104,8 @@ try {
     sendResponse(true, 'Data hari kerja semua guru berhasil diambil', [
         'start_date' => $startDate,
         'end_date' => $endDate,
+        'optional_dates' => $optionalDates,
+        'optional_workdays' => $optionalWorkdays,
         'teachers' => $result,
     ]);
 } catch (PDOException $e) {

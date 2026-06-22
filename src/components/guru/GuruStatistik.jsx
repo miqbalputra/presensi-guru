@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX } from 'lucide-react'
-import { holidaysAPI, presensiAPI, settingsAPI, teacherWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
+import { holidaysAPI, optionalWorkdaysAPI, presensiAPI, settingsAPI, teacherWorkdaysAPI, weekendOverridesAPI } from '../../services/api'
 import { formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 
 function GuruStatistik({ user }) {
@@ -8,6 +8,7 @@ function GuruStatistik({ user }) {
   const [holidays, setHolidays] = useState([])
   const [overrides, setOverrides] = useState([])
   const [workdaysData, setWorkdaysData] = useState(null)
+  const [optionalWorkdays, setOptionalWorkdays] = useState([])
   const [settings, setSettings] = useState({
     weekend_workday_enabled: '0',
     saturday_male_workday_enabled: '0',
@@ -64,14 +65,16 @@ function GuruStatistik({ user }) {
     try {
       setLoading(true)
       const { startDate, endDate } = getPeriodRange()
-      const [presensiResponse, settingsResponse, workdaysResponse] = await Promise.all([
+      const [presensiResponse, settingsResponse, workdaysResponse, optionalResponse] = await Promise.all([
         presensiAPI.getAll({ user_id: user.id }),
         settingsAPI.getAll(),
-        teacherWorkdaysAPI.getWorkdays(user.id, startDate, endDate)
+        teacherWorkdaysAPI.getWorkdays(user.id, startDate, endDate),
+        optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
       ])
       setPresensiData(presensiResponse.data)
       setSettings(prev => ({ ...prev, ...settingsResponse.data }))
       setWorkdaysData(workdaysResponse.data)
+      setOptionalWorkdays(optionalResponse.data || workdaysResponse.data?.optional_dates || [])
     } catch (error) {
       console.error('Failed to load presensi data:', error)
     } finally {
@@ -93,13 +96,10 @@ function GuruStatistik({ user }) {
   // Gunakan backend-calculated workday dates yang sudah mempertimbangkan override per guru
   const workdayDates = workdaysData?.workday_dates || []
   const workdaySet = new Set(workdayDates)
+  const optionalSet = new Set(optionalWorkdays)
 
-  // Presensi aktual milik guru dalam periode (termasuk Sabtu/Minggu insidental)
+  // Presensi aktual milik guru dalam periode
   const allUserLogs = filteredData
-
-  // Tanggal-tanggal yang memiliki presensi aktual di dalam periode.
-  // Ini menangkap data Sabtu/Minggu insidental yang mungkin tidak dianggap hari kerja umum.
-  const datesWithPresence = new Set(allUserLogs.map(log => log.tanggal))
 
   // Override map untuk status tampilan (is_workday/off)
   const overrideByDate = new Map(
@@ -115,11 +115,16 @@ function GuruStatistik({ user }) {
     .sort()
     .reverse()
 
-  // Data presensi yang relevan: hanya yang jatuh pada hari kerja.
+  // Data presensi yang relevan: hari kerja wajib + hari opsional (bonus)
   const workdayData = allUserLogs.filter(log => workdaySet.has(log.tanggal))
+  const optionalData = allUserLogs.filter(log => optionalSet.has(log.tanggal))
 
   const logsByDate = new Map(allUserLogs.map(log => [log.tanggal, log]))
-  const displayData = relevantDates.map(date => {
+  const optionalDatesWithPresence = optionalWorkdays.filter(d => logsByDate.has(d) && d >= startDate && d <= endDate)
+  const displayData = [
+    ...relevantDates,
+    ...optionalDatesWithPresence.filter(d => !workdaySet.has(d))
+  ].sort().reverse().map(date => {
     const log = logsByDate.get(date)
     return log || {
       id: `alfa-${date}`,
@@ -134,7 +139,9 @@ function GuruStatistik({ user }) {
 
   // Hitung statistik berdasarkan tanggal yang relevan (hari kerja saja)
   const totalHadir = workdayData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
+    + optionalData.filter(log => log.status === 'hadir' || log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat').length
   const totalTerlambat = workdayData.filter(log => log.status === 'hadir_terlambat').length
+    + optionalData.filter(log => log.status === 'hadir_terlambat').length
   const totalIzin = workdayData.filter(log => log.status === 'izin').length
   const totalSakit = workdayData.filter(log => log.status === 'sakit').length
   const totalPresensi = relevantDates.length

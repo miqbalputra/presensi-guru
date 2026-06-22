@@ -55,14 +55,24 @@ try {
 
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
 
+    // Optional workdays: tanggal di mana kehadiran dihitung bonus, tetapi tidak wajib
+    $optionalStmt = $pdo->prepare("SELECT tanggal, nama, keterangan FROM optional_workdays WHERE tanggal BETWEEN ? AND ?");
+    $optionalStmt->execute([$startDate, $endDate]);
+    $optionalWorkdays = [];
+    foreach ($optionalStmt->fetchAll() as $row) {
+        $optionalWorkdays[$row['tanggal']] = $row;
+    }
+
     $workdayDates = [];
     $nonWorkdayDates = [];
+    $optionalDates = array_keys($optionalWorkdays);
     $breakdown = [];
     foreach (gpw_build_date_range($startDate, $endDate) as $date) {
         $dayOfWeek = (int)date('w', strtotime($date));
         $isWeekend = ($dayOfWeek === 0 || $dayOfWeek === 6);
         $holiday = $holidaysByDate[$date] ?? null;
         $override = $overridesByDate[$date] ?? null;
+        $isOptional = isset($optionalWorkdays[$date]);
 
         // Compute workday status: override wins for weekend dates, otherwise normal rules
         if ($override && $isWeekend) {
@@ -78,8 +88,10 @@ try {
             'day_of_week' => $dayOfWeek,
             'is_weekend' => $isWeekend,
             'is_workday' => $isWorkday,
+            'is_optional' => $isOptional,
             'holiday' => $holiday,
-            'override' => $override
+            'override' => $override,
+            'optional_workday' => $optionalWorkdays[$date] ?? null,
         ];
 
         $breakdown[] = $entry;
@@ -98,6 +110,8 @@ try {
         'total_workdays' => count($workdayDates),
         'workday_dates' => $workdayDates,
         'non_workday_dates' => $nonWorkdayDates,
+        'optional_dates' => $optionalDates,
+        'optional_workdays' => $optionalWorkdays,
         'breakdown' => $breakdown,
     ]);
 } catch (PDOException $e) {
