@@ -38,13 +38,12 @@ function DownloadLaporan() {
       const monthStart = formatDateForInput(firstDay)
       const monthEnd = formatDateForInput(today)
 
-      const [guruResponse, presensiResponse, piketResponse, holidaysResponse, settingsResponse, overridesResponse] = await Promise.all([
+      const [guruResponse, presensiResponse, piketResponse, holidaysResponse, settingsResponse] = await Promise.all([
         guruAPI.getAll(),
         presensiAPI.getAll(),
         jadwalPiketAPI.getAll(),
         holidaysAPI.getAll(),
-        settingsAPI.getAll(),
-        weekendOverridesAPI.getAll({ start_date: monthStart, end_date: monthEnd })
+        settingsAPI.getAll()
       ])
 
       setDataGuru(guruResponse.data)
@@ -52,7 +51,6 @@ function DownloadLaporan() {
       setJadwalPiket(piketResponse.data)
       setHolidays(holidaysResponse.data)
       setSettings(prev => ({ ...prev, ...settingsResponse.data }))
-      setOverrides(overridesResponse.data || [])
     } catch (error) {
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message)
@@ -61,16 +59,32 @@ function DownloadLaporan() {
     }
   }
 
+  const loadOverrides = async () => {
+    if (!startDate || !endDate) return
+    try {
+      const response = await weekendOverridesAPI.getAll({ start_date: startDate, end_date: endDate })
+      setOverrides(response.data || [])
+    } catch (error) {
+      console.error('Failed to load overrides:', error)
+    }
+  }
+
   useEffect(() => {
     if (dataGuru.length > 0) {
-      // Set default date range (30 hari terakhir)
+      // Set default date range (bulan ini agar sesuai dengan load override)
       const today = new Date()
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(today.getDate() - 30)
-      setStartDate(formatDateForInput(thirtyDaysAgo))
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+      setStartDate(formatDateForInput(firstDay))
       setEndDate(formatDateForInput(today))
     }
   }, [dataGuru])
+
+  // Reload override setiap kali periode tanggal berubah
+  useEffect(() => {
+    if (startDate && endDate) {
+      loadOverrides()
+    }
+  }, [startDate, endDate])
 
   const showNotification = (message) => {
     setNotification({ show: true, message })
