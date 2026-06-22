@@ -99,7 +99,9 @@ function gpw_get_holiday($pdo, $date)
 
 function gpw_is_special_workday($holiday)
 {
-    return $holiday && ((int)$holiday['is_workday'] === 1 || $holiday['jenis'] === 'sekolah');
+    // Libur sekolah dianggap libur total, bukan hari masuk khusus.
+    // Hanya hari libur dengan is_workday=1 yang dianggap special workday (event/rapat).
+    return $holiday && ((int)$holiday['is_workday'] === 1);
 }
 
 function gpw_get_user_weekend_override($pdo, $userId, $date)

@@ -80,8 +80,9 @@ try {
     $dayOfWeek = date('N'); // 1 (Senin) - 7 (Minggu)
     $isWeekend = ($dayOfWeek >= 6);
     
-    // LOGIKA BARU: Jika holiday tapi is_workday=1 ATAU jenis='sekolah', maka DIANGGAP BUKAN LIBUR (untuk Guru)
-    $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1 || $holiday['jenis'] === 'sekolah');
+    // LOGIKA BARU: Hanya holiday dengan is_workday=1 yang dianggap BUKAN LIBUR (event/rapat).
+    // Libur sekolah tetap dianggap libur total.
+    $isSpecialWorkday = $holiday && ($holiday['is_workday'] == 1);
     
     $dateStatus = gpw_get_date_status($pdo, $today);
     if (!$isSpecialWorkday && ($holiday || ($isWeekend && !$dateStatus['isWeekendWorkday']))) {
