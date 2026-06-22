@@ -105,7 +105,11 @@ function DownloadLaporan() {
   const getUserOverrides = (guruId) => {
     return new Map(
       (overrides || [])
-        .filter(o => o.user_id === guruId)
+        .filter(o => {
+          // Cocokkan baik o.user_id maupun o.userId, dan guruId bisa string/number
+          const overrideUserId = o.user_id || o.userId
+          return String(overrideUserId) === String(guruId)
+        })
         .map(o => [o.tanggal, o.is_workday == 1])
     )
   }

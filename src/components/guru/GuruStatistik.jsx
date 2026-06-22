@@ -103,8 +103,12 @@ function GuruStatistik({ user }) {
     gender: userGender
   }
 
-  // Map override per user per tanggal
-  const overrideByDate = new Map((overrides || []).map(o => [o.tanggal, o.is_workday == 1]))
+  // Map override per user per tanggal (cocokkan user_id/userId dan angka/string)
+  const overrideByDate = new Map(
+    (overrides || [])
+      .filter(o => String(o.user_id || o.userId) === String(user.id))
+      .map(o => [o.tanggal, o.is_workday == 1])
+  )
 
   // Hitung hari kerja dengan mempertimbangkan override per user
   const rawWorkdayDates = getWorkdayDates(startDate, endDate, holidays, weekendOptions)
