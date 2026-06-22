@@ -38,7 +38,7 @@ function hermes_build_date_range($start, $end)
     return $dates;
 }
 
-function hermes_get_workday_dates($pdo, $start, $end, $gender = null)
+function hermes_get_workday_dates($pdo, $start, $end, $gender = null, $userId = null)
 {
     $stmt = $pdo->prepare("
         SELECT tanggal, jenis, is_workday, nama
@@ -52,11 +52,23 @@ function hermes_get_workday_dates($pdo, $start, $end, $gender = null)
         $holidays[$holiday['tanggal']] = $holiday;
     }
 
+    // Optional workdays: bonus attendance days, not mandatory
+    $optionalStmt = $pdo->prepare("
+        SELECT tanggal, nama, keterangan
+        FROM optional_workdays
+        WHERE tanggal BETWEEN ? AND ?
+    ");
+    $optionalStmt->execute([$start, $end]);
+    $optionalWorkdays = [];
+    foreach ($optionalStmt->fetchAll() as $row) {
+        $optionalWorkdays[$row['tanggal']] = $row;
+    }
+
     $workdays = [];
     $excludedDates = [];
     foreach (hermes_build_date_range($start, $end) as $date) {
         $holiday = $holidays[$date] ?? null;
-        $dateStatus = gpw_get_date_status($pdo, $date, $gender);
+        $dateStatus = gpw_get_date_status($pdo, $date, $gender, $userId);
 
         if ($dateStatus['isWorkday']) {
             $workdays[] = $date;
@@ -68,7 +80,7 @@ function hermes_get_workday_dates($pdo, $start, $end, $gender = null)
         }
     }
 
-    return [$workdays, $excludedDates];
+    return [$workdays, $excludedDates, $optionalWorkdays];
 }
 
 function hermes_parse_jabatan($value)
@@ -171,7 +183,7 @@ try {
 
     foreach ($guruRows as $guru) {
         $guruId = (int)$guru['id'];
-        [$userWorkdays, $userExcludedDates] = hermes_get_workday_dates($pdo, $startDate, $endDate, $guru['jenis_kelamin']);
+        [$userWorkdays, $userExcludedDates, $optionalWorkdays] = hermes_get_workday_dates($pdo, $startDate, $endDate, $guru['jenis_kelamin'], $guruId);
 
         $workdayMap = array_flip($userWorkdays);
         foreach ($userWorkdays as $date) {
@@ -200,7 +212,8 @@ try {
             'izinPulangAwal' => 0,
             'persentaseKehadiran' => 0,
             'totalHariAktif' => count($userWorkdays),
-            '_workdayMap' => $workdayMap
+            '_workdayMap' => $workdayMap,
+            '_optionalWorkdays' => $optionalWorkdays
         ];
     }
 
@@ -247,12 +260,14 @@ try {
         $status = $mapped['status'];
         $date = $mapped['tanggal'];
         $isWorkday = isset($guruById[$uid]['_workdayMap'][$date]);
+        $isOptional = isset($guruById[$uid]['_optionalWorkdays'][$date]);
+        $isRelevant = $isWorkday || $isOptional;
 
         if ($isWorkday) {
             $presentKeys[$uid . '|' . $date] = true;
         }
 
-        if ($isWorkday) {
+        if ($isRelevant) {
             if ($status === 'hadir') {
                 $statusCounts['hadir']++;
                 if (isset($guruById[$uid])) {
@@ -272,14 +287,20 @@ try {
                     $guruById[$uid]['terlambat']++;
                 }
             } elseif ($status === 'izin') {
-                $statusCounts['izin']++;
-                if (isset($guruById[$uid])) {
-                    $guruById[$uid]['izin']++;
+                // Optional day izin does not count as absence, only count if workday
+                if ($isWorkday) {
+                    $statusCounts['izin']++;
+                    if (isset($guruById[$uid])) {
+                        $guruById[$uid]['izin']++;
+                    }
                 }
             } elseif ($status === 'sakit') {
-                $statusCounts['sakit']++;
-                if (isset($guruById[$uid])) {
-                    $guruById[$uid]['sakit']++;
+                // Optional day sakit does not count as absence, only count if workday
+                if ($isWorkday) {
+                    $statusCounts['sakit']++;
+                    if (isset($guruById[$uid])) {
+                        $guruById[$uid]['sakit']++;
+                    }
                 }
             }
 
@@ -348,10 +369,21 @@ try {
     unset($guru);
 
     foreach ($guruById as &$guru) {
+        // Optional workdays attended add +1 to total workdays; absent optional days add nothing.
+        $optionalHadir = 0;
+        foreach ($guru['_optionalWorkdays'] as $optDate => $optRow) {
+            if (isset($presentKeys[$guru['id'] . '|' . $optDate])) {
+                $optionalHadir++;
+            }
+        }
+        $guru['totalHariAktif'] += $optionalHadir;
+        $guru['hadir'] += $optionalHadir;
+
         $guru['persentaseKehadiran'] = $guru['totalHariAktif'] > 0
             ? round(($guru['hadir'] / $guru['totalHariAktif']) * 100, 1)
             : 0;
         unset($guru['_workdayMap']);
+        unset($guru['_optionalWorkdays']);
     }
     unset($guru);
 
