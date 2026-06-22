@@ -123,16 +123,18 @@ function gpw_get_date_status($pdo, $date, $gender = null, $userId = null)
     $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
     $isSpecialWorkday = gpw_is_special_workday($holiday);
 
-    // Override per user mengalahkan aturan gender/global untuk hari Sabtu/Minggu
-    $override = null;
-    if ($isWeekend && $userId !== null) {
-        $override = gpw_get_user_weekend_override($pdo, $userId, $date);
-        if ($override) {
-            $isWeekendWorkday = (int)$override['is_workday'] === 1;
+        // Override per user mengalahkan aturan gender/global untuk hari Sabtu/Minggu
+        $override = null;
+        if ($isWeekend && $userId !== null) {
+            $override = gpw_get_user_weekend_override($pdo, $userId, $date);
+            if ($override) {
+                $isWorkday = (int)$override['is_workday'] === 1;
+            } else {
+                $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
+            }
+        } else {
+            $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
         }
-    }
-
-    $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
 
     return [
         'holiday' => $holiday,
@@ -195,15 +197,15 @@ function gpw_get_workday_dates($pdo, $start, $end, $gender = null, $userId = nul
         $isWeekend = in_array($dayOfWeek, [0, 6], true);
 
         // Override per user mengalahkan aturan gender/global
-        if (isset($userOverrides[$date])) {
-            $isWeekendWorkday = $isWeekend && $userOverrides[$date] === 1;
+        if (isset($userOverrides[$date]) && $isWeekend) {
+            $isWorkday = $userOverrides[$date] === 1;
         } else {
             $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
+            $isSpecialWorkday = gpw_is_special_workday($holiday);
+            $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
         }
 
-        $isSpecialWorkday = gpw_is_special_workday($holiday);
-
-        if ($isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday))) {
+        if ($isWorkday) {
             $workdays[] = $date;
         }
     }

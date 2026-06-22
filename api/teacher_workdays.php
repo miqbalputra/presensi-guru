@@ -64,10 +64,9 @@ try {
         $holiday = $holidaysByDate[$date] ?? null;
         $override = $overridesByDate[$date] ?? null;
 
-        // Compute weekend workday base rule
-        if ($override) {
-            $isWeekendWorkday = (int)$override['is_workday'] === 1;
-            $isWorkday = $isWeekend && $isWeekendWorkday;
+        // Compute workday status: override wins for weekend dates, otherwise normal rules
+        if ($override && $isWeekend) {
+            $isWorkday = (int)$override['is_workday'] === 1;
         } else {
             $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
             $isSpecialWorkday = gpw_is_special_workday($holiday);

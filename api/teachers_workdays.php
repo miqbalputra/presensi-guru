@@ -70,9 +70,8 @@ try {
             $isWeekend = ($dayOfWeek === 0 || $dayOfWeek === 6);
             $holiday = $holidaysByDate[$date] ?? null;
 
-            if (isset($userOverrides[$date])) {
-                $isWeekendWorkday = $isWeekend && $userOverrides[$date] === 1;
-                $isWorkday = $isWeekend && $isWeekendWorkday;
+            if (isset($userOverrides[$date]) && $isWeekend) {
+                $isWorkday = $userOverrides[$date] === 1;
             } else {
                 $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
                 $isSpecialWorkday = gpw_is_special_workday($holiday);
