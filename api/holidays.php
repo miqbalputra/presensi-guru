@@ -89,6 +89,54 @@ if ($method === 'POST') {
     $data = getRequestData();
     
     try {
+        // Mode bulk rentang tanggal
+        if (!empty($data['start_date']) && !empty($data['end_date'])) {
+            $startDate = $data['start_date'];
+            $endDate = $data['end_date'];
+            
+            if (!validateDate($startDate) || !validateDate($endDate)) {
+                sendResponse(false, 'Format tanggal tidak valid');
+            }
+            
+            if ($startDate > $endDate) {
+                sendResponse(false, 'Tanggal awal tidak boleh lebih besar dari tanggal akhir');
+            }
+            
+            $allowedTypes = ['nasional', 'cuti_bersama', 'sekolah'];
+            $jenis = $data['jenis'] ?? 'nasional';
+            if (!in_array($jenis, $allowedTypes)) {
+                sendResponse(false, 'Jenis libur tidak valid');
+            }
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO holidays (tanggal, nama, jenis, keterangan, is_workday, jam_masuk_khusus)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    nama = VALUES(nama),
+                    jenis = VALUES(jenis),
+                    keterangan = VALUES(keterangan),
+                    is_workday = VALUES(is_workday),
+                    jam_masuk_khusus = VALUES(jam_masuk_khusus)
+            ");
+            
+            $count = 0;
+            foreach (gpw_build_date_range($startDate, $endDate) as $date) {
+                $stmt->execute([
+                    $date,
+                    $data['nama'],
+                    $jenis,
+                    $data['keterangan'] ?? null,
+                    $data['isWorkday'] ?? 0,
+                    $data['jamMasukKhusus'] ?? null
+                ]);
+                $count++;
+            }
+            
+            sendResponse(true, "{$count} hari libur berhasil ditambahkan dari {$startDate} sampai {$endDate}");
+            exit();
+        }
+        
+        // Single date mode
         // Validasi input
         if (empty($data['tanggal']) || empty($data['nama'])) {
             sendResponse(false, 'Tanggal dan nama harus diisi');

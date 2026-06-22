@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Plus, Edit2, Trash2, AlertCircle, CheckCircle, X } from 'lucide-react'
+import { Calendar, CalendarRange, Plus, Edit2, Trash2, AlertCircle, CheckCircle, X } from 'lucide-react'
 import { holidaysAPI, activityAPI } from '../../services/api'
 import { formatDate, formatDateForInput } from '../../utils/dateUtils'
 
@@ -8,11 +8,13 @@ function HariLibur({ user }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [showModal, setShowModal] = useState(false)
-  const [modalMode, setModalMode] = useState('add') // 'add' or 'edit'
+  const [modalMode, setModalMode] = useState('add') // 'add', 'edit', or 'bulk'
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [formData, setFormData] = useState({
     id: null,
     tanggal: '',
+    startDate: '',
+    endDate: '',
     nama: '',
     jenis: 'nasional',
     keterangan: '',
@@ -40,8 +42,26 @@ function HariLibur({ user }) {
     setFormData({
       id: null,
       tanggal: '',
+      startDate: '',
+      endDate: '',
       nama: '',
       jenis: 'nasional',
+      keterangan: '',
+      isWorkday: 0,
+      jamMasukKhusus: ''
+    })
+    setShowModal(true)
+  }
+
+  const handleAddBulk = () => {
+    setModalMode('bulk')
+    setFormData({
+      id: null,
+      tanggal: '',
+      startDate: '',
+      endDate: '',
+      nama: '',
+      jenis: 'sekolah',
       keterangan: '',
       isWorkday: 0,
       jamMasukKhusus: ''
@@ -87,6 +107,40 @@ function HariLibur({ user }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (modalMode === 'bulk') {
+      if (!formData.startDate || !formData.endDate || !formData.nama) {
+        setMessage({ type: 'error', text: 'Tanggal awal, tanggal akhir, dan nama harus diisi' })
+        return
+      }
+
+      setLoading(true)
+      try {
+        await holidaysAPI.create({
+          start_date: formData.startDate,
+          end_date: formData.endDate,
+          nama: formData.nama,
+          jenis: formData.jenis,
+          keterangan: formData.keterangan,
+          isWorkday: formData.isWorkday,
+          jamMasukKhusus: formData.jamMasukKhusus
+        })
+
+        await activityAPI.create({
+          user: user.nama,
+          aktivitas: 'Tambah Libur Rentang Tanggal',
+          status: `${formData.nama} (${formData.startDate} s/d ${formData.endDate})`
+        })
+
+        setMessage({ type: 'success', text: 'Rentang hari libur berhasil ditambahkan' })
+        setShowModal(false)
+        loadHolidays()
+      } catch (error) {
+        setMessage({ type: 'error', text: error.message || 'Gagal menyimpan rentang hari libur' })
+      }
+      setLoading(false)
+      return
+    }
     
     if (!formData.tanggal || !formData.nama) {
       setMessage({ type: 'error', text: 'Tanggal dan nama harus diisi' })
@@ -158,13 +212,23 @@ function HariLibur({ user }) {
           <h2 className="text-2xl font-bold text-gray-800">Pengaturan Hari Libur</h2>
           <p className="text-gray-600 mt-1">Kelola hari libur nasional, cuti bersama, dan libur sekolah</p>
         </div>
-        <button
-          onClick={handleAdd}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Tambah Hari Libur
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleAddBulk}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            title="Tambah rentang tanggal sekaligus"
+          >
+            <CalendarRange className="w-5 h-5" />
+            Tambah Rentang
+          </button>
+          <button
+            onClick={handleAdd}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Tambah Hari Libur
+          </button>
+        </div>
       </div>
 
       {/* Message */}
@@ -305,22 +369,60 @@ function HariLibur({ user }) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4">
-              {modalMode === 'add' ? 'Tambah Hari Libur' : 'Edit Hari Libur'}
+              {modalMode === 'add' && 'Tambah Hari Libur'}
+              {modalMode === 'edit' && 'Edit Hari Libur'}
+              {modalMode === 'bulk' && 'Tambah Rentang Hari Libur'}
             </h3>
             
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tanggal <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.tanggal}
-                  onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+              {modalMode === 'bulk' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tanggal Awal <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tanggal Akhir <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-50 p-3 rounded border border-yellow-200 text-sm text-yellow-800">
+                    <AlertCircle className="w-4 h-4 inline-block mr-1" />
+                    Semua tanggal dari awal sampai akhir akan ditandai sebagai libur. Tanggal yang sudah ada akan diperbarui.
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tanggal <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.tanggal}
+                    onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required={modalMode !== 'bulk'}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -407,9 +509,11 @@ function HariLibur({ user }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                  className={`flex-1 px-4 py-2 text-white rounded-lg disabled:bg-gray-400 ${
+                    modalMode === 'bulk' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
                 >
-                  {loading ? 'Menyimpan...' : 'Simpan'}
+                  {loading ? 'Menyimpan...' : modalMode === 'bulk' ? 'Tambah Rentang' : 'Simpan'}
                 </button>
               </div>
             </form>
