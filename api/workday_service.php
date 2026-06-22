@@ -114,6 +114,18 @@ function gpw_get_user_weekend_override($pdo, $userId, $date)
     return $stmt->fetch();
 }
 
+function gpw_is_optional_workday($pdo, $date)
+{
+    $stmt = $pdo->prepare("
+        SELECT id, tanggal, nama, keterangan
+        FROM optional_workdays
+        WHERE tanggal = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$date]);
+    return $stmt->fetch();
+}
+
 function gpw_get_date_status($pdo, $date, $gender = null, $userId = null)
 {
     $holiday = gpw_get_holiday($pdo, $date);
@@ -189,6 +201,17 @@ function gpw_get_workday_dates($pdo, $start, $end, $gender = null, $userId = nul
         }
     }
 
+    $optionalStmt = $pdo->prepare("
+        SELECT tanggal, nama, keterangan
+        FROM optional_workdays
+        WHERE tanggal BETWEEN ? AND ?
+    ");
+    $optionalStmt->execute([$start, $end]);
+    $optionalWorkdays = [];
+    foreach ($optionalStmt->fetchAll() as $row) {
+        $optionalWorkdays[$row['tanggal']] = $row;
+    }
+
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
     $workdays = [];
     foreach (gpw_build_date_range($start, $end) as $date) {
@@ -210,6 +233,9 @@ function gpw_get_workday_dates($pdo, $start, $end, $gender = null, $userId = nul
         }
     }
 
-    return $workdays;
+    return [
+        'workdays' => $workdays,
+        'optional_workdays' => $optionalWorkdays,
+    ];
 }
 ?>
