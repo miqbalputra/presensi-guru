@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geo-presensi-v4';
+const CACHE_NAME = 'geo-presensi-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: Bersihkan cache versi lama
+// Activate: Bersihkan cache versi lama dan ambil kendali klien
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -29,24 +29,47 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  return self.clients.claim(); // Ambil kendali klien segera
 });
 
-// Fetch: Strategi cerdas
+// Fetch: Navigasi network-first dengan fallback ke cache lama
 self.addEventListener('fetch', (event) => {
-  // Mode navigasi (buka app/reload): Coba network dulu agar dapat index.html terbaru
+  const url = new URL(event.request.url);
+
+  // Navigasi halaman: selalu coba network dulu, update cache jika berhasil
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/index.html');
-      })
+      fetch(event.request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone));
+          return response;
+        })
+        .catch(() => {
+          return caches.match('/index.html');
+        })
     );
     return;
   }
 
-  // Aset statis: Cache first
+  // JS/CSS chunk: network-first agar selalu dapat versi terbaru setelah deploy
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Aset statis lainnya: cache first
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);
