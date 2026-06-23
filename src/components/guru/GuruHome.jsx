@@ -1,13 +1,12 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
-import { CheckCircle, FileText, AlertCircle, Clock, QrCode } from 'lucide-react'
+import { CheckCircle, FileText, AlertCircle, Clock, QrCode, History, Users, LogOut, MapPin, ArrowRight } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { calculateDistance, getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
-import { SCHOOL_LOCATION } from '../../data/dummyData'
 import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI, locationTrackingAPI } from '../../services/api'
 
 const QRScanner = lazy(() => import('./QRScanner'))
 
-function GuruHome({ user }) {
+function GuruHome({ user, onChangeTab }) {
   const [todayAttendance, setTodayAttendance] = useState(null)
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
@@ -51,6 +50,8 @@ function GuruHome({ user }) {
   const [piketStep, setPiketStep] = useState(1) // 1: Info, 2: Input Alasan
   const [locationStatus, setLocationStatus] = useState({ state: 'idle', location: null, message: '' })
   const [trackingStatus, setTrackingStatus] = useState({ state: 'idle', message: '' })
+  const [monthlyStats, setMonthlyStats] = useState({ hadir: 0, izin: 0, sakit: 0, alfa: 0, percentage: 0, total: 0 })
+  const [recentLogs, setRecentLogs] = useState([])
 
   useEffect(() => {
     loadInitialData()
@@ -315,6 +316,9 @@ function GuruHome({ user }) {
         ])
       }
 
+      // Load monthly stats for hero card
+      await loadMonthlyStats()
+
       console.log('=== ✅ Data Loaded ===')
     } catch (error) {
       console.error('❌ Failed to load initial data:', error)
@@ -325,6 +329,29 @@ function GuruHome({ user }) {
     } finally {
       setPageLoading(false)
       console.log('=== 🏁 Page Loading Complete ===')
+    }
+  }
+
+  const loadMonthlyStats = async () => {
+    try {
+      const today = new Date()
+      const start = formatDateForInput(new Date(today.getFullYear(), today.getMonth(), 1))
+      const end = formatDateForInput(today)
+      const response = await presensiAPI.getAll({ user_id: user.id })
+      const logs = response.data || []
+      const monthLogs = logs.filter(log => log.tanggal >= start && log.tanggal <= end)
+
+      const hadir = monthLogs.filter(log => ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'].includes(log.status)).length
+      const izin = monthLogs.filter(log => log.status === 'izin').length
+      const sakit = monthLogs.filter(log => log.status === 'sakit').length
+      const alfa = monthLogs.filter(log => log.status === 'alfa').length
+      const total = hadir + izin + sakit + alfa
+      const percentage = total > 0 ? Math.round((hadir / total) * 100) : 0
+
+      setMonthlyStats({ hadir, izin, sakit, alfa, total, percentage })
+      setRecentLogs(monthLogs.slice().sort((a, b) => (b.tanggal > a.tanggal ? 1 : -1)).slice(0, 5))
+    } catch (error) {
+      console.error('Failed to load monthly stats:', error)
     }
   }
 
@@ -570,6 +597,7 @@ function GuruHome({ user }) {
 
       setMessage({ type: saved.status === 'hadir_terlambat' ? 'warning' : 'success', text: successMessage })
       setLoading(false)
+      loadMonthlyStats()
     } catch (error) {
       setMessage({
         type: 'error',
@@ -666,6 +694,7 @@ function GuruHome({ user }) {
       })
 
       setLoading(false)
+      loadMonthlyStats()
     } catch (error) {
       if (error.message.startsWith('PIKET_RESTRICTION|')) {
         const jam = error.message.split('|')[1]
