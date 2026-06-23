@@ -190,14 +190,6 @@ function App() {
       }, 5000);
     });
 
-    // Register Service Worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW Registered', reg))
-          .catch(err => console.log('SW Registration Failed', err));
-      });
-    }
   }, [])
 
   // Auto-logout setelah 30 menit tidak ada aktivitas (Hanya untuk Admin/Kepala Sekolah)

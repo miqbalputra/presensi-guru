@@ -3,41 +3,76 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 
-// Registrasi Service Worker untuk PWA
+// Helper: bersihkan cache lama dan reload halaman (recovery dari chunk error)
+async function clearCachesAndReload() {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((key) => caches.delete(key)))
+      console.log('Recovered: old caches cleared')
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map((reg) => reg.unregister()))
+      console.log('Recovered: service workers unregistered')
+    }
+  } catch (err) {
+    console.error('Recovery cleanup failed:', err)
+  }
+  window.location.reload()
+}
+
+// Tangkap error dynamic import module — umumnya disebabkan service worker lama
+// yang menyimpan chunk rusak atau chunk 404, lalu recovery dengan clear cache.
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason
+  const message = reason?.message || String(reason)
+  if (message.includes('Failed to fetch dynamically imported module')) {
+    console.warn('Dynamic import failed; recovering by clearing caches...')
+    event.preventDefault()
+    clearCachesAndReload()
+  }
+})
+
+// Registrasi Service Worker untuk PWA — lebih agresif agar update cepat
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then(registration => {
-        console.log('SW registered: ', registration);
-        
-        // Cek update secara berkala
+        console.log('SW registered:', registration)
+
+        // Cek update saat halaman load dan setiap 60 detik
+        registration.update()
+        setInterval(() => {
+          console.log('SW: checking for update...')
+          registration.update()
+        }, 60_000)
+
+        // Saat update ditemukan, tunggu sampai installed lalu reload
         registration.onupdatefound = () => {
-          const installingWorker = registration.installing;
+          const installingWorker = registration.installing
+          if (!installingWorker) return
           installingWorker.onstatechange = () => {
-            if (installingWorker.state === 'installed') {
-              if (navigator.serviceWorker.controller) {
-                // Ada versi baru, beritahu user atau auto reload
-                console.log('New content is available; please refresh.');
-                // Kita bisa memaksa reload jika diinginkan:
-                // window.location.reload();
-              }
+            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('SW: new version installed, reloading...')
+              window.location.reload()
             }
-          };
-        };
+          }
+        }
       })
       .catch(registrationError => {
-        console.log('SW registration failed: ', registrationError);
-      });
-  });
+        console.log('SW registration failed:', registrationError)
+      })
+  })
 
-  // Handle pergantian controller (ketika SW baru aktif)
-  let refreshing = false;
+  // Jaga-jaga: reload sekali saat controller berganti
+  let refreshing = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!refreshing) {
-      window.location.reload();
-      refreshing = true;
+      window.location.reload()
+      refreshing = true
     }
-  });
+  })
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
