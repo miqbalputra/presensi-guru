@@ -24,6 +24,22 @@ function Login({ onLogin }) {
 
   const changelog = [
     {
+      version: 'v1.4.0',
+      date: '23 Juni 2026',
+      stable: true,
+      features: [
+        'Dark Mode & Light Mode — toggle tema di seluruh halaman (login, guru, admin)',
+        'Redesain total UI halaman Guru: welcome card, info pills, holiday card, floating bottom nav',
+        'Redesain halaman Login dengan gaya konsisten TimeZen-style (rounded card, indigo accent)',
+        'Service Worker v6 — update agresif, auto recovery dari error chunk, cache bersih tiap deploy',
+        'Bulk holiday range creation — admin bisa tambah banyak hari libur sekaligus',
+        'Perbaikan Statistik Guru — data hadir/alfa kini akurat dengan perhitungan hari kerja + optional',
+        'Perbaikan libur sekolah — diperlakukan sebagai libur total, hanya is_workday=1 yang hari kerja',
+        'Hermes API presensi overview — selaras dengan laporan download admin (per-user weekend override)',
+        'Session guru 30 hari — tidak perlu login ulang selama 30 hari, heartbeat otomatis'
+      ]
+    },
+    {
       version: 'v1.3.0',
       date: '24 Mei 2026',
       features: [
@@ -252,18 +268,25 @@ function Login({ onLogin }) {
                 </h3>
                 <div className="space-y-4">
                   {changelog.map((item, idx) => (
-                    <div key={idx} className="relative pl-6 border-l-2 border-indigo-100 dark:border-indigo-500/20 pb-2">
-                      <div className="absolute -left-[9px] top-0 w-4 h-4 bg-indigo-100 dark:bg-indigo-500/20 rounded-full border-4 border-white dark:border-slate-900"></div>
+                    <div key={idx} className={`relative pl-6 border-l-2 pb-2 ${item.stable ? 'border-emerald-200 dark:border-emerald-500/30' : 'border-indigo-100 dark:border-indigo-500/20'}`}>
+                      <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 border-white dark:border-slate-900 ${item.stable ? 'bg-emerald-200 dark:bg-emerald-500/30' : 'bg-indigo-100 dark:bg-indigo-500/20'}`}></div>
                       <div className="flex items-baseline justify-between mb-2">
-                        <span className="px-2 py-0.5 bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold rounded-full">
-                          {item.version}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 text-white text-[10px] font-bold rounded-full ${item.stable ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-indigo-600 dark:bg-indigo-500'}`}>
+                            {item.version}
+                          </span>
+                          {item.stable && (
+                            <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-200 dark:border-emerald-500/20">
+                              STABLE
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{item.date}</span>
                       </div>
                       <ul className="space-y-2">
                         {item.features.map((feature, fIdx) => (
                           <li key={fIdx} className="text-xs text-slate-600 dark:text-slate-400 flex items-start gap-2">
-                            <ChevronRight className="w-3 h-3 text-indigo-400 dark:text-indigo-500 mt-0.5 shrink-0" />
+                            <ChevronRight className={`w-3 h-3 mt-0.5 shrink-0 ${item.stable ? 'text-emerald-400 dark:text-emerald-500' : 'text-indigo-400 dark:text-indigo-500'}`} />
                             {feature}
                           </li>
                         ))}
