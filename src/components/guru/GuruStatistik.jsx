@@ -199,8 +199,11 @@ function GuruStatistik({ user }) {
       value: totalHadir, 
       icon: CheckCircle, 
       color: 'bg-green-500',
+      darkColor: 'dark:bg-green-500/20',
       bgColor: 'bg-green-50',
+      darkBgColor: 'dark:bg-green-500/10',
       textColor: 'text-green-600',
+      darkTextColor: 'dark:text-green-400',
       percentage: totalPresensi > 0 ? ((totalHadir / totalPresensi) * 100).toFixed(1) : 0
     },
     { 
@@ -209,8 +212,11 @@ function GuruStatistik({ user }) {
       value: totalTerlambat, 
       icon: Clock, 
       color: 'bg-yellow-500',
+      darkColor: 'dark:bg-yellow-500/20',
       bgColor: 'bg-yellow-50',
+      darkBgColor: 'dark:bg-yellow-500/10',
       textColor: 'text-yellow-600',
+      darkTextColor: 'dark:text-yellow-400',
       percentage: totalHadir > 0 ? ((totalTerlambat / totalHadir) * 100).toFixed(1) : 0
     },
     { 
@@ -219,8 +225,11 @@ function GuruStatistik({ user }) {
       value: totalIzin, 
       icon: FileText, 
       color: 'bg-blue-500',
+      darkColor: 'dark:bg-blue-500/20',
       bgColor: 'bg-blue-50',
+      darkBgColor: 'dark:bg-blue-500/10',
       textColor: 'text-blue-600',
+      darkTextColor: 'dark:text-blue-400',
       percentage: totalPresensi > 0 ? ((totalIzin / totalPresensi) * 100).toFixed(1) : 0
     },
     { 
@@ -229,8 +238,11 @@ function GuruStatistik({ user }) {
       value: totalSakit, 
       icon: UserX, 
       color: 'bg-red-500',
+      darkColor: 'dark:bg-red-500/20',
       bgColor: 'bg-red-50',
+      darkBgColor: 'dark:bg-red-500/10',
       textColor: 'text-red-600',
+      darkTextColor: 'dark:text-red-400',
       percentage: totalPresensi > 0 ? ((totalSakit / totalPresensi) * 100).toFixed(1) : 0
     },
     {
@@ -239,8 +251,11 @@ function GuruStatistik({ user }) {
       value: totalAlfa,
       icon: AlertCircle,
       color: 'bg-gray-600',
+      darkColor: 'dark:bg-slate-400/20',
       bgColor: 'bg-gray-50',
+      darkBgColor: 'dark:bg-slate-400/10',
       textColor: 'text-gray-700',
+      darkTextColor: 'dark:text-slate-300',
       percentage: totalPresensi > 0 ? ((totalAlfa / totalPresensi) * 100).toFixed(1) : 0
     }
   ]
@@ -254,17 +269,17 @@ function GuruStatistik({ user }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-5">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Statistik Kehadiran Saya</h2>
-          <p className="text-sm text-gray-600 mt-1">Periode: {getPeriodeLabel()}</p>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Statistik Kehadiran Saya</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Periode: {getPeriodeLabel()}</p>
         </div>
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 outline-none"
         >
           <option value="bulan_ini">Bulan Ini</option>
           <option value="bulan_lalu">Bulan Lalu</option>
@@ -274,16 +289,16 @@ function GuruStatistik({ user }) {
       </div>
 
       {/* Persentase Kehadiran */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+      <div className="bg-gradient-to-r from-indigo-500 to-violet-600 rounded-2xl shadow-[0_8px_24px_rgba(99,102,241,0.35)] p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-blue-100 text-sm">Persentase Kehadiran</p>
+            <p className="text-indigo-100 text-sm">Persentase Kehadiran</p>
             <p className="text-4xl font-bold mt-2">{persentaseHadir}%</p>
-            <p className="text-blue-100 text-sm mt-2">
+            <p className="text-indigo-100 text-sm mt-2">
               {totalHadir} dari {totalPresensi} hari kerja
             </p>
           </div>
-          <div className="p-4 bg-white bg-opacity-20 rounded-lg">
+          <div className="p-4 bg-white/15 rounded-2xl backdrop-blur-sm">
             <TrendingUp className="w-12 h-12" />
           </div>
         </div>
@@ -292,18 +307,18 @@ function GuruStatistik({ user }) {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, index) => (
-          <div key={index} className={`${stat.bgColor} rounded-lg shadow p-6`}>
+          <div key={index} className={`${stat.bgColor} ${stat.darkBgColor} rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-5 transition-colors`}>
             <div className="flex items-center justify-between mb-3">
-              <div className={`${stat.color} p-2 rounded-lg`}>
-                <stat.icon className="w-5 h-5 text-white" />
+              <div className={`${stat.color} ${stat.darkColor} p-2 rounded-xl`}>
+                <stat.icon className="w-5 h-5 text-white dark:text-current" />
               </div>
             </div>
-            <p className={`${stat.textColor} text-sm font-medium`}>{stat.label}</p>
+            <p className={`${stat.textColor} ${stat.darkTextColor} text-sm font-semibold`}>{stat.label}</p>
             {stat.sublabel && (
-              <p className="text-xs text-gray-500">{stat.sublabel}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{stat.sublabel}</p>
             )}
-            <p className="text-3xl font-bold text-gray-800 mt-2">{stat.value}</p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-2">{stat.value}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {stat.percentage}% {stat.sublabel ? 'dari hadir' : 'dari total'}
             </p>
           </div>
@@ -312,12 +327,12 @@ function GuruStatistik({ user }) {
 
       {/* Info Keterlambatan */}
       {totalTerlambat > 0 && (
-        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6">
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-5">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+            <AlertCircle className="w-6 h-6 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-1" />
             <div>
-              <h3 className="font-bold text-yellow-800 mb-2">Catatan Keterlambatan</h3>
-              <p className="text-sm text-yellow-700">
+              <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-2">Catatan Keterlambatan</h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300/80">
                 Anda terlambat sebanyak <strong>{totalTerlambat} kali</strong> ({persentaseTerlambat}%) dalam periode ini.
                 Usahakan untuk datang tepat waktu agar tidak terlambat.
               </p>
@@ -327,41 +342,41 @@ function GuruStatistik({ user }) {
       )}
 
       {/* Riwayat Presensi Terbaru */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800">Riwayat Presensi Terbaru</h3>
-          <p className="text-sm text-gray-500 mt-1">10 hari kerja terakhir, termasuk alfa</p>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Riwayat Presensi Terbaru</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">10 hari kerja terakhir, termasuk alfa</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-slate-50 dark:bg-slate-800/60">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jam Masuk</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jam Pulang</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Tanggal</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Jam Masuk</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Jam Pulang</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Keterangan</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {displayData.slice(0, 10).map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.tanggal}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-slate-200 font-medium">{log.tanggal}</td>
+                  <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                     {log.jam_masuk || log.jam_hadir || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                     {log.jam_pulang || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold
-                      ${log.status === 'hadir' ? 'bg-green-100 text-green-800' : ''}
-                      ${log.status === 'hadir_terlambat' ? 'bg-yellow-100 text-yellow-800' : ''}
-                      ${log.status === 'hadir_izin_terlambat' ? 'bg-blue-100 text-blue-800' : ''}
-                      ${log.status === 'izin' ? 'bg-blue-100 text-blue-800' : ''}
-                      ${log.status === 'sakit' ? 'bg-red-100 text-red-800' : ''}
-                      ${log.status === 'alfa' ? 'bg-gray-200 text-gray-800' : ''}
-                      ${log.status === 'libur_override' ? 'bg-purple-100 text-purple-800' : ''}
+                      ${log.status === 'hadir' ? 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300' : ''}
+                      ${log.status === 'hadir_terlambat' ? 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-800 dark:text-yellow-300' : ''}
+                      ${log.status === 'hadir_izin_terlambat' ? 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300' : ''}
+                      ${log.status === 'izin' ? 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300' : ''}
+                      ${log.status === 'sakit' ? 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300' : ''}
+                      ${log.status === 'alfa' ? 'bg-slate-200 dark:bg-slate-600/30 text-slate-800 dark:text-slate-300' : ''}
+                      ${log.status === 'libur_override' ? 'bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-300' : ''}
                     `}>
                       {log.status === 'hadir' ? 'Hadir' :
                        log.status === 'hadir_terlambat' ? 'Terlambat' : 
@@ -373,12 +388,12 @@ function GuruStatistik({ user }) {
                        log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{log.keterangan || '-'}</td>
+                  <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-400">{log.keterangan || '-'}</td>
                 </tr>
               ))}
               {displayData.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="5" className="px-5 py-8 text-center text-slate-500 dark:text-slate-400">
                     Belum ada data presensi untuk periode ini
                   </td>
                 </tr>
@@ -389,12 +404,12 @@ function GuruStatistik({ user }) {
       </div>
 
       {/* Tips */}
-      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6">
+      <div className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-2xl p-5">
         <div className="flex items-start gap-3">
-          <Calendar className="w-6 h-6 text-blue-600 flex-shrink-0 mt-1" />
+          <Calendar className="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
           <div>
-            <h3 className="font-bold text-blue-800 mb-2">💡 Tips Meningkatkan Kehadiran</h3>
-            <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
+            <h3 className="font-bold text-indigo-800 dark:text-indigo-300 mb-2">💡 Tips Meningkatkan Kehadiran</h3>
+            <ul className="text-sm text-indigo-700 dark:text-indigo-300/80 space-y-1 list-disc list-inside">
               <li>Datang tepat waktu sebelum jam masuk normal</li>
               <li>Jangan lupa presensi pulang setelah jam 09:00 WIB</li>
               <li>Jika berhalangan, segera isi presensi izin/sakit dengan keterangan</li>

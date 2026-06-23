@@ -111,8 +111,8 @@ function GuruDashboard({ user, onLogout }) {
       </main>
 
       {/* Floating Pill Bottom Navigation */}
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl rounded-full px-3 py-2.5 flex items-center gap-1 transition-colors">
+      <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 shadow-[0_8px_32px_rgba(0,0,0,0.14)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.35)] rounded-full px-2 py-2 flex items-center gap-1 transition-colors">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id
             return (
@@ -121,7 +121,7 @@ function GuruDashboard({ user, onLogout }) {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold transition-all ${
                   isActive
-                    ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-md'
+                    ? 'bg-slate-900 dark:bg-indigo-500 text-white shadow-sm'
                     : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >

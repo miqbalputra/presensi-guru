@@ -807,24 +807,24 @@ function GuruHome({ user, onChangeTab }) {
   return (
     <div className="space-y-4">
       {/* Welcome Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 relative overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-4 relative overflow-hidden">
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-2xl" />
         <div className="flex items-center gap-3 pl-2">
-          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
-            <span className="text-xl font-black text-indigo-500">
+          <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0">
+            <span className="text-xl font-black text-indigo-500 dark:text-indigo-400">
               {(user?.nama || '').charAt(0)?.toUpperCase() || '\ud83d\udc4b'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">Selamat Datang</p>
-            <h2 className="text-base font-bold text-slate-800 leading-tight truncate">
+            <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-widest">Selamat Datang</p>
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">
               {user?.nama || 'Guru'}
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">{formatFullDate(new Date())}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{formatFullDate(new Date())}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 mt-3 pl-2">
-          <span className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-600 font-medium">
+          <span className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-full text-xs text-slate-600 dark:text-slate-300 font-medium">
             ⏰ {(() => {
               const today = new Date()
               const isMonday = today.getDay() === 1
@@ -839,11 +839,11 @@ function GuruHome({ user, onChangeTab }) {
               return `Masuk ${isPiketToday ? jadwalPiketHariIni?.jam_piket?.substring(0, 5) : settings.jam_masuk_normal}`
             })()} WIB
           </span>
-          <span className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-600 font-medium">
+          <span className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-full text-xs text-slate-600 dark:text-slate-300 font-medium">
             ⚡ Toleransi {settings.toleransi_terlambat} mnt
           </span>
           {settings.mode_testing == '1' && (
-            <span className="px-2.5 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs text-orange-600 font-medium">
+            <span className="px-2.5 py-1 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-full text-xs text-orange-600 dark:text-orange-300 font-medium">
               🧪 Mode Testing
             </span>
           )}
@@ -851,14 +851,14 @@ function GuruHome({ user, onChangeTab }) {
             <button
               type="button"
               onClick={warmUpLocation}
-              className={`px-2.5 py-1 border rounded-full text-xs font-medium ${
+              className={`px-2.5 py-1 border rounded-full text-xs font-medium transition-colors ${
                 locationStatus.state === 'ready'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                   : locationStatus.state === 'loading'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300'
                     : locationStatus.state === 'error'
-                      ? 'bg-rose-50 border-rose-200 text-rose-700'
-                      : 'bg-slate-50 border-slate-200 text-slate-600'
+                      ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-300'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
               }`}
               title={locationStatus.message || 'Ketuk untuk menyiapkan GPS'}
             >
@@ -875,12 +875,12 @@ function GuruHome({ user, onChangeTab }) {
             <span
               className={`px-2.5 py-1 border rounded-full text-xs font-medium ${
                 trackingStatus.state === 'ready'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                   : trackingStatus.state === 'loading'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300'
                     : trackingStatus.state === 'error'
-                      ? 'bg-amber-50 border-amber-200 text-amber-700'
-                      : 'bg-slate-50 border-slate-200 text-slate-600'
+                      ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-300'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
               }`}
               title={trackingStatus.message}
             >
@@ -888,7 +888,7 @@ function GuruHome({ user, onChangeTab }) {
             </span>
           )}
           {isPiketToday && jadwalPiketHariIni && (
-            <span className="px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-600 font-medium">
+            <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 rounded-full text-xs text-purple-600 dark:text-purple-300 font-medium">
               📋 Piket — Maks {jadwalPiketHariIni.jam_piket} WIB
             </span>
           )}
@@ -897,11 +897,11 @@ function GuruHome({ user, onChangeTab }) {
 
       {/* Holiday Message */}
       {isHoliday && holidayInfo && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative overflow-hidden text-center">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-5 relative overflow-hidden text-center">
           <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${holidayInfo.type === 'weekend' ? 'bg-indigo-400' : 'bg-violet-400'}`} />
           <div className="text-3xl mb-2">{holidayInfo.type === 'weekend' ? '😴' : '🎉'}</div>
-          <h3 className="text-base font-bold text-slate-800">{holidayInfo.message}</h3>
-          <p className="text-xs text-slate-500 mt-1">Tidak perlu melakukan presensi hari ini</p>
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">{holidayInfo.message}</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Tidak perlu melakukan presensi hari ini</p>
         </div>
       )}
 
@@ -937,59 +937,59 @@ function GuruHome({ user, onChangeTab }) {
             }
             return (
               <>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 relative overflow-hidden">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-4 relative overflow-hidden">
                   <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${accentColor}`} />
                   <div className="pl-2">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
-                        <span className="text-sm font-bold text-slate-800">{headerText}</span>
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{headerText}</span>
                       </div>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeBg} ${badgeText}`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeBg} dark:bg-opacity-10 ${badgeText} dark:text-opacity-90`}>
                         {badgeLabel}
                       </span>
                     </div>
                     <div className="space-y-0">
                       {todayAttendance.jamHadir && (
-                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                          <span className="text-xs text-slate-400 font-medium">Jam Masuk</span>
-                          <span className="text-xs font-semibold text-slate-700">{todayAttendance.jamHadir}</span>
+                        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Jam Masuk</span>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{todayAttendance.jamHadir}</span>
                         </div>
                       )}
                       {todayAttendance.jamIzin && (
-                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                          <span className="text-xs text-slate-400 font-medium">Jam Izin</span>
-                          <span className="text-xs font-semibold text-slate-700">{todayAttendance.jamIzin}</span>
+                        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Jam Izin</span>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{todayAttendance.jamIzin}</span>
                         </div>
                       )}
                       {todayAttendance.jamSakit && (
-                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                          <span className="text-xs text-slate-400 font-medium">Jam Sakit</span>
-                          <span className="text-xs font-semibold text-slate-700">{todayAttendance.jamSakit}</span>
+                        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Jam Sakit</span>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{todayAttendance.jamSakit}</span>
                         </div>
                       )}
                       {isHadirTerlambat && todayAttendance.keterangan && (
-                        <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                          <span className="text-xs text-slate-400 font-medium">Terlambat</span>
-                          <span className="text-xs font-semibold text-amber-600">{todayAttendance.keterangan}</span>
+                        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Terlambat</span>
+                          <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">{todayAttendance.keterangan}</span>
                         </div>
                       )}
                       <div className="flex justify-between items-center py-2">
-                        <span className="text-xs text-slate-400 font-medium">Jam Pulang</span>
-                        <span className={`text-xs font-semibold ${(todayAttendance.jamPulang || todayAttendance.jam_pulang) ? "text-slate-700" : "text-slate-300"}`}>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Jam Pulang</span>
+                        <span className={`text-xs font-semibold ${(todayAttendance.jamPulang || todayAttendance.jam_pulang) ? "text-slate-700 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"}`}>
                           {todayAttendance.jamPulang || todayAttendance.jam_pulang || 'Belum tercatat'}
                         </span>
                       </div>
                       {todayAttendance.keterangan && !isHadirTerlambat && (
-                        <div className="flex justify-between items-center py-2 border-t border-slate-50">
-                          <span className="text-xs text-slate-400 font-medium">Keterangan</span>
-                          <span className="text-xs font-medium text-slate-600 text-right max-w-xs">{todayAttendance.keterangan}</span>
+                        <div className="flex justify-between items-center py-2 border-t border-slate-100 dark:border-slate-800">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Keterangan</span>
+                          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 text-right max-w-xs">{todayAttendance.keterangan}</span>
                         </div>
                       )}
                     </div>
                     {isIzinSakit && (
-                      <div className="mt-3 px-3 py-2 bg-slate-50 rounded-xl">
-                        <p className="text-xs text-slate-500">
+                      <div className="mt-3 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           ℹ️ Tidak perlu presensi pulang untuk status {status === 'izin' ? 'izin' : 'sakit'}.
                         </p>
                       </div>
@@ -1003,23 +1003,23 @@ function GuruHome({ user, onChangeTab }) {
                       <button
                         onClick={handlePulang}
                         disabled={loading}
-                        className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-base hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 flex items-center justify-center gap-3 shadow-sm transition-all"
+                        className="w-full bg-indigo-600 dark:bg-indigo-500 text-white py-4 rounded-2xl font-bold text-base hover:bg-indigo-700 dark:hover:bg-indigo-400 disabled:bg-slate-300 dark:disabled:bg-slate-800 disabled:text-slate-500 dark:disabled:text-slate-500 flex items-center justify-center gap-3 shadow-sm transition-all"
                       >
                         <CheckCircle className="w-5 h-5" />
                         {loading ? 'Memproses...' : 'PRESENSI PULANG'}
                       </button>
                     ) : (
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
-                        <p className="text-slate-600 font-semibold text-sm">⏰ Presensi pulang tersedia mulai 09:00 WIB</p>
-                        <p className="text-xs text-slate-400 mt-1">Silakan tunggu hingga jam 09:00</p>
+                      <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center">
+                        <p className="text-slate-600 dark:text-slate-300 font-semibold text-sm">⏰ Presensi pulang tersedia mulai 09:00 WIB</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Silakan tunggu hingga jam 09:00</p>
                       </div>
                     )}
                   </>
                 )}
 
                 {!isIzinSakit && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && (todayAttendance.jamPulang || todayAttendance.jam_pulang) && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-center">
-                    <p className="text-emerald-700 font-semibold text-sm">✓ Presensi pulang sudah tercatat</p>
+                  <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-3.5 text-center">
+                    <p className="text-emerald-700 dark:text-emerald-300 font-semibold text-sm">✓ Presensi pulang sudah tercatat</p>
                   </div>
                 )}
               </>
