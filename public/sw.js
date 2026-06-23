@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geo-presensi-v5';
+const CACHE_NAME = 'geo-presensi-v6';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -7,7 +7,7 @@ const ASSETS_TO_CACHE = [
   '/icon-512.png'
 ];
 
-// Install: Cache aset dasar dan paksa aktif
+// Install: Cache aset dasar dan paksa aktif segera
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: Bersihkan cache versi lama dan ambil kendali klien
+// Activate: Bersihkan SEMUA cache versi lama dan ambil alih semua tab
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -33,11 +33,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Navigasi network-first dengan fallback ke cache lama
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Navigasi halaman: selalu coba network dulu, update cache jika berhasil
+  // Jangan pernah intercept request ke sw.js sendiri; biarkan browser
+  // update service worker dengan versi terbaru dari server.
+  if (url.pathname === '/sw.js') {
+    return;
+  }
+
+  // Navigasi halaman: network-first, update cache jika berhasil
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
