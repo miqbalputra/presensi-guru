@@ -37,6 +37,16 @@ async function fetchAPI(endpoint, options = {}) {
   }
 }
 
+// Google OAuth Config API (public, no auth needed)
+export const configAPI = {
+  getGoogleConfig: async () => {
+    return fetchAPI('/google_config.php', {
+      method: 'GET',
+      timeoutMs: 5000,
+    })
+  },
+}
+
 // Auth API
 export const authAPI = {
   login: async (username, password) => {
@@ -522,6 +532,7 @@ export const manualEntryAPI = {
 
 export default {
   authAPI,
+  configAPI,
   guruAPI,
   guruProfileAPI,
   guruHomeAPI,

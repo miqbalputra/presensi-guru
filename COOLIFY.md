@@ -49,6 +49,25 @@ GOWA_USERNAME=
 GOWA_PASSWORD=
 ```
 
+Opsional untuk mengaktifkan Login Google (Sign in with Google):
+
+```env
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+```
+
+Client ID didapat dari [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+Cukup set **satu env var runtime** ini (tidak perlu build arg). Frontend mengambil
+Client ID dari endpoint `/api/google_config.php` saat halaman login dimuat.
+Jangan lupa tambahkan URL aplikasi ke **Authorized JavaScript origins** di Google Cloud.
+
+Opsional jika memakai webhook WhatsApp direct:
+
+```env
+GOWA_WEBHOOK_URL=
+GOWA_USERNAME=
+GOWA_PASSWORD=
+```
+
 Frontend di dalam Docker default memakai `VITE_API_URL=/api`, jadi API berjalan same-origin dan tidak perlu URL API berbeda.
 
 ## 4. Cron Reminder

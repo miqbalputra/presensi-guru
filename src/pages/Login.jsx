@@ -1,25 +1,26 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LogIn, Info, X, ChevronRight, Globe, MessageCircle, Mail, Sun, Moon } from 'lucide-react'
-import { authAPI, activityAPI } from '../services/api'
+import { authAPI, activityAPI, configAPI } from '../services/api'
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+// Fallback build-time client id (opsional). Sumber utama adalah API /google_config.php
+const FALLBACK_GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
-// Muat script Google Identity Services satu kali & render tombolnya
-function useGoogleSignIn(enabled, onCredential) {
+// Muat script Google Identity Services & render tombolnya
+function useGoogleSignIn(clientId, onCredential) {
   const containerRef = useRef(null)
   const callbackRef = useRef(onCredential)
   callbackRef.current = onCredential
 
   useEffect(() => {
-    if (!enabled || !containerRef.current) return undefined
+    if (!clientId || !containerRef.current) return undefined
 
     let cancelled = false
 
     const renderButton = () => {
       if (cancelled || !window.google?.accounts?.id || !containerRef.current) return
       window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: clientId,
         callback: (resp) => callbackRef.current?.(resp),
       })
       window.google.accounts.id.renderButton(containerRef.current, {
@@ -51,7 +52,7 @@ function useGoogleSignIn(enabled, onCredential) {
     }
 
     return () => { cancelled = true }
-  }, [enabled])
+  }, [clientId])
 
   return containerRef
 }
@@ -67,6 +68,23 @@ function Login({ onLogin }) {
     catch { return 'light' }
   })
   const navigate = useNavigate()
+
+  const [googleClientId, setGoogleClientId] = useState(FALLBACK_GOOGLE_CLIENT_ID)
+
+  // Ambil Google Client ID dari backend (runtime, tidak perlu build arg)
+  useEffect(() => {
+    let cancelled = false
+    configAPI.getGoogleConfig()
+      .then((res) => {
+        if (cancelled) return
+        const id = res?.data?.googleClientId || ''
+        if (id) setGoogleClientId(id)
+      })
+      .catch(() => {
+        // API gagal — fallback ke build-time value (kalau ada)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const handleGoogleCredential = async (resp) => {
     const credential = resp?.credential
@@ -90,8 +108,8 @@ function Login({ onLogin }) {
     }
   }
 
-  const googleEnabled = !!GOOGLE_CLIENT_ID
-  const googleContainerRef = useGoogleSignIn(googleEnabled, handleGoogleCredential)
+  const googleEnabled = !!googleClientId
+  const googleContainerRef = useGoogleSignIn(googleClientId, handleGoogleCredential)
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark'
