@@ -65,6 +65,15 @@ export const authAPI = {
       timeoutMs: 10000,
     })
   },
+
+  // Login dengan Google (kirim credential JWT dari Google Identity Services)
+  googleLogin: async (credential) => {
+    return fetchAPI('/auth.php?action=google_login', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+      timeoutMs: 12000,
+    })
+  },
 }
 
 // Guru API
@@ -342,6 +351,15 @@ export const guruProfileAPI = {
     return fetchAPI('/guru_profile.php', {
       method: 'PUT',
       body: JSON.stringify({ email, noHP, alamat }),
+      timeoutMs: 8000,
+    })
+  },
+
+  // Ganti password guru sendiri (password lama, baru, konfirmasi)
+  changePassword: async ({ passwordLama, passwordBaru, konfirmasiBaru }) => {
+    return fetchAPI('/guru_profile.php', {
+      method: 'POST',
+      body: JSON.stringify({ passwordLama, passwordBaru, konfirmasiBaru }),
       timeoutMs: 8000,
     })
   },

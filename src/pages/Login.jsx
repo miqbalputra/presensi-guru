@@ -1,7 +1,60 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LogIn, Info, X, ChevronRight, Globe, MessageCircle, Mail, Sun, Moon } from 'lucide-react'
 import { authAPI, activityAPI } from '../services/api'
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+
+// Muat script Google Identity Services satu kali & render tombolnya
+function useGoogleSignIn(enabled, onCredential) {
+  const containerRef = useRef(null)
+  const callbackRef = useRef(onCredential)
+  callbackRef.current = onCredential
+
+  useEffect(() => {
+    if (!enabled || !containerRef.current) return undefined
+
+    let cancelled = false
+
+    const renderButton = () => {
+      if (cancelled || !window.google?.accounts?.id || !containerRef.current) return
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (resp) => callbackRef.current?.(resp),
+      })
+      window.google.accounts.id.renderButton(containerRef.current, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'pill',
+        width: 360,
+        locale: 'id',
+      })
+    }
+
+    if (window.google?.accounts?.id) {
+      renderButton()
+    } else {
+      const existing = document.querySelector('script[data-gis="1"]')
+      if (!existing) {
+        const script = document.createElement('script')
+        script.src = 'https://accounts.google.com/gsi/client'
+        script.async = true
+        script.defer = true
+        script.setAttribute('data-gis', '1')
+        script.onload = renderButton
+        document.head.appendChild(script)
+      } else {
+        existing.addEventListener('load', renderButton)
+      }
+    }
+
+    return () => { cancelled = true }
+  }, [enabled])
+
+  return containerRef
+}
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -14,6 +67,31 @@ function Login({ onLogin }) {
     catch { return 'light' }
   })
   const navigate = useNavigate()
+
+  const handleGoogleCredential = async (resp) => {
+    const credential = resp?.credential
+    if (!credential) return
+    setLoading(true)
+    setError('')
+    try {
+      const response = await authAPI.googleLogin(credential)
+      const user = response.data
+      onLogin(user)
+      try {
+        await activityAPI.create({ user: user.nama, aktivitas: 'Login (Google)', status: 'Sukses' })
+      } catch (logError) {
+        console.error('Failed to log activity:', logError)
+      }
+      navigate(user.role === 'guru' ? '/guru' : '/admin')
+    } catch (err) {
+      setError(err.message || 'Login Google gagal.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const googleEnabled = !!GOOGLE_CLIENT_ID
+  const googleContainerRef = useGoogleSignIn(googleEnabled, handleGoogleCredential)
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -166,6 +244,18 @@ function Login({ onLogin }) {
           >
             {loading ? 'Memproses...' : 'Masuk'}
           </button>
+
+          {/* Login Google */}
+          {googleEnabled && (
+            <>
+              <div className="flex items-center gap-3 my-1" aria-hidden="true">
+                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+                <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">atau masuk dengan</span>
+                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+              </div>
+              <div className="flex justify-center" ref={googleContainerRef} />
+            </>
+          )}
         </form>
 
         {/* Info Link */}

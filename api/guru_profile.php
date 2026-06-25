@@ -2,8 +2,10 @@
 /**
  * Guru Profile Self-Service Endpoint
  *
- * Mengizinkan guru yang sedang login untuk melihat dan mengupdate
- * data profil mereka sendiri (email, no_hp, alamat).
+ * Mengizinkan guru yang sedang login untuk:
+ *   - Melihat profil mereka sendiri        (GET)
+ *   - Memperbarui email, no_hp, alamat      (PUT)
+ *   - Mengganti password sendiri            (POST)
  *
  * Perubahan langsung tersimpan ke tabel `users` (database utama Guru)
  * sehingga data yang dilihat Admin juga ikut ter-update.
@@ -23,13 +25,13 @@ if ($currentUserId <= 0) {
     sendResponse(false, 'Sesi tidak valid, silakan login kembali.');
 }
 
-// ---------------------------------------------------------------------------
-// GET - Ambil profil sendiri (email, no_hp, alamat, dll)
-// ---------------------------------------------------------------------------
+// -------------------------------------------------------------------------
+// GET - Ambil profil sendiri (email, no_hp, alamat, google_id, dll)
+// -------------------------------------------------------------------------
 if ($method === 'GET') {
     try {
         $stmt = $pdo->prepare("
-            SELECT id, id_guru, username, email, nama, no_hp, alamat, role
+            SELECT id, id_guru, username, email, nama, no_hp, alamat, role, google_id
             FROM users
             WHERE id = ? AND role = 'guru'
             LIMIT 1
@@ -43,14 +45,16 @@ if ($method === 'GET') {
 
         // Ubah ke camelCase agar konsisten dengan frontend
         $profile = [
-            'id'      => (int) $guru['id'],
-            'idGuru'  => $guru['id_guru'],
-            'username'=> $guru['username'],
-            'email'   => $guru['email'],
-            'nama'    => $guru['nama'],
-            'noHP'    => $guru['no_hp'],
-            'alamat'  => $guru['alamat'],
-            'role'    => $guru['role'],
+            'id'           => (int) $guru['id'],
+            'idGuru'       => $guru['id_guru'],
+            'username'     => $guru['username'],
+            'email'        => $guru['email'],
+            'nama'         => $guru['nama'],
+            'noHP'         => $guru['no_hp'],
+            'alamat'       => $guru['alamat'],
+            'role'         => $guru['role'],
+            'googleId'     => $guru['google_id'],
+            'googleLinked' => !empty($guru['google_id']),
         ];
 
         sendResponse(true, 'Profil berhasil diambil', $profile);
@@ -59,9 +63,9 @@ if ($method === 'GET') {
     }
 }
 
-// ---------------------------------------------------------------------------
+// -------------------------------------------------------------------------
 // PUT - Update profil sendiri (email, no_hp, alamat)
-// ---------------------------------------------------------------------------
+// -------------------------------------------------------------------------
 if ($method === 'PUT') {
     $data = getRequestData();
 
@@ -120,26 +124,93 @@ if ($method === 'PUT') {
 
         // Ambil profil terbaru untuk dikirim balik
         $profileStmt = $pdo->prepare("
-            SELECT id, id_guru, username, email, nama, no_hp, alamat, role
+            SELECT id, id_guru, username, email, nama, no_hp, alamat, role, google_id
             FROM users WHERE id = ? LIMIT 1
         ");
         $profileStmt->execute([$currentUserId]);
         $guru = $profileStmt->fetch();
 
         $profile = [
-            'id'      => (int) $guru['id'],
-            'idGuru'  => $guru['id_guru'],
-            'username'=> $guru['username'],
-            'email'   => $guru['email'],
-            'nama'    => $guru['nama'],
-            'noHP'    => $guru['no_hp'],
-            'alamat'  => $guru['alamat'],
-            'role'    => $guru['role'],
+            'id'           => (int) $guru['id'],
+            'idGuru'       => $guru['id_guru'],
+            'username'     => $guru['username'],
+            'email'        => $guru['email'],
+            'nama'         => $guru['nama'],
+            'noHP'         => $guru['no_hp'],
+            'alamat'       => $guru['alamat'],
+            'role'         => $guru['role'],
+            'googleId'     => $guru['google_id'],
+            'googleLinked' => !empty($guru['google_id']),
         ];
 
         sendResponse(true, 'Profil berhasil diperbarui.', $profile);
     } catch (PDOException $e) {
         handleError($e, 'guru_profile.php - PUT');
+    }
+}
+
+// -------------------------------------------------------------------------
+// POST - Ganti password sendiri
+// -------------------------------------------------------------------------
+if ($method === 'POST') {
+    $data = getRequestData();
+
+    $passwordLama     = (string) ($data['passwordLama'] ?? $data['oldPassword'] ?? '');
+    $passwordBaru     = (string) ($data['passwordBaru'] ?? $data['newPassword'] ?? '');
+    $konfirmasiBaru   = (string) ($data['konfirmasiBaru'] ?? $data['confirmPassword'] ?? '');
+
+    if ($passwordLama === '' || $passwordBaru === '' || $konfirmasiBaru === '') {
+        sendResponse(false, 'Semua kolom password harus diisi.');
+    }
+
+    if ($passwordBaru !== $konfirmasiBaru) {
+        sendResponse(false, 'Konfirmasi password baru tidak cocok.');
+    }
+
+    // Validasi kekuatan password (reuse helper security.php)
+    $passwordValidation = validatePassword($passwordBaru);
+    if ($passwordValidation !== true) {
+        sendResponse(false, $passwordValidation);
+    }
+
+    try {
+        // Ambil password lama dari DB untuk verifikasi
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ? AND role = 'guru' LIMIT 1");
+        $stmt->execute([$currentUserId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            sendResponse(false, 'Data guru tidak ditemukan.');
+        }
+
+        // Verifikasi password lama
+        if (!password_verify($passwordLama, $row['password'])) {
+            securityLog('password_change_failed', [
+                'user_id' => $currentUserId,
+                'reason'  => 'wrong_old_password',
+                'ip'      => getClientIP(),
+            ]);
+            sendResponse(false, 'Password lama tidak sesuai.');
+        }
+
+        // Password baru tidak boleh sama dengan password lama
+        if (password_verify($passwordBaru, $row['password'])) {
+            sendResponse(false, 'Password baru tidak boleh sama dengan password lama.');
+        }
+
+        $hashedPassword = password_hash($passwordBaru, PASSWORD_DEFAULT);
+
+        $update = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $update->execute([$hashedPassword, $currentUserId]);
+
+        securityLog('password_change_success', [
+            'user_id' => $currentUserId,
+            'ip'      => getClientIP(),
+        ]);
+
+        sendResponse(true, 'Password berhasil diubah.');
+    } catch (PDOException $e) {
+        handleError($e, 'guru_profile.php - POST (change password)');
     }
 }
 
