@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
-import { Home, History, Users, LogOut, BarChart3, Sun, Moon } from 'lucide-react'
+import { Home, History, Users, LogOut, BarChart3, Sun, Moon, UserCog } from 'lucide-react'
 import GuruHome from '../components/guru/GuruHome'
+import GuruAkun from '../components/guru/GuruAkun'
 
 const GuruRiwayat = lazy(() => import('../components/guru/GuruRiwayat'))
 const GuruStatus = lazy(() => import('../components/guru/GuruStatus'))
@@ -58,7 +59,8 @@ function GuruDashboard({ user, onLogout }) {
     { id: 'home', label: 'Home', icon: Home },
     { id: 'riwayat', label: 'Riwayat', icon: History },
     { id: 'status', label: 'Status', icon: Users },
-    { id: 'statistik', label: 'Statistik', icon: BarChart3 }
+    { id: 'statistik', label: 'Statistik', icon: BarChart3 },
+    { id: 'akun', label: 'Akun', icon: UserCog }
   ]
 
   const firstName = (user?.nama || 'Guru').split(' ')[0]
@@ -101,7 +103,8 @@ function GuruDashboard({ user, onLogout }) {
       {/* Content */}
       <main className="max-w-4xl mx-auto px-5">
         {activeTab === 'home' && <GuruHome user={user} onChangeTab={setActiveTab} />}
-        {activeTab !== 'home' && (
+        {activeTab === 'akun' && <GuruAkun user={user} />}
+        {activeTab !== 'home' && activeTab !== 'akun' && (
           <Suspense fallback={<TabLoading />}>
             {activeTab === 'riwayat' && <GuruRiwayat user={user} />}
             {activeTab === 'status' && <GuruStatus user={user} />}

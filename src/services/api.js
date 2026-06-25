@@ -329,6 +329,24 @@ export const statusRekanAPI = {
   },
 }
 
+// Guru Profile Self-Service API - guru dapat melihat & update data dirinya
+export const guruProfileAPI = {
+  getProfile: async () => {
+    return fetchAPI('/guru_profile.php', {
+      method: 'GET',
+      timeoutMs: 8000,
+    })
+  },
+
+  updateProfile: async ({ email, noHP, alamat }) => {
+    return fetchAPI('/guru_profile.php', {
+      method: 'PUT',
+      body: JSON.stringify({ email, noHP, alamat }),
+      timeoutMs: 8000,
+    })
+  },
+}
+
 // Guru Home API - compact initial payload for faster guru dashboard load
 export const guruHomeAPI = {
   getInitialData: async () => {
@@ -487,6 +505,7 @@ export const manualEntryAPI = {
 export default {
   authAPI,
   guruAPI,
+  guruProfileAPI,
   guruHomeAPI,
   presensiAPI,
   adminSummaryAPI,
