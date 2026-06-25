@@ -120,6 +120,18 @@ function Login({ onLogin }) {
 
   const changelog = [
     {
+      version: 'v1.4.1',
+      date: '10 Juli 2026',
+      stable: true,
+      features: [
+        'Menu Akun Guru — setiap guru kini punya tab khusus untuk melihat & mengupdate data diri (email, no HP, alamat) yang otomatis tersimpan ke database utama',
+        'Login dengan Google — opsi Sign in with Google di halaman login, akun dicocokkan otomatis berdasarkan email guru',
+        'Indikator Login Google — halaman Akun menampilkan status terhubung/belum terhubung ke akun Google',
+        'Ganti Password Mandiri — guru bisa ubah password sendiri (password lama, baru, konfirmasi) langsung dari menu Akun',
+        'Konfigurasi Google Client ID via API — cukup set 1 env var runtime (GOOGLE_CLIENT_ID), tidak perlu rebuild image'
+      ]
+    },
+    {
       version: 'v1.4.0',
       date: '23 Juni 2026',
       stable: true,
