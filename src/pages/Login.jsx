@@ -121,7 +121,7 @@ function Login({ onLogin }) {
   const changelog = [
     {
       version: 'v1.4.1',
-      date: '10 Juli 2026',
+      date: '25 Juni 2026',
       stable: true,
       features: [
         'Menu Akun Guru — setiap guru kini punya tab khusus untuk melihat & mengupdate data diri (email, no HP, alamat) yang otomatis tersimpan ke database utama',
