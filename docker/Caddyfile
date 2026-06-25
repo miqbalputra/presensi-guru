@@ -33,6 +33,13 @@
 	header /sw.js Cache-Control "no-cache, no-store, must-revalidate"
 	header /manifest.json Cache-Control "public, max-age=3600"
 
+	# Static assets: serve directly, 404 if missing (NO html fallback)
+	# Mencegah Cloudflare cache response text/html untuk file JS/CSS
+	handle @assets {
+		file_server
+	}
+
+	# SPA fallback: hanya untuk navigasi (bukan /assets/*)
 	handle {
 		try_files {path} /index.html
 		file_server
