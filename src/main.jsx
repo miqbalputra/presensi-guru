@@ -80,3 +80,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>,
 )
+
+// Hapus loading fallback setelah React render
+const loadingEl = document.getElementById('app-loading')
+if (loadingEl) loadingEl.remove()
