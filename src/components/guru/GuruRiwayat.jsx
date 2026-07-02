@@ -48,6 +48,8 @@ function GuruRiwayat({ user }) {
       ? 'HADIR - IZIN TERLAMBAT'
       : status === 'libur_override'
       ? 'LIBUR KHUSUS'
+      : status === 'libur'
+      ? 'LIBUR'
       : status.toUpperCase()
 
   const downloadPDF = () => {
@@ -307,6 +309,7 @@ function GuruRiwayat({ user }) {
                           ${log.status === 'izin' ? 'bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300' : ''}
                           ${log.status === 'sakit' ? 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300' : ''}
                           ${log.status === 'alfa' ? 'bg-gray-200 dark:bg-gray-500/20 text-gray-700 dark:text-gray-300' : ''}
+                          ${log.status === 'libur' ? 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' : ''}
                           ${log.status === 'libur_override' ? 'bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-300' : ''}
                           ${log.status === 'opsional' ? 'bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300' : ''}
                         `}

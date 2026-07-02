@@ -76,7 +76,10 @@ export const getWorkdayDates = (startDate, endDate, holidays = [], options = {})
     const holiday = holidaysByDate.get(date)
     const day = new Date(`${date}T00:00:00`).getDay()
     const isWeekend = day === 0 || day === 6
-    const isSpecialWorkday = holiday && (Number(holiday.is_workday) === 1 || holiday.jenis === 'sekolah')
+    // Selaras dengan backend gpw_is_special_workday(): hanya is_workday=1 yang
+    // dianggap hari kerja khusus. Libur jenis 'sekolah' dengan is_workday=0
+    // adalah libur total, BUKAN hari kerja.
+    const isSpecialWorkday = holiday && Number(holiday.is_workday) === 1
 
     return isSpecialWorkday || (!holiday && (!isWeekend || isWeekendWorkday(day)))
   })

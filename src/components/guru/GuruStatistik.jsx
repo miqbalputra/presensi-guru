@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX } from 'lucide-react'
-import { optionalWorkdaysAPI, presensiAPI, settingsAPI, teacherWorkdaysAPI } from '../../services/api'
+import { optionalWorkdaysAPI, presensiAPI, settingsAPI, teacherWorkdaysAPI, holidaysAPI } from '../../services/api'
 import { formatDateForInput, getWorkdayDates } from '../../utils/dateUtils'
 
 function GuruStatistik({ user }) {
   const [presensiData, setPresensiData] = useState([])
   const [workdaysData, setWorkdaysData] = useState(null)
   const [optionalWorkdays, setOptionalWorkdays] = useState([])
+  const [holidays, setHolidays] = useState([])
   const [settings, setSettings] = useState({
     weekend_workday_enabled: '0',
     saturday_male_workday_enabled: '0',
@@ -75,11 +76,12 @@ function GuruStatistik({ user }) {
         return
       }
 
-      const [presensiResponse, settingsResponse, workdaysResponse, optionalResponse] = await Promise.allSettled([
+      const [presensiResponse, settingsResponse, workdaysResponse, optionalResponse, holidaysResponse] = await Promise.allSettled([
         presensiAPI.getAll({ user_id: numericUserId }),
         settingsAPI.getAll(),
         teacherWorkdaysAPI.getWorkdays(numericUserId, startDate, endDate),
-        optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
+        optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate }),
+        holidaysAPI.getAll({ start_date: startDate, end_date: endDate })
       ])
 
       if (presensiResponse.status === 'fulfilled') {
@@ -105,6 +107,12 @@ function GuruStatistik({ user }) {
         setOptionalWorkdays(optionalDates.length > 0 ? optionalDates : (workdaysResponse.status === 'fulfilled' ? (workdaysResponse.value.data?.optional_dates || []) : []))
       } else {
         console.error('GuruStatistik optionalWorkdaysAPI failed:', optionalResponse.reason)
+      }
+
+      if (holidaysResponse.status === 'fulfilled') {
+        setHolidays(holidaysResponse.value.data || [])
+      } else {
+        console.error('GuruStatistik holidaysAPI failed:', holidaysResponse.reason)
       }
     } catch (error) {
       console.error('Failed to load presensi data:', error)
@@ -153,12 +161,38 @@ function GuruStatistik({ user }) {
 
   const logsByDate = new Map(allUserLogs.map(log => [log.tanggal, log]))
   const optionalDatesWithPresence = optionalWorkdays.filter(d => logsByDate.has(d) && d >= startDate && d <= endDate)
+
+  // Bangun map hari libur (non-workday holiday) untuk ditampilkan sebagai 'Libur'
+  const holidayByDate = new Map()
+  holidays.forEach((h) => {
+    const isWorkdayHoliday = Number(h.is_workday) === 1
+    if (!isWorkdayHoliday && h.tanggal >= startDate && h.tanggal <= endDate) {
+      holidayByDate.set(h.tanggal, h)
+    }
+  })
+  const holidayDates = Array.from(holidayByDate.keys())
+
   const displayData = [
     ...relevantDates,
-    ...optionalDatesWithPresence.filter(d => !workdaySet.has(d))
+    ...optionalDatesWithPresence.filter(d => !workdaySet.has(d)),
+    ...holidayDates.filter(d => !workdaySet.has(d) && !optionalSet.has(d))
   ].sort().reverse().map(date => {
     const log = logsByDate.get(date)
-    return log || {
+    if (log) return log
+    // Hari libur (non-workday holiday) — tampilkan sebagai Libur
+    const holiday = holidayByDate.get(date)
+    if (holiday) {
+      return {
+        id: `libur-${date}`,
+        tanggal: date,
+        status: 'libur',
+        jam_masuk: '-',
+        jam_hadir: '-',
+        jam_pulang: '-',
+        keterangan: `${holiday.nama || 'Libur'} — tidak presensi`
+      }
+    }
+    return {
       id: `alfa-${date}`,
       tanggal: date,
       status: 'alfa',
@@ -346,7 +380,7 @@ function GuruStatistik({ user }) {
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Riwayat Presensi Bulan Ini</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Semua hari kerja bulan ini, termasuk alfa</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Semua hari kerja bulan ini, termasuk alfa & libur</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -377,6 +411,7 @@ function GuruStatistik({ user }) {
                       ${log.status === 'izin' ? 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300' : ''}
                       ${log.status === 'sakit' ? 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300' : ''}
                       ${log.status === 'alfa' ? 'bg-slate-200 dark:bg-slate-600/30 text-slate-800 dark:text-slate-300' : ''}
+                      ${log.status === 'libur' ? 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' : ''}
                       ${log.status === 'libur_override' ? 'bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-300' : ''}
                     `}>
                       {log.status === 'hadir' ? 'Hadir' :
@@ -385,6 +420,7 @@ function GuruStatistik({ user }) {
                        log.status === 'izin' ? 'Izin' :
                        log.status === 'sakit' ? 'Sakit' :
                        log.status === 'alfa' ? 'Alfa' :
+                       log.status === 'libur' ? 'Libur' :
                        log.status === 'libur_override' ? 'Libur Khusus' :
                        log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                     </span>

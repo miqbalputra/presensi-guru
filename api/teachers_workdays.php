@@ -4,7 +4,7 @@ require_once 'workday_service.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-requireAuth(['admin', 'kepala_sekolah']);
+requireAuth(['admin', 'kepala_sekolah', 'guru']);
 
 if ($method !== 'GET') {
     sendResponse(false, 'Invalid request method');

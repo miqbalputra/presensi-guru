@@ -823,10 +823,12 @@ function DownloadLaporan() {
                         ${log.status === 'izin' ? 'bg-yellow-100 text-yellow-800' : ''}
                         ${log.status === 'sakit' ? 'bg-red-100 text-red-800' : ''}
                         ${log.status === 'alfa' ? 'bg-gray-200 text-gray-800' : ''}
+                        ${log.status === 'libur' ? 'bg-indigo-100 text-indigo-800' : ''}
                         ${log.status === 'libur_override' ? 'bg-purple-100 text-purple-800' : ''}
                       `}>
                         {log.status === 'hadir_izin_terlambat' ? 'HADIR - IZIN TERLAMBAT' :
                          log.status === 'libur_override' ? 'LIBUR KHUSUS' :
+                         log.status === 'libur' ? 'LIBUR' :
                          log.status.toUpperCase()}
                       </span>
                     </td>

@@ -6,6 +6,7 @@ import {
   settingsAPI,
   weekendOverridesAPI,
   optionalWorkdaysAPI,
+  teacherWorkdaysAPI,
   teachersWorkdaysAPI,
 } from '../services/api'
 
@@ -72,31 +73,60 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
   }, [guru?.id, allGuru])
 
   // ── Load period-dependent data (overrides, optional workdays, workdays) ───
+  // Untuk guru (allGuru=false): gunakan teacherWorkdaysAPI (singular) yang
+  // dapat diakses guru. Untuk admin (allGuru=true): gunakan teachersWorkdaysAPI
+  // (bulk) yang butuh auth admin.
   useEffect(() => {
     let cancelled = false
     async function loadPeriod() {
       if (!startDate || !endDate) return
       try {
-        const [overridesResponse, optionalResponse, allResponse] = await Promise.all([
-          weekendOverridesAPI.getAll({ start_date: startDate, end_date: endDate }),
-          optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate }),
-          teachersWorkdaysAPI.getAll(startDate, endDate),
-        ])
-        if (cancelled) return
-        setOverrides(overridesResponse.data || [])
+        const overridesPromise = weekendOverridesAPI.getAll({ start_date: startDate, end_date: endDate })
+        const optionalPromise = optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
 
-        const optionalDates = (optionalResponse.data || []).map((o) => o.tanggal || o)
-        setOptionalWorkdays(
-          optionalDates.length > 0 ? optionalDates : allResponse.data?.optional_dates || []
-        )
+        if (allGuru) {
+          // Admin context: bulk API untuk semua guru
+          const [overridesResponse, optionalResponse, allResponse] = await Promise.all([
+            overridesPromise,
+            optionalPromise,
+            teachersWorkdaysAPI.getAll(startDate, endDate),
+          ])
+          if (cancelled) return
+          setOverrides(overridesResponse.data || [])
 
-        const newCache = {}
-        if (allResponse.data?.teachers) {
-          Object.values(allResponse.data.teachers).forEach((t) => {
-            newCache[`${t.user_id}_${startDate}_${endDate}`] = t.workday_dates || []
-          })
+          const optionalDates = (optionalResponse.data || []).map((o) => o.tanggal || o)
+          setOptionalWorkdays(
+            optionalDates.length > 0 ? optionalDates : allResponse.data?.optional_dates || []
+          )
+
+          const newCache = {}
+          if (allResponse.data?.teachers) {
+            Object.values(allResponse.data.teachers).forEach((t) => {
+              newCache[`${t.user_id}_${startDate}_${endDate}`] = t.workday_dates || []
+            })
+          }
+          setWorkdaysCache(newCache)
+        } else {
+          // Guru context: singular API yang dapat diakses guru
+          const userId = guru?.id
+          if (!userId) return
+          const [overridesResponse, optionalResponse, workdaysResponse] = await Promise.all([
+            overridesPromise,
+            optionalPromise,
+            teacherWorkdaysAPI.getWorkdays(userId, startDate, endDate),
+          ])
+          if (cancelled) return
+          setOverrides(overridesResponse.data || [])
+
+          const optionalDates = (optionalResponse.data || []).map((o) => o.tanggal || o)
+          setOptionalWorkdays(
+            optionalDates.length > 0 ? optionalDates : (workdaysResponse.data?.optional_dates || [])
+          )
+
+          const newCache = {}
+          newCache[`${userId}_${startDate}_${endDate}`] = workdaysResponse.data?.workday_dates || []
+          setWorkdaysCache(newCache)
         }
-        setWorkdaysCache(newCache)
       } catch (error) {
         console.error('useGuruReport: failed to load period data:', error)
       }
@@ -105,7 +135,7 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
     return () => {
       cancelled = true
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, allGuru, guru?.id])
 
   const getGender = useCallback((g) => g?.jenisKelamin || g?.jenis_kelamin || '', [])
 
@@ -188,9 +218,19 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
       const userOverrides = getUserOverrides(g.id)
       const optionalSet = new Set(optionalWorkdays)
 
+      // Bangun map hari libur (non-workday) untuk ditampilkan sebagai 'Libur'
+      const holidayByDate = new Map()
+      holidays.forEach((h) => {
+        const isWorkdayHoliday = Number(h.is_workday) === 1
+        if (!isWorkdayHoliday && h.tanggal >= startDate && h.tanggal <= endDate) {
+          holidayByDate.set(h.tanggal, h)
+        }
+      })
+
       const workdayDates = getRelevantDates(g)
       const optionalDatesWithPresence = optionalWorkdays.filter((d) => logsByDate.has(d))
-      const allDates = Array.from(new Set([...workdayDates, ...optionalDatesWithPresence])).sort()
+      const holidayDates = Array.from(holidayByDate.keys())
+      const allDates = Array.from(new Set([...workdayDates, ...optionalDatesWithPresence, ...holidayDates])).sort()
 
       return allDates.map((date) => {
         const log = logsByDate.get(date)
@@ -206,6 +246,19 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
             keterangan: 'Hari kerja opsional (tidak hadir)',
           }
         }
+        // Hari libur (non-workday holiday) — tampilkan sebagai Libur
+        const holiday = holidayByDate.get(date)
+        if (holiday) {
+          const namaLibur = holiday.nama || 'Libur'
+          return {
+            id: `libur-${guruId}-${date}`,
+            tanggal: date,
+            jamMasuk: '-',
+            jamPulang: '-',
+            status: 'libur',
+            keterangan: `${namaLibur} — tidak presensi`,
+          }
+        }
         return {
           id: `alfa-${guruId}-${date}`,
           tanggal: date,
@@ -216,7 +269,7 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
         }
       })
     },
-    [guru, getGuruLogsInRange, getUserOverrides, optionalWorkdays, getRelevantDates, getGender]
+    [guru, getGuruLogsInRange, getUserOverrides, optionalWorkdays, getRelevantDates, getGender, holidays, startDate, endDate]
   )
 
   return {
