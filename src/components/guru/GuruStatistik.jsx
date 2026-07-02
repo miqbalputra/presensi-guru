@@ -149,8 +149,11 @@ function GuruStatistik({ user }) {
 
   // Hari kerja sudah dihitung backend (dengan override). Presensi di hari non-workday
   // tidak dimasukkan ke total hari kerja; hanya hari kerja yang dianggap relevan.
+  // Filter: hanya include hari kerja yang SUDAH BERLALU (<= hari ini), bukan
+  // hari kerja masa depan yang belum terjadi (mencegah false 'alfa').
+  const todayStr = new Date().toISOString().split('T')[0]
   const relevantDates = workdayDates
-    .filter(date => date >= startDate && date <= endDate)
+    .filter(date => date >= startDate && date <= endDate && date <= todayStr)
     .sort()
     .reverse()
 
