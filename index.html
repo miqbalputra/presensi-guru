@@ -44,16 +44,18 @@
           });
         }
 
-        // Cek setelah 6 detik apakah app sudah render
+        // Cek setelah 8 detik apakah app benar-benar sudah render dan loading
+        // fallback sudah dihapus. Jika masih stuck, bersihkan cache/PWA lama.
         setTimeout(function () {
           var root = document.getElementById('root');
-          if (!root || root.children.length === 0) {
-            console.warn('[Self-Heal] App tidak render dalam 6 detik, memperbaiki...');
+          var loading = document.getElementById('app-loading');
+          if (!root || root.children.length === 0 || loading) {
+            console.warn('[Self-Heal] App/loading fallback masih stuck, memperbaiki cache...');
             heal();
           } else {
             sessionStorage.removeItem(HEAL_KEY);
           }
-        }, 6000);
+        }, 8000);
       })();
     </script>
   </head>

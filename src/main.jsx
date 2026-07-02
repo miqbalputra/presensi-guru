@@ -24,15 +24,37 @@ async function clearCachesAndReload() {
 
 // Tangkap error dynamic import module — umumnya disebabkan service worker lama
 // yang menyimpan chunk rusak atau chunk 404, lalu recovery dengan clear cache.
+function isRecoverableChunkError(message = '') {
+  return [
+    'Failed to fetch dynamically imported module',
+    'Importing a module script failed',
+    'error loading dynamically imported module',
+    'Unable to preload CSS',
+    'Asset not available',
+    'ChunkLoadError',
+  ].some((pattern) => message.toLowerCase().includes(pattern.toLowerCase()))
+}
+
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason
   const message = reason?.message || String(reason)
-  if (message.includes('Failed to fetch dynamically imported module')) {
-    console.warn('Dynamic import failed; recovering by clearing caches...')
+  if (isRecoverableChunkError(message)) {
+    console.warn('Dynamic import/preload failed; recovering by clearing caches...', message)
     event.preventDefault()
     clearCachesAndReload()
   }
 })
+
+window.addEventListener('error', (event) => {
+  const message = event.message || event.error?.message || ''
+  const target = event.target
+  const failedAsset = target?.tagName === 'SCRIPT' || target?.tagName === 'LINK'
+  const src = target?.src || target?.href || ''
+  if (isRecoverableChunkError(message) || (failedAsset && src.includes('/assets/'))) {
+    console.warn('Asset load failed; recovering by clearing caches...', message || src)
+    clearCachesAndReload()
+  }
+}, true)
 
 // Registrasi Service Worker untuk PWA — lebih agresif agar update cepat
 if ('serviceWorker' in navigator) {

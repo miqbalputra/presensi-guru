@@ -1,12 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect, useRef, Component, Suspense, lazy } from 'react'
+import { useState, useEffect, useRef, Component, Suspense } from 'react'
 import { Download, X } from 'lucide-react'
 import { users as initialUsers } from './data/dummyData'
 import { authAPI } from './services/api'
-
-const Login = lazy(() => import('./pages/Login'))
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
-const GuruDashboard = lazy(() => import('./pages/GuruDashboard'))
+import Login from './pages/Login'
+import AdminDashboard from './pages/AdminDashboard'
+import GuruDashboard from './pages/GuruDashboard'
 
 function PageLoading() {
   return (
