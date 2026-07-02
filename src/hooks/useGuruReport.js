@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getWorkdayDates } from '../utils/dateUtils'
+import { formatDateForInput, getWorkdayDates } from '../utils/dateUtils'
 import {
   presensiAPI,
   holidaysAPI,
@@ -81,13 +81,12 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
     async function loadPeriod() {
       if (!startDate || !endDate) return
       try {
-        const overridesPromise = weekendOverridesAPI.getAll({ start_date: startDate, end_date: endDate })
         const optionalPromise = optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
 
         if (allGuru) {
-          // Admin context: bulk API untuk semua guru
+          // Admin context: bulk API untuk semua guru + override admin.
           const [overridesResponse, optionalResponse, allResponse] = await Promise.all([
-            overridesPromise,
+            weekendOverridesAPI.getAll({ start_date: startDate, end_date: endDate }),
             optionalPromise,
             teachersWorkdaysAPI.getAll(startDate, endDate),
           ])
@@ -107,16 +106,21 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
           }
           setWorkdaysCache(newCache)
         } else {
-          // Guru context: singular API yang dapat diakses guru
+          // Guru context: jangan panggil weekendOverridesAPI karena endpoint itu
+          // hanya untuk admin/kepala sekolah. teacherWorkdaysAPI singular sudah
+          // menghitung hari kerja guru termasuk override/optional dari backend.
           const userId = guru?.id
           if (!userId) return
-          const [overridesResponse, optionalResponse, workdaysResponse] = await Promise.all([
-            overridesPromise,
+          const [optionalResponse, workdaysResponse] = await Promise.all([
             optionalPromise,
             teacherWorkdaysAPI.getWorkdays(userId, startDate, endDate),
           ])
           if (cancelled) return
-          setOverrides(overridesResponse.data || [])
+
+          const userOverrides = (workdaysResponse.data?.breakdown || [])
+            .filter((d) => d.override)
+            .map((d) => ({ ...d.override, tanggal: d.tanggal, user_id: userId }))
+          setOverrides(userOverrides)
 
           const optionalDates = (optionalResponse.data || []).map((o) => o.tanggal || o)
           setOptionalWorkdays(
@@ -178,7 +182,13 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
     [attendanceLogs, startDate, endDate]
   )
 
-  const getRelevantDates = useCallback((g) => getRangeWorkdays(g), [getRangeWorkdays])
+  // Hari kerja yang dihitung sebagai riwayat/statistik hanya sampai hari ini.
+  // Jika periode laporan melewati tanggal hari ini, tanggal kerja masa depan
+  // tidak boleh muncul sebagai Alfa.
+  const getRelevantDates = useCallback((g) => {
+    const todayStr = formatDateForInput(new Date())
+    return getRangeWorkdays(g).filter((date) => date <= todayStr)
+  }, [getRangeWorkdays])
 
   const getGuruSummary = useCallback(
     (guruId, guruObj = null) => {

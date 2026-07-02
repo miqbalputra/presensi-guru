@@ -14,12 +14,29 @@ function sendError($message, $code = 400)
 if ($method === 'GET') {
     try {
         $tanggal = $_GET['tanggal'] ?? null;
-        $where = '';
+        $startDate = $_GET['start_date'] ?? null;
+        $endDate = $_GET['end_date'] ?? null;
+        $conditions = [];
         $params = [];
+
         if ($tanggal) {
-            $where = 'WHERE tanggal = ?';
+            if (!validateDate($tanggal)) {
+                sendError('Format tanggal tidak valid');
+            }
+            $conditions[] = 'tanggal = ?';
             $params[] = $tanggal;
         }
+
+        if ($startDate && $endDate) {
+            if (!validateDate($startDate) || !validateDate($endDate)) {
+                sendError('Format rentang tanggal tidak valid');
+            }
+            $conditions[] = 'tanggal BETWEEN ? AND ?';
+            $params[] = $startDate;
+            $params[] = $endDate;
+        }
+
+        $where = $conditions ? ('WHERE ' . implode(' AND ', $conditions)) : '';
         $stmt = $pdo->prepare("SELECT id, tanggal, nama, keterangan, created_by, created_at, updated_at FROM optional_workdays {$where} ORDER BY tanggal DESC");
         $stmt->execute($params);
         sendResponse(true, 'Data hari kerja opsional berhasil diambil', $stmt->fetchAll());
