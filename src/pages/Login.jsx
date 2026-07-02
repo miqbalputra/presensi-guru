@@ -7,6 +7,34 @@ import { authAPI, activityAPI, configAPI } from '../services/api'
 const FALLBACK_GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 const GOOGLE_CLIENT_ID_CACHE_KEY = 'gq-google-client-id'
+const GOOGLE_OAUTH_STATE_KEY = 'gq-google-oauth-state'
+const GOOGLE_OAUTH_NONCE_KEY = 'gq-google-oauth-nonce'
+
+const randomToken = () => {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function startGoogleRedirect(clientId) {
+  const state = randomToken()
+  const nonce = randomToken()
+  sessionStorage.setItem(GOOGLE_OAUTH_STATE_KEY, state)
+  sessionStorage.setItem(GOOGLE_OAUTH_NONCE_KEY, nonce)
+
+  const redirectUri = `${window.location.origin}/login`
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'id_token',
+    scope: 'openid email profile',
+    nonce,
+    state,
+    prompt: 'select_account',
+  })
+
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+}
 
 function loadGoogleIdentityScript() {
   return new Promise((resolve, reject) => {
@@ -174,7 +202,7 @@ function Login({ onLogin }) {
   }, [])
 
   const handleGoogleCredential = async (resp) => {
-    const credential = resp?.credential
+    const credential = resp?.credential || resp?.id_token
     if (!credential) return
     setLoading(true)
     setError('')
@@ -194,6 +222,31 @@ function Login({ onLogin }) {
       setLoading(false)
     }
   }
+
+  // Terima callback dari mode OAuth redirect mobile/PWA.
+  useEffect(() => {
+    const hash = window.location.hash || ''
+    if (!hash.includes('id_token=')) return
+
+    const params = new URLSearchParams(hash.replace(/^#/, ''))
+    const idToken = params.get('id_token')
+    const state = params.get('state')
+    const expectedState = sessionStorage.getItem(GOOGLE_OAUTH_STATE_KEY)
+
+    // Bersihkan fragment agar token tidak tertinggal di URL.
+    window.history.replaceState(null, document.title, window.location.pathname + window.location.search)
+
+    if (!idToken) return
+    if (expectedState && state !== expectedState) {
+      setError('Validasi login Google gagal. Silakan coba lagi.')
+      return
+    }
+
+    sessionStorage.removeItem(GOOGLE_OAUTH_STATE_KEY)
+    sessionStorage.removeItem(GOOGLE_OAUTH_NONCE_KEY)
+    handleGoogleCredential({ credential: idToken })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const googleEnabled = !!googleClientId
   const showGoogleSection = true
@@ -225,7 +278,7 @@ function Login({ onLogin }) {
     try {
       await loadGoogleIdentityScript()
       if (!window.google?.accounts?.id) {
-        setError('Google Sign-In belum siap. Silakan coba lagi.')
+        startGoogleRedirect(clientId)
         return
       }
 
@@ -236,12 +289,13 @@ function Login({ onLogin }) {
       })
       window.google.accounts.id.prompt((notification) => {
         if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
-          setError('Popup Google tidak tampil di perangkat ini. Coba buka dengan Chrome terbaru atau refresh halaman.')
+          // Mobile/PWA sering memblokir One Tap. Pakai redirect agar tetap jalan.
+          startGoogleRedirect(clientId)
         }
       })
     } catch (err) {
-      console.error('Google fallback failed:', err)
-      setError('Gagal memuat Google Sign-In. Periksa koneksi lalu coba lagi.')
+      console.error('Google GIS script failed, using redirect fallback:', err)
+      startGoogleRedirect(clientId)
     }
   }
 
