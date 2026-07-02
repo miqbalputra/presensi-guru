@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geo-presensi-v8';
+const CACHE_NAME = 'geo-presensi-v9';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -98,7 +98,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Aset statis lainnya: cache first
+  // Cross-origin requests (mis. script Google Identity Services):
+  // JANGAN di-intercept / cache oleh SW — biarkan browser menanganinya langsung.
+  // Meng-intercept request cross-origin dapat menyebabkan script eksternal
+  // (seperti accounts.google.com/gsi/client) gagal load di PWA / mobile.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Aset statis lainnya (same-origin): cache first
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);

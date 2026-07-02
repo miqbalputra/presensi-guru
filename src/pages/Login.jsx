@@ -7,18 +7,35 @@ import { authAPI, activityAPI, configAPI } from '../services/api'
 const FALLBACK_GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 // Muat script Google Identity Services & render tombolnya
-function useGoogleSignIn(clientId, onCredential) {
+function useGoogleSignIn(clientId, onCredential, onRendered) {
   const containerRef = useRef(null)
   const callbackRef = useRef(onCredential)
   callbackRef.current = onCredential
+  const renderedRef = useRef(onRendered)
+  renderedRef.current = onRendered
 
   useEffect(() => {
     if (!clientId || !containerRef.current) return undefined
 
     let cancelled = false
+    let retryCount = 0
+    const MAX_RETRIES = 5
+
+    // Hitung lebar container untuk render button yang responsif (mencegah
+    // button gagal render di layar mobile yang sempit)
+    const getButtonWidth = () => {
+      if (!containerRef.current) return 280
+      const w = containerRef.current.clientWidth
+      // Minimum 200, maksimum 400 — pastikan muat di layar HP
+      return Math.max(200, Math.min(400, w))
+    }
 
     const renderButton = () => {
       if (cancelled || !window.google?.accounts?.id || !containerRef.current) return
+
+      // Reset kontainer sebelum render (mencegah duplikasi button)
+      containerRef.current.innerHTML = ''
+
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: (resp) => callbackRef.current?.(resp),
@@ -29,29 +46,58 @@ function useGoogleSignIn(clientId, onCredential) {
         size: 'large',
         text: 'continue_with',
         shape: 'pill',
-        width: 360,
+        width: getButtonWidth(),
         locale: 'id',
       })
+
+      // Cek apakah button benar-benar ter-render (memiliki iframe/child).
+      // Pada mobile/PWA, GIS terkadang gagal render diam-diam. Retry jika kosong.
+      setTimeout(() => {
+        if (cancelled) return
+        const hasContent = containerRef.current && containerRef.current.children.length > 0
+        const hasHeight = containerRef.current && containerRef.current.offsetHeight > 0
+        if ((!hasContent || !hasHeight) && retryCount < MAX_RETRIES) {
+          retryCount++
+          console.warn(`GIS button render retry ${retryCount}/${MAX_RETRIES}`)
+          renderButton()
+        } else if (hasContent && hasHeight) {
+          renderedRef.current?.(true)
+        }
+      }, 800)
     }
 
-    if (window.google?.accounts?.id) {
-      renderButton()
-    } else {
-      const existing = document.querySelector('script[data-gis="1"]')
-      if (!existing) {
-        const script = document.createElement('script')
-        script.src = 'https://accounts.google.com/gsi/client'
-        script.async = true
-        script.defer = true
-        script.setAttribute('data-gis', '1')
-        script.onload = renderButton
-        document.head.appendChild(script)
+    const loadAndRender = () => {
+      if (window.google?.accounts?.id) {
+        renderButton()
       } else {
-        existing.addEventListener('load', renderButton)
+        const existing = document.querySelector('script[data-gis="1"]')
+        if (!existing) {
+          const script = document.createElement('script')
+          script.src = 'https://accounts.google.com/gsi/client'
+          script.async = true
+          script.defer = true
+          script.setAttribute('data-gis', '1')
+          script.onload = renderButton
+          script.onerror = () => console.error('GIS script failed to load')
+          document.head.appendChild(script)
+        } else {
+          // Script sudah ada tapi mungkin belum selesai loading
+          if (window.google?.accounts?.id) {
+            renderButton()
+          } else {
+            existing.addEventListener('load', renderButton)
+          }
+        }
       }
     }
 
-    return () => { cancelled = true }
+    // Small delay to ensure container is laid out (penting di mobile)
+    const timer = setTimeout(loadAndRender, 100)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [clientId])
 
   return containerRef
@@ -70,6 +116,8 @@ function Login({ onLogin }) {
   const navigate = useNavigate()
 
   const [googleClientId, setGoogleClientId] = useState(FALLBACK_GOOGLE_CLIENT_ID)
+  const [googleFallback, setGoogleFallback] = useState(false)
+  const googleRenderedRef = useRef(false)
 
   // Ambil Google Client ID dari backend (runtime, tidak perlu build arg)
   useEffect(() => {
@@ -109,7 +157,36 @@ function Login({ onLogin }) {
   }
 
   const googleEnabled = !!googleClientId
-  const googleContainerRef = useGoogleSignIn(googleClientId, handleGoogleCredential)
+  const googleContainerRef = useGoogleSignIn(googleClientId, handleGoogleCredential, (rendered) => {
+    googleRenderedRef.current = rendered
+    if (rendered) setGoogleFallback(false)
+  })
+
+  // Fallback: jika GIS button tidak ter-render dalam 6 detik (umum di mobile/PWA),
+  // tampilkan tombol Google manual yang memanggil One Tap prompt.
+  useEffect(() => {
+    if (!googleEnabled) return
+    const timer = setTimeout(() => {
+      if (!googleRenderedRef.current) {
+        console.warn('GIS button not rendered after 6s — showing fallback')
+        setGoogleFallback(true)
+      }
+    }, 6000)
+    return () => clearTimeout(timer)
+  }, [googleEnabled])
+
+  // Handler untuk tombol fallback Google (One Tap prompt)
+  const handleGoogleFallback = () => {
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (resp) => handleGoogleCredential(resp),
+      })
+      window.google.accounts.id.prompt()
+    } else {
+      setError('Google Sign-In belum siap. Silakan muat ulang halaman.')
+    }
+  }
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -283,7 +360,25 @@ function Login({ onLogin }) {
                 <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">atau masuk dengan</span>
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
               </div>
+              {/* Container untuk GIS button (official Google Identity Services) */}
               <div className="flex justify-center" ref={googleContainerRef} />
+              {/* Fallback button: muncul jika GIS gagal render di mobile/PWA */}
+              {googleFallback && (
+                <button
+                  type="button"
+                  onClick={handleGoogleFallback}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-2xl font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
+                  Masuk dengan Google
+                </button>
+              )}
             </>
           )}
         </form>
