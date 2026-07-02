@@ -6,6 +6,34 @@ import { authAPI, activityAPI, configAPI } from '../services/api'
 // Fallback build-time client id (opsional). Sumber utama adalah API /google_config.php
 const FALLBACK_GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
+const GOOGLE_CLIENT_ID_CACHE_KEY = 'gq-google-client-id'
+
+function loadGoogleIdentityScript() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) {
+      resolve(window.google)
+      return
+    }
+
+    const existing = document.querySelector('script[data-gis="1"]')
+    if (existing && !window.google?.accounts?.id) {
+      // Pada PWA/mobile kadang script tag lama tersisa, tetapi object google
+      // tidak pernah tersedia. Buat ulang agar tidak menunggu event load yang
+      // sudah lewat / gagal diam-diam.
+      existing.remove()
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.setAttribute('data-gis', '1')
+    script.onload = () => resolve(window.google)
+    script.onerror = () => reject(new Error('GIS script failed to load'))
+    document.head.appendChild(script)
+  })
+}
+
 // Muat script Google Identity Services & render tombolnya
 function useGoogleSignIn(clientId, onCredential, onRendered) {
   const containerRef = useRef(null)
@@ -70,24 +98,9 @@ function useGoogleSignIn(clientId, onCredential, onRendered) {
       if (window.google?.accounts?.id) {
         renderButton()
       } else {
-        const existing = document.querySelector('script[data-gis="1"]')
-        if (!existing) {
-          const script = document.createElement('script')
-          script.src = 'https://accounts.google.com/gsi/client'
-          script.async = true
-          script.defer = true
-          script.setAttribute('data-gis', '1')
-          script.onload = renderButton
-          script.onerror = () => console.error('GIS script failed to load')
-          document.head.appendChild(script)
-        } else {
-          // Script sudah ada tapi mungkin belum selesai loading
-          if (window.google?.accounts?.id) {
-            renderButton()
-          } else {
-            existing.addEventListener('load', renderButton)
-          }
-        }
+        loadGoogleIdentityScript()
+          .then(renderButton)
+          .catch((err) => console.error(err))
       }
     }
 
@@ -115,23 +128,49 @@ function Login({ onLogin }) {
   })
   const navigate = useNavigate()
 
-  const [googleClientId, setGoogleClientId] = useState(FALLBACK_GOOGLE_CLIENT_ID)
-  const [googleFallback, setGoogleFallback] = useState(false)
+  const [googleClientId, setGoogleClientId] = useState(() => {
+    try {
+      return FALLBACK_GOOGLE_CLIENT_ID || localStorage.getItem(GOOGLE_CLIENT_ID_CACHE_KEY) || ''
+    } catch {
+      return FALLBACK_GOOGLE_CLIENT_ID
+    }
+  })
+  const [googleConfigLoading, setGoogleConfigLoading] = useState(false)
+  const [googleFallback, setGoogleFallback] = useState(true)
   const googleRenderedRef = useRef(false)
 
-  // Ambil Google Client ID dari backend (runtime, tidak perlu build arg)
-  useEffect(() => {
-    let cancelled = false
-    configAPI.getGoogleConfig()
-      .then((res) => {
-        if (cancelled) return
+  const loadGoogleClientId = async ({ silent = true } = {}) => {
+    if (googleClientId) return googleClientId
+    setGoogleConfigLoading(true)
+    let lastError = null
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await configAPI.getGoogleConfig()
         const id = res?.data?.googleClientId || ''
-        if (id) setGoogleClientId(id)
-      })
-      .catch(() => {
-        // API gagal — fallback ke build-time value (kalau ada)
-      })
-    return () => { cancelled = true }
+        if (id) {
+          setGoogleClientId(id)
+          try { localStorage.setItem(GOOGLE_CLIENT_ID_CACHE_KEY, id) } catch {}
+          setGoogleConfigLoading(false)
+          return id
+        }
+      } catch (err) {
+        lastError = err
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 700))
+    }
+
+    setGoogleConfigLoading(false)
+    if (!silent) {
+      setError(lastError?.message || 'Konfigurasi Google Login belum tersedia. Silakan coba lagi.')
+    }
+    return ''
+  }
+
+  // Ambil Google Client ID dari backend (runtime, tidak perlu build arg) dengan retry.
+  useEffect(() => {
+    loadGoogleClientId({ silent: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleGoogleCredential = async (resp) => {
@@ -157,6 +196,7 @@ function Login({ onLogin }) {
   }
 
   const googleEnabled = !!googleClientId
+  const showGoogleSection = true
   const googleContainerRef = useGoogleSignIn(googleClientId, handleGoogleCredential, (rendered) => {
     googleRenderedRef.current = rendered
     if (rendered) setGoogleFallback(false)
@@ -175,16 +215,33 @@ function Login({ onLogin }) {
     return () => clearTimeout(timer)
   }, [googleEnabled])
 
-  // Handler untuk tombol fallback Google (One Tap prompt)
-  const handleGoogleFallback = () => {
-    if (window.google?.accounts?.id) {
+  // Handler untuk tombol custom Google. Tombol ini selalu tampil, sehingga di
+  // mobile/PWA user tetap melihat opsi Google walaupun iframe GIS gagal render.
+  const handleGoogleFallback = async () => {
+    setError('')
+    const clientId = await loadGoogleClientId({ silent: false })
+    if (!clientId) return
+
+    try {
+      await loadGoogleIdentityScript()
+      if (!window.google?.accounts?.id) {
+        setError('Google Sign-In belum siap. Silakan coba lagi.')
+        return
+      }
+
       window.google.accounts.id.initialize({
-        client_id: googleClientId,
+        client_id: clientId,
         callback: (resp) => handleGoogleCredential(resp),
+        cancel_on_tap_outside: false,
       })
-      window.google.accounts.id.prompt()
-    } else {
-      setError('Google Sign-In belum siap. Silakan muat ulang halaman.')
+      window.google.accounts.id.prompt((notification) => {
+        if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+          setError('Popup Google tidak tampil di perangkat ini. Coba buka dengan Chrome terbaru atau refresh halaman.')
+        }
+      })
+    } catch (err) {
+      console.error('Google fallback failed:', err)
+      setError('Gagal memuat Google Sign-In. Periksa koneksi lalu coba lagi.')
     }
   }
 
@@ -353,21 +410,21 @@ function Login({ onLogin }) {
           </button>
 
           {/* Login Google */}
-          {googleEnabled && (
+          {showGoogleSection && (
             <>
               <div className="flex items-center gap-3 my-1" aria-hidden="true">
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
                 <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">atau masuk dengan</span>
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
               </div>
-              {/* Container untuk GIS button (official Google Identity Services) */}
-              <div className="flex justify-center" ref={googleContainerRef} />
-              {/* Fallback button: muncul jika GIS gagal render di mobile/PWA */}
-              {googleFallback && (
+              {/* Container untuk GIS button resmi. Jika gagal render di mobile/PWA,
+                  tombol custom di bawah tetap tersedia. */}
+              {googleEnabled && <div className="flex justify-center min-h-[44px]" ref={googleContainerRef} />}
+              {(googleFallback || !googleEnabled) && (
                 <button
                   type="button"
                   onClick={handleGoogleFallback}
-                  disabled={loading}
+                  disabled={loading || googleConfigLoading}
                   className="w-full flex items-center justify-center gap-3 px-4 py-3 mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-2xl font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -376,7 +433,7 @@ function Login({ onLogin }) {
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                   </svg>
-                  Masuk dengan Google
+                  {googleConfigLoading ? 'Menyiapkan Google...' : 'Masuk dengan Google'}
                 </button>
               )}
             </>

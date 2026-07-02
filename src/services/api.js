@@ -40,9 +40,13 @@ async function fetchAPI(endpoint, options = {}) {
 // Google OAuth Config API (public, no auth needed)
 export const configAPI = {
   getGoogleConfig: async () => {
-    return fetchAPI('/google_config.php', {
+    return fetchAPI(`/google_config.php?_t=${Date.now()}`, {
       method: 'GET',
-      timeoutMs: 5000,
+      timeoutMs: 10000,
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
     })
   },
 }
