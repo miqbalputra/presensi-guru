@@ -30,9 +30,10 @@ function GuruStatistik({ user }) {
 
     switch(filter) {
       case 'bulan_ini':
+        // Dari tanggal 1 sampai akhir bulan di bulan berjalan
         return {
           startDate: formatDateForInput(new Date(currentYear, currentMonth, 1)),
-          endDate: formatDateForInput(today)
+          endDate: formatDateForInput(new Date(currentYear, currentMonth + 1, 0))
         }
       case 'bulan_lalu':
         const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
@@ -56,7 +57,7 @@ function GuruStatistik({ user }) {
       default:
         return {
           startDate: formatDateForInput(new Date(currentYear, currentMonth, 1)),
-          endDate: formatDateForInput(today)
+          endDate: formatDateForInput(new Date(currentYear, currentMonth + 1, 0))
         }
     }
   }
@@ -344,8 +345,8 @@ function GuruStatistik({ user }) {
       {/* Riwayat Presensi Terbaru */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Riwayat Presensi Terbaru</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">10 hari kerja terakhir, termasuk alfa</p>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Riwayat Presensi Bulan Ini</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Semua hari kerja bulan ini, termasuk alfa</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -359,7 +360,7 @@ function GuruStatistik({ user }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {displayData.slice(0, 10).map((log) => (
+              {displayData.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-800 dark:text-slate-200 font-medium">{log.tanggal}</td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
