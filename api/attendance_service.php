@@ -55,7 +55,7 @@ function gp_get_guru($pdo, $userId)
     $stmt = $pdo->prepare("
         SELECT id, nama, jenis_kelamin, tipe_guru
         FROM users
-        WHERE id = ? AND role = 'guru'
+        WHERE id = ? AND role = 'guru' AND archived_at IS NULL
         LIMIT 1
     ");
     $stmt->execute([$userId]);

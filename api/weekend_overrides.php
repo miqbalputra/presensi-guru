@@ -105,6 +105,7 @@ if ($method === 'POST') {
                 $userStmt = $pdo->prepare("
                     SELECT id FROM users
                     WHERE jenis_kelamin IN ({$placeholders}) AND (role = 'guru' OR role = 'kepala_sekolah')
+                      AND archived_at IS NULL
                 ");
                 $userStmt->execute($normalizedGenders);
                 foreach ($userStmt->fetchAll() as $u) {

@@ -26,6 +26,7 @@ try {
                id_guru, jenis_kelamin, tanggal_bertugas, tanggal_lahir, alamat
         FROM users 
         WHERE role = 'guru' 
+          AND archived_at IS NULL
         ORDER BY nama ASC
     ");
     

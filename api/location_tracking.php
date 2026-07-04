@@ -294,6 +294,7 @@ if ($method === 'GET') {
                 ) latest ON latest.max_id = t1.id
             ) lt ON lt.user_id = u.id
             WHERE u.role = 'guru'
+              AND u.archived_at IS NULL
             ORDER BY
                 CASE WHEN lt.recorded_at IS NULL THEN 1 ELSE 0 END,
                 lt.recorded_at DESC,

@@ -23,6 +23,7 @@ try {
         FROM users u
         LEFT JOIN attendance_logs a ON a.user_id = u.id AND a.tanggal = ?
         WHERE u.role = 'guru'
+          AND u.archived_at IS NULL
           AND u.id <> ?
         ORDER BY u.nama ASC
     ");

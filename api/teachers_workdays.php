@@ -28,7 +28,8 @@ try {
     $userStmt = $pdo->prepare("
         SELECT id, nama, jenis_kelamin
         FROM users
-        WHERE role = 'guru' OR role = 'kepala_sekolah'
+        WHERE (role = 'guru' OR role = 'kepala_sekolah')
+          AND archived_at IS NULL
         ORDER BY nama ASC
     ");
     $userStmt->execute();

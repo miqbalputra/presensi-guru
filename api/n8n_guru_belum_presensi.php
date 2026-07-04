@@ -65,6 +65,7 @@ try {
         FROM users u
         LEFT JOIN attendance_logs a ON u.id = a.user_id AND a.tanggal = ?
         WHERE u.role = 'guru' 
+        AND u.archived_at IS NULL
         AND a.id IS NULL
         AND u.no_hp IS NOT NULL 
         AND u.no_hp != ''

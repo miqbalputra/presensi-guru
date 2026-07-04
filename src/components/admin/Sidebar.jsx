@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, Edit, Activity, Download, Calendar, Settings, CalendarCheck, LogOut, X, QrCode, UserPlus, Map, MapPin, CalendarX, CalendarPlus } from 'lucide-react'
+import { LayoutDashboard, Users, Edit, Activity, Download, Calendar, Settings, CalendarCheck, LogOut, X, QrCode, UserPlus, Map, MapPin, CalendarX, CalendarPlus, Archive } from 'lucide-react'
 
 function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
   const menuItems = [
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/data-guru', icon: Users, label: 'Data Guru' },
+    { path: '/admin/arsip-guru', icon: Archive, label: 'Arsip Guru', isNew: true },
     { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Jadwal Piket' },
     { path: '/admin/edit-presensi', icon: Edit, label: 'Edit Presensi' },
     { path: '/admin/download-laporan', icon: Download, label: 'Download Laporan' },

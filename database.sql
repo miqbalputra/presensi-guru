@@ -14,11 +14,14 @@ CREATE TABLE IF NOT EXISTS `users` (
   `no_hp` varchar(20) DEFAULT NULL,
   `jabatan` text DEFAULT NULL,
   `tanggal_bertugas` date DEFAULT NULL,
+  `archived_at` timestamp NULL DEFAULT NULL,
+  `archive_reason` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`),
-  UNIQUE KEY `id_guru` (`id_guru`)
+  UNIQUE KEY `id_guru` (`id_guru`),
+  KEY `idx_users_archived_at` (`archived_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Tabel Attendance Logs (Presensi)

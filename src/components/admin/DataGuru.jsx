@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2, Download, Upload } from 'lucide-react'
+import { Plus, Edit2, Archive, Download, Upload } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { calculateWorkDuration, formatDate } from '../../utils/dateUtils'
 import GuruModal from './GuruModal'
@@ -91,15 +91,19 @@ function DataGuru() {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id) => {
-    if (confirm('Apakah Anda yakin ingin menghapus data guru ini?')) {
-      try {
-        await guruAPI.delete(id)
-        showNotification('Data guru berhasil dihapus!')
-        loadDataGuru()
-      } catch (error) {
-        showNotification('Gagal menghapus data guru: ' + error.message)
-      }
+  const handleArchive = async (guru) => {
+    const reason = prompt(
+      `Arsipkan data guru "${guru.nama}"?\n\nSeluruh data presensi guru ini akan tetap tersimpan dan dapat dilihat di menu Arsip Guru. Guru yang diarsipkan tidak akan muncul di dashboard & tidak bisa login.\n\nMasukkan alasan pengarsipan (opsional):`
+    )
+    // prompt mengembalikan null jika dibatalkan
+    if (reason === null) return
+
+    try {
+      await guruAPI.archive(guru.id, reason)
+      showNotification(`Guru "${guru.nama}" berhasil diarsipkan. Data presensi tetap tersimpan.`)
+      loadDataGuru()
+    } catch (error) {
+      showNotification('Gagal mengarsipkan guru: ' + error.message)
     }
   }
 
@@ -243,6 +247,16 @@ function DataGuru() {
         </div>
       </div>
 
+      {/* Info Arsip */}
+      {(dataGuru.length > 0 || filteredGuru.length === 0) && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-3 text-sm flex items-center gap-2">
+          <Archive className="w-4 h-4 flex-shrink-0" />
+          <span>
+            Guru yang sudah keluar dari sekolah dapat di<b>arsipkan</b> (data & presensi tetap tersimpan). Lihat daftar arsip di menu <b>Arsip Guru</b>.
+          </span>
+        </div>
+      )}
+
       {/* Filter & Search */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -373,10 +387,11 @@ function DataGuru() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(guru.id)}
-                        className="text-red-600 hover:text-red-800"
+                        onClick={() => handleArchive(guru)}
+                        className="text-orange-600 hover:text-orange-800"
+                        title="Arsipkan Guru"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Archive className="w-4 h-4" />
                       </button>
                     </div>
                   </td>

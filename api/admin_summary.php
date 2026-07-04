@@ -44,7 +44,7 @@ try {
         sendResponse(false, 'Invalid period');
     }
 
-    $guruStmt = $pdo->prepare("SELECT id, jenis_kelamin FROM users WHERE role = 'guru'");
+    $guruStmt = $pdo->prepare("SELECT id, jenis_kelamin FROM users WHERE role = 'guru' AND archived_at IS NULL");
     $guruStmt->execute();
     $guruRows = $guruStmt->fetchAll();
     $totalGuru = count($guruRows);
@@ -65,6 +65,7 @@ try {
         JOIN users u ON u.id = a.user_id
         WHERE a.tanggal BETWEEN ? AND ?
           AND u.role = 'guru'
+          AND u.archived_at IS NULL
     ");
     $statsStmt->execute([$startDate, $endDate]);
     $statusCounts = [
@@ -118,6 +119,7 @@ try {
         FROM users u
         LEFT JOIN attendance_logs a ON a.user_id = u.id AND a.tanggal = ?
         WHERE u.role = 'guru'
+          AND u.archived_at IS NULL
           AND a.id IS NULL
         ORDER BY u.nama ASC
     ");

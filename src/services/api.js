@@ -123,6 +123,35 @@ export const guruAPI = {
       method: 'DELETE',
     })
   },
+
+  // ── Arsip Guru (soft-archive, data presensi tetap utuh) ──
+  getArchived: async () => {
+    return fetchAPI('/guru.php?archived=1', {
+      method: 'GET',
+    })
+  },
+
+  // Ambil semua guru (aktif + arsip) — dipakai dropdown laporan agar
+  // riwayat presensi guru arsip tetap bisa dicetak.
+  getAllIncludingArchived: async () => {
+    return fetchAPI('/guru.php?include_archived=1', {
+      method: 'GET',
+    })
+  },
+
+  archive: async (id, reason = '') => {
+    return fetchAPI('/guru.php?action=archive', {
+      method: 'POST',
+      body: JSON.stringify({ id, reason }),
+    })
+  },
+
+  unarchive: async (id) => {
+    return fetchAPI('/guru.php?action=unarchive', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    })
+  },
 }
 
 // Presensi API

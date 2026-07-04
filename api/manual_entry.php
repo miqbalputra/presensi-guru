@@ -37,8 +37,8 @@ if ($method === 'POST') {
             sendResponse(false, 'Format tanggal tidak valid');
         }
 
-        // Get guru info
-        $stmt = $pdo->prepare("SELECT id, nama FROM users WHERE id = ? AND role = 'guru'");
+        // Get guru info (hanya guru aktif — yang diarsipkan tidak boleh diberi presensi baru)
+        $stmt = $pdo->prepare("SELECT id, nama FROM users WHERE id = ? AND role = 'guru' AND archived_at IS NULL");
         $stmt->execute([$data['user_id']]);
         $guru = $stmt->fetch();
 
@@ -112,7 +112,7 @@ if ($method === 'POST') {
 // GET - Get list of guru for dropdown
 if ($method === 'GET') {
     try {
-        $stmt = $pdo->prepare("SELECT id, nama, id_guru FROM users WHERE role = 'guru' ORDER BY nama ASC");
+        $stmt = $pdo->prepare("SELECT id, nama, id_guru FROM users WHERE role = 'guru' AND archived_at IS NULL ORDER BY nama ASC");
         $stmt->execute();
         $gurus = $stmt->fetchAll();
 

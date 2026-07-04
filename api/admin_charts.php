@@ -152,7 +152,7 @@ try {
             ];
         }
 
-        $guruStmt = $pdo->prepare("SELECT id, jenis_kelamin FROM users WHERE role = 'guru'");
+        $guruStmt = $pdo->prepare("SELECT id, jenis_kelamin FROM users WHERE role = 'guru' AND archived_at IS NULL");
         $guruStmt->execute();
         $guruRows = $guruStmt->fetchAll();
 
@@ -172,6 +172,7 @@ try {
             JOIN users u ON u.id = a.user_id
             WHERE a.tanggal BETWEEN ? AND ?
               AND u.role = 'guru'
+              AND u.archived_at IS NULL
         ");
         $trendStmt->execute([$startDate, $today]);
         foreach ($trendStmt->fetchAll() as $row) {
@@ -208,6 +209,7 @@ try {
             JOIN users u ON u.id = a.user_id
             WHERE a.tanggal = ?
               AND u.role = 'guru'
+              AND u.archived_at IS NULL
         ");
         $todayStmt->execute([$today]);
         $todayStats = [
@@ -273,6 +275,7 @@ try {
             SELECT id, nama, jabatan, jenis_kelamin
             FROM users
             WHERE role = 'guru'
+              AND archived_at IS NULL
             ORDER BY nama ASC
         ");
         $usersStmt->execute();
@@ -381,7 +384,7 @@ try {
             sendResponse(false, 'Invalid date range');
         }
 
-        $guruStmt = $pdo->prepare("SELECT id, nama FROM users WHERE role = 'guru' ORDER BY nama ASC");
+        $guruStmt = $pdo->prepare("SELECT id, nama FROM users WHERE role = 'guru' AND archived_at IS NULL ORDER BY nama ASC");
         $guruStmt->execute();
         $guru = $guruStmt->fetchAll();
 
@@ -445,7 +448,7 @@ try {
         $logsStmt->execute([$startDate]);
         $logs = $logsStmt->fetchAll();
 
-        $guruStmt = $pdo->prepare("SELECT id, nama FROM users WHERE role = 'guru' ORDER BY nama ASC");
+        $guruStmt = $pdo->prepare("SELECT id, nama FROM users WHERE role = 'guru' AND archived_at IS NULL ORDER BY nama ASC");
         $guruStmt->execute();
         $guruRows = $guruStmt->fetchAll();
 

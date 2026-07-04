@@ -1,30 +1,93 @@
 <?php
 require_once 'config.php';
+require_once 'attendance_service.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
+
+// Helper: map row users (snake_case) -> camelCase + parse jabatan + hapus password
+function gp_map_guru(&$g)
+{
+    if ($g['jabatan']) {
+        $g['jabatan'] = json_decode($g['jabatan'], true);
+    }
+    // Convert snake_case to camelCase for frontend
+    $g['idGuru'] = $g['id_guru'];
+    $g['noHP'] = $g['no_hp'];
+    $g['jenisKelamin'] = $g['jenis_kelamin'];
+    $g['tanggalBertugas'] = $g['tanggal_bertugas'];
+    $g['tanggalLahir'] = $g['tanggal_lahir'];
+    $g['tipeGuru'] = $g['tipe_guru'];
+    $g['archivedAt'] = $g['archived_at'];
+    $g['archiveReason'] = $g['archive_reason'];
+    unset($g['password']); // Hapus password dari response
+}
+
+// ARCHIVE / UNARCHIVE GURU - Hanya Admin (soft-archive, data presensi tetap utuh)
+if ($method === 'POST' && isset($_GET['action']) && in_array($_GET['action'], ['archive', 'unarchive'], true)) {
+    requireAuth(['admin']);
+    $action = $_GET['action'];
+    $data = getRequestData();
+    $id = isset($data['id']) ? validateInt($data['id'], 1) : null;
+
+    if (!$id) {
+        sendResponse(false, 'ID guru harus diisi');
+    }
+
+    try {
+        // Pastikan target benar-benar guru
+        $stmt = $pdo->prepare("SELECT id, nama, archived_at FROM users WHERE id = ? AND role = 'guru'");
+        $stmt->execute([$id]);
+        $guru = $stmt->fetch();
+
+        if (!$guru) {
+            sendResponse(false, 'Guru tidak ditemukan');
+        }
+
+        if ($action === 'archive') {
+            if (!empty($guru['archived_at'])) {
+                sendResponse(false, 'Guru sudah berada di arsip');
+            }
+            $reason = trim($data['reason'] ?? '');
+            $upd = $pdo->prepare("UPDATE users SET archived_at = NOW(), archive_reason = ? WHERE id = ?");
+            $upd->execute([$reason ?: null, $id]);
+            gp_write_activity($pdo, $_SESSION['nama'] ?? 'Admin', 'Arsip Guru', $guru['nama']);
+            sendResponse(true, 'Guru berhasil diarsipkan. Data presensi tetap tersimpan.');
+        } else { // unarchive
+            if (empty($guru['archived_at'])) {
+                sendResponse(false, 'Guru tidak berada di arsip');
+            }
+            $upd = $pdo->prepare("UPDATE users SET archived_at = NULL, archive_reason = NULL WHERE id = ?");
+            $upd->execute([$id]);
+            gp_write_activity($pdo, $_SESSION['nama'] ?? 'Admin', 'Pulihkan Guru', $guru['nama']);
+            sendResponse(true, 'Guru berhasil dipulihkan dari arsip');
+        }
+    } catch (PDOException $e) {
+        sendResponse(false, 'Error: ' . $e->getMessage());
+    }
+}
 
 // GET ALL GURU - Admin dan Guru bisa akses
 if ($method === 'GET' && !isset($_GET['id'])) {
     requireAuth(['admin', 'guru']);
     try {
-        $stmt = $pdo->query("SELECT * FROM users WHERE role = 'guru' ORDER BY id");
+        $showArchivedOnly = isset($_GET['archived']) && $_GET['archived'] == '1';
+        $includeArchived = isset($_GET['include_archived']) && $_GET['include_archived'] == '1';
+
+        if ($showArchivedOnly) {
+            $sql = "SELECT * FROM users WHERE role = 'guru' AND archived_at IS NOT NULL ORDER BY archived_at DESC, id";
+            $stmt = $pdo->query($sql);
+        } elseif ($includeArchived) {
+            $stmt = $pdo->query("SELECT * FROM users WHERE role = 'guru' ORDER BY archived_at IS NOT NULL, id");
+        } else {
+            // Default: hanya guru aktif
+            $stmt = $pdo->query("SELECT * FROM users WHERE role = 'guru' AND archived_at IS NULL ORDER BY id");
+        }
         $guru = $stmt->fetchAll();
         
-        // Parse jabatan dari JSON dan convert field names ke camelCase
         foreach ($guru as &$g) {
-            if ($g['jabatan']) {
-                $g['jabatan'] = json_decode($g['jabatan'], true);
-            }
-            // Convert snake_case to camelCase for frontend
-            $g['idGuru'] = $g['id_guru'];
-            $g['noHP'] = $g['no_hp'];
-            $g['jenisKelamin'] = $g['jenis_kelamin'];
-            $g['tanggalBertugas'] = $g['tanggal_bertugas'];
-            $g['tanggalLahir'] = $g['tanggal_lahir'];
-            $g['tipeGuru'] = $g['tipe_guru'];
-            
-            unset($g['password']); // Hapus password dari response
+            gp_map_guru($g);
         }
+        unset($g);
         
         sendResponse(true, 'Data guru berhasil diambil', $guru);
     } catch (PDOException $e) {
@@ -41,18 +104,7 @@ if ($method === 'GET' && isset($_GET['id'])) {
         $guru = $stmt->fetch();
         
         if ($guru) {
-            if ($guru['jabatan']) {
-                $guru['jabatan'] = json_decode($guru['jabatan'], true);
-            }
-            // Convert snake_case to camelCase for frontend
-            $guru['idGuru'] = $guru['id_guru'];
-            $guru['noHP'] = $guru['no_hp'];
-            $guru['jenisKelamin'] = $guru['jenis_kelamin'];
-            $guru['tanggalBertugas'] = $guru['tanggal_bertugas'];
-            $guru['tanggalLahir'] = $guru['tanggal_lahir'];
-            $guru['tipeGuru'] = $guru['tipe_guru'];
-            
-            unset($guru['password']);
+            gp_map_guru($guru);
             sendResponse(true, 'Data guru ditemukan', $guru);
         } else {
             sendResponse(false, 'Guru tidak ditemukan');

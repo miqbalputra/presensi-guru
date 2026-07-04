@@ -53,6 +53,7 @@ try {
         SELECT u.id, u.nama, u.no_hp, u.jenis_kelamin
         FROM users u
         WHERE u.role = 'guru' 
+        AND u.archived_at IS NULL
         AND u.id NOT IN (
             SELECT user_id FROM attendance_logs 
             WHERE tanggal = ?

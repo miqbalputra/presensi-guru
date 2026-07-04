@@ -32,6 +32,28 @@ function auth_set_session($user)
     $_SESSION['user'] = $user;
 }
 
+/**
+ * Cek apakah guru sudah diarsipkan. Jika ya, tolak login/pulihkan sesi
+ * dan cabut semua remember token yang masih aktif.
+ */
+function auth_reject_if_archived($pdo, $user)
+{
+    if ($user && ($user['role'] ?? '') === 'guru' && !empty($user['archived_at'])) {
+        // Cabut token 30-hari agar tidak bisa dipakai lagi
+        try {
+            $pdo->prepare("UPDATE remember_tokens SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL")
+                ->execute([$user['id']]);
+        } catch (PDOException $e) { /* abaikan */ }
+
+        securityLog('archived_guru_login_blocked', [
+            'user_id'  => $user['id'],
+            'username' => $user['username'],
+            'role'     => $user['role'],
+        ]);
+        sendResponse(false, 'Akun Anda sudah diarsipkan. Silakan hubungi admin sekolah.');
+    }
+}
+
 function auth_create_remember_token($pdo, $userId)
 {
     $token = bin2hex(random_bytes(32));
@@ -75,6 +97,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'login')
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password'])) {
+            // Tolak guru yang sudah diarsipkan
+            auth_reject_if_archived($pdo, $user);
+
             auth_set_session($user);
 
             // Log successful login
@@ -189,6 +214,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'google_
             sendResponse(false, 'Login Google tidak didukung untuk role ini.');
         }
 
+        // Tolak guru yang sudah diarsipkan
+        auth_reject_if_archived($pdo, $user);
+
         auth_set_session($user);
 
         securityLog('google_login_success', [
@@ -237,6 +265,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'restore
         if (!$user) {
             sendResponse(false, 'Token login sudah tidak berlaku');
         }
+
+        // Tolak guru yang sudah diarsipkan (token lama sebelum diarsipkan)
+        auth_reject_if_archived($pdo, $user);
 
         auth_set_session($user);
 

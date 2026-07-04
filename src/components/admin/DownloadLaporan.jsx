@@ -33,7 +33,7 @@ function DownloadLaporan() {
     try {
       setLoading(true)
       const [guruResponse, piketResponse] = await Promise.all([
-        guruAPI.getAll(),
+        guruAPI.getAllIncludingArchived(),
         jadwalPiketAPI.getAll(),
       ])
 
@@ -581,7 +581,12 @@ function DownloadLaporan() {
                       return (
                         <tr key={guru.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">{guru.nama}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                            {guru.archivedAt && (
+                              <span className="mr-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold align-middle">ARSIP</span>
+                            )}
+                            {guru.nama}
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-600">
                             {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan}
                           </td>
@@ -654,7 +659,7 @@ function DownloadLaporan() {
                 <option value="">-- Pilih Guru --</option>
                 {dataGuru.map(guru => (
                   <option key={guru.id} value={guru.id}>
-                    {guru.nama} - {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan}
+                    {guru.archivedAt ? '[Arsip] ' : ''}{guru.nama} - {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan}
                   </option>
                 ))}
               </select>

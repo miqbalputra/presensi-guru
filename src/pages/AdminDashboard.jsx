@@ -4,6 +4,7 @@ import Sidebar from '../components/admin/Sidebar'
 
 const DashboardHome = lazy(() => import('../components/admin/DashboardHome'))
 const DataGuru = lazy(() => import('../components/admin/DataGuru'))
+const ArsipGuru = lazy(() => import('../components/admin/ArsipGuru'))
 const EditPresensi = lazy(() => import('../components/admin/EditPresensi'))
 const DownloadLaporan = lazy(() => import('../components/admin/DownloadLaporan'))
 const LogAktivitas = lazy(() => import('../components/admin/LogAktivitas'))
@@ -78,6 +79,7 @@ function AdminDashboard({ user, onLogout }) {
             <Routes>
               <Route path="/" element={<DashboardHome />} />
               <Route path="/data-guru" element={<DataGuru />} />
+              <Route path="/arsip-guru" element={<ArsipGuru />} />
               <Route path="/jadwal-piket" element={<JadwalPiket />} />
               <Route path="/edit-presensi" element={<EditPresensi user={user} />} />
               <Route path="/download-laporan" element={<DownloadLaporan />} />
