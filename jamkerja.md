@@ -55,12 +55,112 @@ Field baru yang ditambahkan ke setiap record:
 
 | Skenario | Penanganan |
 |----------|------------|
-| `jam_pulang` = NULL (lupa pulang) | `durasiKerja` = "Belum pulang" |
+| `jam_pulang` = NULL (lupa pulang) | Tergantung kebijakan — lihat bagian **2A. Kebijakan Lupa Pulang** di bawah |
 | Status izin / sakit | `durasiKerja` = "-" (tidak ada jam kerja) |
 | Status alfa / libur | `durasiKerja` = "-" |
 | Izin pulang awal piket | Durasi dihitung dari jam_masuk sampai jam_pulang yang sebenarnya (durasi aktual) |
 | Durasi < 0 (anomali data) | Tidak dihitung, tampilkan "-" |
 | Guru partime | Sama — durasi aktual tetap dihitung |
+
+---
+
+## 2A. Kebijakan Lupa Presensi Pulang (Opsi C — Bisa Dipilih Admin)
+
+### Masalah
+
+Guru yang sudah bekerja seharian tapi **lupa presensi pulang** memiliki `jam_pulang` = NULL.
+Jika tidak ditangani, hari tersebut tidak masuk hitungan jam kerja — total jam kerja
+menjadi lebih kecil dari实际nya, tidak adil untuk guru.
+
+### Solusi: Setting Dapat Dipilih Admin
+
+Ditambahkan setting baru di menu **Pengaturan**:
+
+```
+Setting key : lupa_pulang_mode
+Nilai       : 'tidak_dihitung' | 'estimasi_standar'
+Default     : 'tidak_dihitung'
+```
+
+#### Mode 1: Tidak Dihitung (`tidak_dihitung`)
+
+- Hari lupa pulang → `durasiKerja` = "Belum pulang"
+- **Tidak masuk** total jam kerja
+- Guru tetap tercatat "Hadir" tapi tanpa durasi
+- Admin wajib isi jam pulang manual via **Edit Presensi** agar terhitung
+- Cocok untuk sekolah yang ingin data 100% aktual
+
+#### Mode 2: Asumsi Jam Pulang Standar (`estimasi_standar`)
+
+- Jika `jam_pulang` = NULL, sistem mengasumsikan guru bekerja sampai jam pulang standar:
+  - Guru piket → pakai `jam_pulang_piket` dari jadwal piket aktif (mis. 13:00)
+  - Guru non-piket → pakai default: 13:00 (atau 10:15 kalau Jumat)
+  - Hari libur/event dengan `jam_masuk_khusus` → pakai jam pulang default
+- Durasi dihitung: `jam_pulang_standar − jam_masuk`
+- Ditandai sebagai **"estimasi"** agar kepala sekolah tahu itu bukan aktual
+  - `durasiKerja` → "5j 45m (estimasi)"
+  - `isEstimasi` → true (flag untuk styling/UI)
+- Admin tetap bisa koreksi via Edit Presensi untuk data lebih akurat
+- Cocok untuk sekolah yang ingin total jam kerja tetap realistis tanpa admin manual
+
+#### Logika Backend
+
+```php
+// di gp_map_attendance_record() atau fungsi terpisah
+if (jam_pulang NULL atau kosong) {
+    if (setting 'lupa_pulang_mode' == 'estimasi_standar') {
+        // Cari jam pulang standar
+        if (guru punya jadwal piket aktif hari itu) {
+            jam_pulang_estimasi = piket.jam_pulang_piket
+        } else if (hari == Jumat) {
+            jam_pulang_estimasi = '10:15:00'
+        } else {
+            jam_pulang_estimasi = '13:00:00'
+        }
+
+        durasi_menit = jam_pulang_estimasi - jam_masuk
+        durasiKerja  = format(durasi_menit) + " (estimasi)"
+        isEstimasi   = true
+    } else {
+        // Mode 'tidak_dihitung'
+        durasiKerja  = "Belum pulang"
+        durasiMenit  = null
+        isEstimasi   = false
+    }
+}
+```
+
+#### UI di Menu Pengaturan
+
+```
+┌─────────────────────────────────────────────────┐
+│  ⏱ Penanganan Lupa Presensi Pulang              │
+│                                                 │
+│  ○ Tidak Dihitung                               │
+│    Hari lupa pulang tidak masuk total jam kerja │
+│    Admin wajib isi jam pulang manual            │
+│                                                 │
+│  ● Asumsi Jam Pulang Standar (Estimasi)         │
+│    Sistem mengasumsikan jam pulang standar      │
+│    Ditandai "estimasi" agar jelas bedanya       │
+│    Admin tetap bisa koreksi via Edit Presensi   │
+│                                                 │
+│  [ Simpan Pengaturan ]                          │
+└─────────────────────────────────────────────────┘
+```
+
+#### Tampilan di Tabel/Laporan
+
+| Mode | Jam Pulang | Jam Kerja | Keterangan |
+|------|-----------|-----------|------------|
+| Tidak dihitung | - | Belum pulang | Lupa checkout |
+| Estimasi | - (estimasi: 13:00) | 5j 45m (estimasi) | Lupa pulang, dihitung pakai jam standar |
+
+#### Impact ke Summary
+
+- **Tidak dihitung**: `totalJamKerja` hanya dari record yang punya jam_pulang aktual
+- **Estimasi**: `totalJamKerja` termasuk record estimasi, tapi rata-rata bisa ditandai
+  dengan footnote: "Termasuk X hari estimasi"
 
 ---
 
@@ -194,19 +294,23 @@ Dipakai di semua komponen agar konsisten.
 
 | File | Perubahan |
 |------|-----------|
-| `api/attendance_service.php` | Hitung `durasiMenit`/`durasiKerja`/`durasiJam` di `gp_map_attendance_record()` |
+| File | Perubahan |
+|------|-----------|
+| `api/attendance_service.php` | Hitung `durasiMenit`/`durasiKerja`/`durasiJam` di `gp_map_attendance_record()`, termasuk logika estimasi untuk lupa pulang |
 | `src/utils/duration.js` | **Baru** — helper format durasi |
-| `src/hooks/useGuruReport.js` | Tambah `totalJamKerja`, `rataRataJamKerja` di `getGuruSummary()` |
-| `src/components/guru/GuruHome.jsx` | Tampilkan "Jam Kerja" di kartu presensi hari ini |
-| `src/components/guru/GuruRiwayat.jsx` | Tambah kolom "Jam Kerja" di tabel |
-| `src/components/guru/GuruStatistik.jsx` | Tambah kartu "Total Jam Kerja" + rata-rata |
-| `src/components/admin/DownloadLaporan.jsx` | Tambah kolom & summary jam kerja di PDF + Excel |
+| `src/hooks/useGuruReport.js` | Tambah `totalJamKerja`, `rataRataJamKerja`, `estimasiCount` di `getGuruSummary()` |
+| `src/components/guru/GuruHome.jsx` | Tampilkan "Jam Kerja" di kartu presensi hari ini (dengan badge "estimasi" jika perlu) |
+| `src/components/guru/GuruRiwayat.jsx` | Tambah kolom "Jam Kerja" di tabel (estimasi ditandai) |
+| `src/components/guru/GuruStatistik.jsx` | Tambah kartu "Total Jam Kerja" + rata-rata (footnote estimasi jika ada) |
+| `src/components/admin/DownloadLaporan.jsx` | Tambah kolom & summary jam kerja di PDF + Excel (estimasi ditandai) |
 | `src/components/admin/StatistikLengkap.jsx` | Tambah kolom "Jam Kerja" di tabel detail |
+| `src/components/admin/Pengaturan.jsx` | Tambah toggle "Penanganan Lupa Presensi Pulang" (2 mode) |
+| Database `settings` table | Insert setting baru: `lupa_pulang_mode` = `tidak_dihitung` (default) |
 
 **Tidak perlu:**
 
-- Kolom database baru
-- Migration
+- Kolom database baru di `attendance_logs`
+- Migration khusus (setting tinggal insert ke tabel `settings` yang sudah ada)
 - Endpoint API baru
 - Perubahan di proses presensi (jam_masuk/jam_pulang sudah tersimpan)
 
@@ -252,6 +356,10 @@ Dipakai di semua komponen agar konsisten.
 
 - **Tidak ada perubahan database** — jam_masuk dan jam_pulang sudah ada
 - **Perhitungan terpusat** di backend `gp_map_attendance_record()` — semua endpoint otomatis dapat field durasi
-- **Edge cases ditangani**: lupa pulang, izin/sakit, anomali data
+- **Kebijakan lupa pulang dapat dipilih admin** (Opsi C):
+  - Mode 1: Tidak dihitung — admin wajib isi manual
+  - Mode 2: Asumsi jam standar — otomatis, ditandai "estimasi"
+- **Edge cases ditangani**: lupa pulang (dengan 2 mode), izin/sakit, anomali data
 - **Tampilan di 6 tempat**: dashboard guru, riwayat, statistik, laporan PDF/Excel, statistik admin
-- **Summary**: total jam kerja + rata-rata per hari per periode
+- **Setting baru**: `lupa_pulang_mode` di tabel `settings` (menu Pengaturan)
+- **Summary**: total jam kerja + rata-rata per hari per periode (dengan footnote estimasi jika ada)
