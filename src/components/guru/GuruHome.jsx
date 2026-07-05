@@ -1134,7 +1134,7 @@ function GuruHome({ user, onChangeTab }) {
 
       {/* Modal Izin/Sakit */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 pb-28 z-[60]">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <h3 className="text-base font-bold text-slate-800 mb-1">
               Keterangan {modalType === 'izin' ? 'Izin' : 'Sakit'}
