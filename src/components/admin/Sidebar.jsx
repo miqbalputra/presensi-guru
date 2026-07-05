@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Users, Edit, Activity, Download, Calendar, Settings, CalendarCheck, LogOut, X, QrCode, UserPlus, Map, MapPin, CalendarX, CalendarPlus, Archive } from 'lucide-react'
+import { LayoutDashboard, Users, Edit, Activity, Download, Calendar, Settings, CalendarCheck, LogOut, X, QrCode, UserPlus, Map, MapPin, CalendarX, CalendarPlus, Archive, Bot } from 'lucide-react'
 
 function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
   const menuItems = [
@@ -17,7 +17,8 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
     { path: '/admin/tracking-lokasi', icon: MapPin, label: 'Tracking Lokasi', isNew: true },
     { path: '/admin/qr-code', icon: QrCode, label: 'QR Code Presensi' },
     { path: '/admin/manual-entry', icon: UserPlus, label: 'Presensi Manual', isNew: true },
-    { path: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' }
+    { path: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' },
+    { path: '/admin/ai-agent', icon: Bot, label: 'AI Agent', isNew: true }
   ]
 
   return (
