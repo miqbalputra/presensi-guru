@@ -18,7 +18,7 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
     { path: '/admin/qr-code', icon: QrCode, label: 'QR Code Presensi' },
     { path: '/admin/manual-entry', icon: UserPlus, label: 'Presensi Manual', isNew: true },
     { path: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' },
-    { path: '/admin/ai-agent', icon: Bot, label: 'AI Agent', isNew: true }
+    { path: '/admin/ai-agent', icon: Bot, label: 'AI Agent' }
   ]
 
   return (
