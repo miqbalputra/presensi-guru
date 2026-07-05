@@ -212,7 +212,7 @@ function gp_validate_workday($pdo, $date, $gender = null)
 
 function gp_get_piket($pdo, $userId, $date)
 {
-    $stmt = $pdo->prepare("SELECT jam_piket, jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT jam_piket, jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ? AND is_active = 1 LIMIT 1");
     $stmt->execute([$userId, gp_day_name($date)]);
     return $stmt->fetch();
 }

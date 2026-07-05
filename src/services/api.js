@@ -318,6 +318,14 @@ export const jadwalPiketAPI = {
       method: 'DELETE',
     })
   },
+
+  // Toggle status aktif/nonaktif jadwal piket (PATCH)
+  toggleActive: async (id) => {
+    return fetchAPI('/jadwal_piket.php', {
+      method: 'PATCH',
+      body: JSON.stringify({ id }),
+    })
+  },
 }
 
 // Admin Summary API - compact dashboard payload

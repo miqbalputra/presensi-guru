@@ -452,7 +452,7 @@ try {
         $guruStmt->execute();
         $guruRows = $guruStmt->fetchAll();
 
-        $piketStmt = $pdo->prepare("SELECT user_id, hari FROM jadwal_piket");
+        $piketStmt = $pdo->prepare("SELECT user_id, hari FROM jadwal_piket WHERE is_active = 1");
         $piketStmt->execute();
         $piketMap = [];
         foreach ($piketStmt->fetchAll() as $row) {

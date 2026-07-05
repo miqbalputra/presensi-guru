@@ -73,7 +73,7 @@ try {
     $piketStmt = $pdo->prepare("
         SELECT id, user_id, nama_guru, hari, jam_piket, jam_pulang_piket, keterangan
         FROM jadwal_piket
-        WHERE user_id = ? AND hari = ?
+        WHERE user_id = ? AND hari = ? AND is_active = 1
         LIMIT 1
     ");
     $piketStmt->execute([$userId, $hari]);

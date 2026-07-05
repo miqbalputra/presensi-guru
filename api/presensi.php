@@ -246,7 +246,7 @@ if ($method === 'PUT') {
             ];
             $hariIni = $dayMap[$dayEng] ?? 'Senin';
 
-            $stmtP = $pdo->prepare("SELECT jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ?");
+            $stmtP = $pdo->prepare("SELECT jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ? AND is_active = 1");
             $stmtP->execute([$rec['user_id'], $hariIni]);
             $piketRow = $stmtP->fetch();
 

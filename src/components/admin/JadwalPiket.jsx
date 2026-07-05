@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2, Calendar, Clock, User } from 'lucide-react'
+import { Plus, Edit2, Trash2, Calendar, Clock, User, Info } from 'lucide-react'
 import { jadwalPiketAPI, guruAPI } from '../../services/api'
 
 function JadwalPiket() {
@@ -86,6 +86,20 @@ function JadwalPiket() {
       } catch (error) {
         showNotification('Gagal menghapus jadwal piket: ' + error.message, 'error')
       }
+    }
+  }
+
+  const handleToggleActive = async (jadwal) => {
+    try {
+      await jadwalPiketAPI.toggleActive(jadwal.id)
+      showNotification(
+        jadwal.is_active == 1
+          ? 'Jadwal piket dinonaktifkan. Data tetap tersimpan.'
+          : 'Jadwal piket diaktifkan kembali.'
+      )
+      loadData()
+    } catch (error) {
+      showNotification('Gagal mengubah status jadwal piket: ' + error.message, 'error')
     }
   }
 
@@ -184,11 +198,26 @@ function JadwalPiket() {
         </div>
       </div>
 
+      {/* Info banner: fitur toggle aktif/nonaktif */}
+      <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+        <div className="text-sm text-amber-800">
+          <p className="font-semibold">Fitur Aktifkan / Nonaktifkan Jadwal Piket</p>
+          <p className="mt-0.5">
+            Gunakan tombol <span className="font-bold">On / Off</span> pada setiap jadwal untuk menonaktifkan sementara tanpa menghapus data. 
+            Cocok ketika ada agenda rapat atau libur peserta didik — jadwal tetap tersimpan dan bisa diaktifkan kembali kapan saja. 
+            Jadwal yang <span className="font-bold">Off</span> tidak akan diterapkan saat presensi.
+          </p>
+        </div>
+      </div>
+
       {/* Jadwal per Hari */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {hariList.map(hari => {
           const jadwalHari = jadwalByHari[hari]
           if (filterHari !== 'all' && filterHari !== hari) return null
+          const aktifCount = jadwalHari.filter(j => j.is_active == 1).length
+          const nonaktifCount = jadwalHari.length - aktifCount
           
           return (
             <div key={hari} className="bg-white rounded-lg shadow">
@@ -198,23 +227,41 @@ function JadwalPiket() {
                     <Calendar className="w-5 h-5 text-blue-600" />
                     <h3 className="font-bold text-gray-800">{hari}</h3>
                   </div>
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
-                    {jadwalHari.length} Guru
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {nonaktifCount > 0 && (
+                      <span className="px-2.5 py-1 bg-gray-200 text-gray-600 text-xs font-semibold rounded-full">
+                        {nonaktifCount} Off
+                      </span>
+                    )}
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                      aktifCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {jadwalHari.length} Guru
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="p-4">
                 {jadwalHari.length > 0 ? (
                   <div className="space-y-2">
-                    {jadwalHari.map(jadwal => (
+                    {jadwalHari.map(jadwal => {
+                      const isActive = jadwal.is_active == 1
+                      return (
                       <div 
                         key={jadwal.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                          isActive ? 'bg-gray-50 hover:bg-gray-100' : 'bg-gray-100 opacity-60 hover:opacity-80'
+                        }`}
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-gray-500" />
-                            <p className="font-semibold text-gray-800">{jadwal.nama_guru}</p>
+                            <User className={`w-4 h-4 ${isActive ? 'text-gray-500' : 'text-gray-400'}`} />
+                            <p className={`font-semibold ${isActive ? 'text-gray-800' : 'text-gray-500 line-through'}`}>{jadwal.nama_guru}</p>
+                            {!isActive && (
+                              <span className="px-2 py-0.5 bg-gray-300 text-gray-600 text-[9px] font-bold rounded-full uppercase">
+                                Nonaktif
+                              </span>
+                            )}
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                             <div className="flex items-center gap-2">
@@ -234,7 +281,26 @@ function JadwalPiket() {
                             <p className="text-xs text-gray-500 mt-1">{jadwal.keterangan}</p>
                           )}
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
+                          {/* Toggle Switch Aktif/Nonaktif */}
+                          <button
+                            onClick={() => handleToggleActive(jadwal)}
+                            className="flex items-center gap-1 group"
+                            title={isActive ? 'Klik untuk menonaktifkan jadwal piket' : 'Klik untuk mengaktifkan kembali jadwal piket'}
+                          >
+                            {/* Track */}
+                            <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                              isActive ? 'bg-green-500' : 'bg-gray-300'
+                            }`}>
+                              {/* Knob */}
+                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                isActive ? 'translate-x-4' : 'translate-x-1'
+                              }`} />
+                            </span>
+                            <span className={`text-[9px] font-bold uppercase ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
+                              {isActive ? 'On' : 'Off'}
+                            </span>
+                          </button>
                           <button
                             onClick={() => handleEdit(jadwal)}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -249,7 +315,8 @@ function JadwalPiket() {
                           </button>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
@@ -342,6 +409,31 @@ function JadwalPiket() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="Contoh: Piket pagi, Piket siang"
                 />
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Status Jadwal Piket</p>
+                  <p className="text-xs text-gray-500">
+                    {formData.is_active == 1 ? 'Aktif — diterapkan saat presensi' : 'Nonaktif — data tersimpan, tidak diterapkan'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, is_active: formData.is_active == 1 ? 0 : 1 })}
+                  className="flex items-center gap-1.5"
+                >
+                  <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    formData.is_active == 1 ? 'bg-green-500' : 'bg-gray-300'
+                  }`}>
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.is_active == 1 ? 'translate-x-4' : 'translate-x-1'
+                    }`} />
+                  </span>
+                  <span className={`text-xs font-bold uppercase ${formData.is_active == 1 ? 'text-green-600' : 'text-gray-400'}`}>
+                    {formData.is_active == 1 ? 'On' : 'Off'}
+                  </span>
+                </button>
               </div>
 
               <div className="flex gap-3">
