@@ -421,9 +421,9 @@ try {
             $persentasePulang = $totalHadir > 0 ? ($totalPulangLengkap / $totalHadir) * 100 : 0;
             $skorDasar = ($persentaseKehadiran * 0.5) + ($persentaseTepatWaktu * 0.25) + ($persentasePulang * 0.25);
 
-            // Bonus lembur: +1 poin per 60 menit lembur di sekolah, maks +10 poin.
-            // Skor akhir tetap dibatasi 100.
-            $lemburBonus = min(10.0, round($lemburMenit / 60, 1));
+            // Bonus lembur: +1 poin per 60 menit lembur di sekolah (proporsional,
+            // tanpa batas atas). Skor akhir tetap dibatasi 100.
+            $lemburBonus = round($lemburMenit / 60, 1);
             $skor = min($skorDasar + $lemburBonus, 100);
 
             $leaderboard[] = [

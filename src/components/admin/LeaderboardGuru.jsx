@@ -363,7 +363,7 @@ function LeaderboardGuru() {
                           {guru.lemburHari > 0 && (
                             <span
                               className="text-xs text-emerald-600 font-semibold"
-                              title={`Lembur ${guru.lemburHari} hari (total ${guru.lemburMenit} menit di atas jam pulang normal). Bonus +${guru.lemburBonus} poin.`}
+                              title={`Lembur ${guru.lemburHari} hari (total ${guru.lemburMenit} menit di atas jam pulang normal). Bonus +${guru.lemburBonus} poin (proporsional).`}
                             >
                               ⏰ {guru.lemburHari}× lembur (+{guru.lemburBonus})
                             </span>
@@ -406,7 +406,7 @@ function LeaderboardGuru() {
             <div>• <strong>Kehadiran</strong>: Hadir / Total hari aktif — izin, sakit & alpa mengurangi</div>
             <div>• <strong>Tepat Waktu</strong>: Hadir tepat / Total hadir — terlambat mengurangi</div>
             <div>• <strong>Kelengkapan Pulang</strong>: Hadir yang sudah pulang / Total hadir — lupa pulang mengurangi</div>
-            <div>• <strong>Bonus Lembur</strong>: +1 poin per 60 menit pulang di atas jam normal (di sekolah), maks +10</div>
+            <div>• <strong>Bonus Lembur</strong>: +1 poin per 60 menit pulang di atas jam normal (di sekolah), proporsional tanpa batas</div>
             <div>• 🏆 Top 3 = Ranking tertinggi</div>
             <div>• ⭐ Skor ≥90% = Excellent</div>
             <div>• ✓ Skor ≥75% = Good</div>
