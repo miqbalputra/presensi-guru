@@ -303,11 +303,21 @@ try {
         $guruRows = $usersStmt->fetchAll();
 
         $statsStmt = $pdo->prepare("
-            SELECT user_id, tanggal, status, jam_pulang
+            SELECT user_id, tanggal, status, jam_pulang, lokasi_pulang
             FROM attendance_logs
             WHERE 1=1 {$dateFilter}
         ");
         $statsStmt->execute($params);
+
+        // Map jam pulang piket per guru per hari (Indonesia) untuk menentukan
+        // "jam pulang normal" sebagai dasar deteksi lembur.
+        $HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        $piketStmt = $pdo->prepare("SELECT user_id, hari, jam_pulang_piket FROM jadwal_piket WHERE is_active = 1");
+        $piketStmt->execute();
+        $piketPulangByUser = [];
+        foreach ($piketStmt->fetchAll() as $p) {
+            $piketPulangByUser[(int)$p['user_id']][$p['hari']] = substr($p['jam_pulang_piket'], 0, 5);
+        }
 
         $byUser = [];
         $genderByUser = [];
@@ -328,6 +338,8 @@ try {
                     'izin' => 0,
                     'sakit' => 0,
                     'lupaPulang' => 0,
+                    'lemburHari' => 0,
+                    'lemburMenit' => 0,
                     'records' => 0
                 ];
             }
@@ -356,6 +368,27 @@ try {
                     $byUser[$userId]['lupaPulang']++;
                 }
             }
+
+            // Bonus lembur: hari HADIR yang pulang TERLAMBAT dari jam pulang normal,
+            // DAN checkout-nya di sekolah (QR lama selalu sekolah; data lama NULL
+            // diasumsikan sekolah). Checkout dari luar ('luar') tidak dapat bonus.
+            if ($isHadir) {
+                $jp = $row['jam_pulang'] ?? null;
+                $lokasi = $row['lokasi_pulang'] ?? null;
+                $jamPulangOK = $jp !== null && $jp !== '' && $jp !== '-' && $jp !== '00:00:00';
+                $diSekolah = $lokasi === 'sekolah' || $lokasi === null || $lokasi === '';
+                if ($jamPulangOK && $diSekolah) {
+                    $dayOfWeek = (int)date('w', strtotime($row['tanggal']));
+                    $hariId = $HARI_ID[$dayOfWeek];
+                    $normal = $piketPulangByUser[$userId][$hariId] ?? ($dayOfWeek === 5 ? '10:15' : '13:00');
+                    $normalMenit = timeToMinutesValue($normal);
+                    $pulangMenit = timeToMinutesValue($jp);
+                    if ($pulangMenit !== null && $pulangMenit > $normalMenit) {
+                        $byUser[$userId]['lemburHari']++;
+                        $byUser[$userId]['lemburMenit'] += ($pulangMenit - $normalMenit);
+                    }
+                }
+            }
         }
 
         $leaderboard = [];
@@ -367,6 +400,8 @@ try {
                 'izin' => 0,
                 'sakit' => 0,
                 'lupaPulang' => 0,
+                'lemburHari' => 0,
+                'lemburMenit' => 0,
                 'records' => 0
             ];
 
@@ -374,15 +409,22 @@ try {
             $tidakPresensi = max($userTotalHariAktif - $userStats['records'], 0);
             $totalHadir = $userStats['hadir'];
             $lupaPulang = $userStats['lupaPulang'];
+            $lemburHari = $userStats['lemburHari'];
+            $lemburMenit = $userStats['lemburMenit'];
 
-            // Skor disiplin penuh — guru ideal = 100% hadir fisik, tidak terlambat,
+            // Skor dasar disiplin — guru ideal = 100% hadir fisik, tidak terlambat,
             // dan tidak pernah lupa presensi pulang. Izin, sakit, alpa, terlambat,
             // dan lupa pulang semuanya menurunkan skor.
             $persentaseKehadiran = $userTotalHariAktif > 0 ? ($totalHadir / $userTotalHariAktif) * 100 : 0;
             $persentaseTepatWaktu = $totalHadir > 0 ? ($userStats['tepatWaktu'] / $totalHadir) * 100 : 0;
             $totalPulangLengkap = max($totalHadir - $lupaPulang, 0);
             $persentasePulang = $totalHadir > 0 ? ($totalPulangLengkap / $totalHadir) * 100 : 0;
-            $skor = ($persentaseKehadiran * 0.5) + ($persentaseTepatWaktu * 0.25) + ($persentasePulang * 0.25);
+            $skorDasar = ($persentaseKehadiran * 0.5) + ($persentaseTepatWaktu * 0.25) + ($persentasePulang * 0.25);
+
+            // Bonus lembur: +1 poin per 60 menit lembur di sekolah, maks +10 poin.
+            // Skor akhir tetap dibatasi 100.
+            $lemburBonus = min(10.0, round($lemburMenit / 60, 1));
+            $skor = min($skorDasar + $lemburBonus, 100);
 
             $leaderboard[] = [
                 'id' => (int)$guru['id'],
@@ -394,6 +436,9 @@ try {
                 'izin' => $userStats['izin'],
                 'sakit' => $userStats['sakit'],
                 'lupaPulang' => $lupaPulang,
+                'lemburHari' => $lemburHari,
+                'lemburMenit' => $lemburMenit,
+                'lemburBonus' => $lemburBonus,
                 'totalPulangLengkap' => $totalPulangLengkap,
                 'persentasePulang' => round($persentasePulang, 1),
                 'tidakPresensi' => $tidakPresensi,
@@ -408,11 +453,15 @@ try {
             if ($b['skor'] !== $a['skor']) {
                 return $b['skor'] <=> $a['skor'];
             }
-            // Tiebreak: lebih sedikit lupa pulang, lalu lebih banyak tepat waktu.
+            // Tiebreak: lebih sedikit lupa pulang, lalu lebih banyak tepat waktu,
+            // lalu lebih banyak lembur (dedikasi kerja).
             if ($a['lupaPulang'] !== $b['lupaPulang']) {
                 return $a['lupaPulang'] <=> $b['lupaPulang'];
             }
-            return $b['tepatWaktu'] <=> $a['tepatWaktu'];
+            if ($b['tepatWaktu'] !== $a['tepatWaktu']) {
+                return $b['tepatWaktu'] <=> $a['tepatWaktu'];
+            }
+            return $b['lemburMenit'] <=> $a['lemburMenit'];
         });
 
         sendResponse(true, 'Leaderboard guru berhasil diambil', [
