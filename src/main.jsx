@@ -4,7 +4,19 @@ import App from './App.jsx'
 import './index.css'
 
 // Helper: bersihkan cache lama dan reload halaman (recovery dari chunk error)
+// Dibatasi maksimal 3x reload untuk mencegah loop tak terhingga saat aset
+// benar-benar tidak tersedia di server (mis. deploy parsial).
+const CHUNK_RELOAD_KEY = 'chunk_reload_attempt'
+const MAX_CHUNK_RETRIES = 3
 async function clearCachesAndReload() {
+  const attempt = parseInt(sessionStorage.getItem(CHUNK_RELOAD_KEY) || '0', 10)
+  if (attempt >= MAX_CHUNK_RETRIES) {
+    sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+    console.warn('Recovery: batas reload tercapai, aset mungkin belum tersedia di server.')
+    alert('Gagal memuat aplikasi setelah redeploy. Silakan clear cache browser / coba lagi beberapa saat, atau hubungi admin.')
+    return
+  }
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, String(attempt + 1))
   try {
     if ('caches' in window) {
       const keys = await caches.keys()
@@ -106,3 +118,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 // Hapus loading fallback setelah React render
 const loadingEl = document.getElementById('app-loading')
 if (loadingEl) loadingEl.remove()
+// Aplikasi berhasil render → reset counter recovery chunk error
+sessionStorage.removeItem('chunk_reload_attempt')
