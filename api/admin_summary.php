@@ -22,7 +22,11 @@ function buildDateRange($start, $end)
 
 function getWorkdayDates($pdo, $start, $end, $gender = null)
 {
-    return gpw_get_workday_dates($pdo, $start, $end, $gender);
+    // gpw_get_workday_dates() mengembalikan ['workdays' => [...], 'optional_workdays' => [...]].
+    // Di sini kita hanya butuh daftar tanggal hari kerja (flat) agar bisa dipakai
+    // untuk count(), array_flip(), dan in_array($today, ..., true).
+    $result = gpw_get_workday_dates($pdo, $start, $end, $gender);
+    return $result['workdays'] ?? [];
 }
 
 try {
