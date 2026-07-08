@@ -270,9 +270,11 @@ if ($method === 'PUT') {
             } else {
                 // Sudah waktunya pulang
                 if ($isGuru && !empty($data['jamPulang'])) {
-                    // Validasi guru
-                    if (intval(date('H')) < 9) {
-                        sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul 09:00 WIB');
+                    // Validasi guru: batas minimal jam pulang dari setting (default 12:30)
+                    $minPulangFormatted = '12:30';
+                    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted);
+                    if (((intval(date('H')) * 60) + intval(date('i'))) < $minPulangMinutes) {
+                        sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul ' . $minPulangFormatted . ' WIB');
                     }
                     // Cek special workday
                     $stmt_h = $pdo->prepare("SELECT is_workday FROM holidays WHERE tanggal = ?");

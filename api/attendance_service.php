@@ -363,8 +363,11 @@ function gp_checkout_attendance($pdo, $options)
         sendResponse(false, 'Anda sudah melakukan presensi pulang!');
     }
 
-    if ((int)date('H') < 9 && ($_SESSION['role'] ?? '') !== 'admin') {
-        sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul 09:00 WIB');
+    $minPulangFormatted = '12:30';
+    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted);
+    $nowMinutes = gp_time_to_minutes(date('H:i'));
+    if ($nowMinutes < $minPulangMinutes && ($_SESSION['role'] ?? '') !== 'admin') {
+        sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul ' . $minPulangFormatted . ' WIB');
     }
 
     $user = gp_get_guru($pdo, $record['user_id']);
@@ -428,6 +431,18 @@ function gp_checkout_attendance($pdo, $options)
 function gp_time_to_minutes($time)
 {
     $parts = explode(':', $time);
-    return ((int)$parts[0] * 60) + (int)$parts[1];
+    return ((int)$parts[0] * 60) + (int)($parts[1] ?? 0);
+}
+
+/**
+ * Ambil batas minimal jam presensi pulang (menit sejak 00:00) dari settings.
+ * Default 12:30 = 750 menit. Dipakai oleh tombol pulang & QR scan pulang.
+ */
+function gp_get_min_pulang_minutes($pdo, &$formatted = null)
+{
+    $settings = gp_get_settings($pdo, ['jam_min_pulang']);
+    $value = $settings['jam_min_pulang'] ?? '12:30';
+    $formatted = substr($value, 0, 5);
+    return gp_time_to_minutes($formatted);
 }
 ?>

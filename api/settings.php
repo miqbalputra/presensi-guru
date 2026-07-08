@@ -50,6 +50,7 @@ if ($method === 'PUT') {
             'lokasi_apel_latitude', 'lokasi_apel_longitude', 'apel_senin_enabled',
             'location_tracking_enabled', 'location_tracking_interval_minutes', 'location_tracking_accuracy_limit',
             'qr_secret', 'qr_enabled', 'piket_terlambat_adalah_terlambat', 'jam_piket_default', 'button_enabled',
+            'jam_min_pulang',
             'weekend_workday_enabled',
             'saturday_male_workday_enabled', 'saturday_female_workday_enabled',
             'sunday_male_workday_enabled', 'sunday_female_workday_enabled'
@@ -89,7 +90,17 @@ if ($method === 'PUT') {
             }
             $data['setting_value'] = (string)$accuracyLimit;
         }
-        
+
+        if ($data['setting_key'] === 'jam_min_pulang') {
+            $value = trim((string)$data['setting_value']);
+            if (strlen($value) === 5) {
+                $value .= ':00'; // HH:MM -> HH:MM:SS
+            }
+            if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $value)) {
+                sendResponse(false, 'Format jam minimal pulang tidak valid. Contoh: 12:30');
+            }
+            $data['setting_value'] = substr($value, 0, 5);
+        }
         // ... validasi format jam, angka, dll tetap berjalan ...
 
         // Get user info from session - SESUAIKAN DENGAN auth.php

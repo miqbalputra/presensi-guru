@@ -30,6 +30,7 @@ function GuruHome({ user, onChangeTab }) {
     lokasi_apel_longitude: '',
     mode_testing: '1',
     button_enabled: '0',
+    jam_min_pulang: '12:30',
     weekend_workday_enabled: '0',
     saturday_male_workday_enabled: '0',
     saturday_female_workday_enabled: '0',
@@ -607,14 +608,20 @@ function GuruHome({ user, onChangeTab }) {
     }
   }
 
-  // Fungsi untuk cek apakah tombol pulang bisa ditampilkan (minimal jam 09:00)
-  const canShowPulangButton = () => {
-    const currentHour = new Date().getHours()
-    const currentMinute = new Date().getMinutes()
-    const currentTimeInMinutes = (currentHour * 60) + currentMinute
-    const minTimeInMinutes = (9 * 60) + 0 // 09:00 = 540 menit
+  // Batas minimal jam presensi pulang (menit sejak 00:00). Default 12:30 = 750.
+  const getPulangThresholdMinutes = () => {
+    const val = (settings.jam_min_pulang || '12:30').trim()
+    const [h, m] = val.split(':')
+    return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0)
+  }
 
-    return currentTimeInMinutes >= minTimeInMinutes
+  const formatPulangThreshold = () => (settings.jam_min_pulang || '12:30').substring(0, 5)
+
+  // Fungsi untuk cek apakah tombol pulang bisa ditampilkan (sesuai setting jam_min_pulang)
+  const canShowPulangButton = () => {
+    const now = new Date()
+    const currentTimeInMinutes = (now.getHours() * 60) + now.getMinutes()
+    return currentTimeInMinutes >= getPulangThresholdMinutes()
   }
 
   const handlePulang = async (izinPulangAwal = false, keteranganCustom = '') => {
@@ -626,16 +633,14 @@ function GuruHome({ user, onChangeTab }) {
       return
     }
 
-    // Cek waktu minimal (09:00 WIB)
-    const currentHour = new Date().getHours()
-    const currentMinute = new Date().getMinutes()
-    const currentTimeInMinutes = (currentHour * 60) + currentMinute
-    const minTimeInMinutes = (9 * 60) + 0 // 09:00 = 540 menit
+    // Cek waktu minimal (sesuai setting jam_min_pulang)
+    const now = new Date()
+    const currentTimeInMinutes = (now.getHours() * 60) + now.getMinutes()
 
-    if (currentTimeInMinutes < minTimeInMinutes) {
+    if (currentTimeInMinutes < getPulangThresholdMinutes()) {
       setMessage({
         type: 'error',
-        text: 'Presensi pulang hanya bisa dilakukan mulai pukul 09:00 WIB'
+        text: `Presensi pulang hanya bisa dilakukan mulai pukul ${formatPulangThreshold()} WIB`
       })
       return
     }
@@ -997,7 +1002,7 @@ function GuruHome({ user, onChangeTab }) {
                   </div>
                 </div>
 
-                {!isIzinSakit && settings.button_enabled == '1' && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && !todayAttendance.jamPulang && !todayAttendance.jam_pulang && (
+                {!isIzinSakit && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && !todayAttendance.jamPulang && !todayAttendance.jam_pulang && (
                   <>
                     {canShowPulangButton() ? (
                       <button
@@ -1010,8 +1015,8 @@ function GuruHome({ user, onChangeTab }) {
                       </button>
                     ) : (
                       <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center">
-                        <p className="text-slate-600 dark:text-slate-300 font-semibold text-sm">⏰ Presensi pulang tersedia mulai 09:00 WIB</p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Silakan tunggu hingga jam 09:00</p>
+                        <p className="text-slate-600 dark:text-slate-300 font-semibold text-sm">⏰ Presensi pulang tersedia mulai pukul {formatPulangThreshold()} WIB</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Silakan tunggu hingga jam {formatPulangThreshold()} untuk presensi pulang</p>
                       </div>
                     )}
                   </>

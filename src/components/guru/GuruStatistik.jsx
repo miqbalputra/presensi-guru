@@ -303,7 +303,7 @@ function GuruStatistik({ user }) {
             <h3 className="font-bold text-indigo-800 dark:text-indigo-300 mb-2">💡 Tips Meningkatkan Kehadiran</h3>
             <ul className="text-sm text-indigo-700 dark:text-indigo-300/80 space-y-1 list-disc list-inside">
               <li>Datang tepat waktu sebelum jam masuk normal</li>
-              <li>Jangan lupa presensi pulang setelah jam 09:00 WIB</li>
+              <li>Jangan lupa presensi pulang saat jam pulang sudah dibuka</li>
               <li>Jika berhalangan, segera isi presensi izin/sakit dengan keterangan</li>
               <li>Cek jadwal piket Anda agar tidak terlambat</li>
             </ul>

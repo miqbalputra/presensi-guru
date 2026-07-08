@@ -13,6 +13,7 @@ function Pengaturan() {
     mode_testing: '1',
     piket_terlambat_adalah_terlambat: '0',
     button_enabled: '1',
+    jam_min_pulang: '12:30',
     weekend_workday_enabled: '0',
     saturday_male_workday_enabled: '0',
     saturday_female_workday_enabled: '0',
@@ -222,6 +223,41 @@ function Pengaturan() {
             </div>
             <p className="text-xs text-gray-500 mt-2">
               Contoh: 07:20 berarti guru yang presensi jam 07:21 atau lebih akan dianggap terlambat
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Jam Minimal Presensi Pulang */}
+      <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-indigo-100 rounded-lg">
+            <Clock className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Jam Minimal Presensi Pulang</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Batas jam paling awal guru bisa menekan tombol <strong>PRESENSI PULANG</strong> (tanpa scan QR).
+              Sebelum jam ini, tombol pulang tidak bisa digunakan. Berlaku juga untuk presensi pulang via QR Scan.
+            </p>
+            <div className="flex items-center gap-4">
+              <input
+                type="time"
+                value={settings.jam_min_pulang}
+                onChange={(e) => handleChange('jam_min_pulang', e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                onClick={() => handleSave('jam_min_pulang')}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
+              >
+                <Save className="w-4 h-4" />
+                Simpan
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Contoh: 12:30 berarti tombol PRESENSI PULANG baru aktif pukul 12:30 WIB. Ubah sesuai kebijakan sekolah.
             </p>
           </div>
         </div>

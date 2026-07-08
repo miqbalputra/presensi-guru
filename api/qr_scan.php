@@ -41,7 +41,8 @@ if ($method === 'POST') {
             'lokasi_laki_latitude', 'lokasi_laki_longitude',
             'lokasi_perempuan_latitude', 'lokasi_perempuan_longitude',
             'lokasi_apel_latitude', 'lokasi_apel_longitude',
-            'apel_senin_enabled'
+            'apel_senin_enabled',
+            'jam_min_pulang'
         )");
         $stmt->execute();
         $settingsArr = $stmt->fetchAll();
@@ -100,12 +101,14 @@ if ($method === 'POST') {
         $existing = $stmt->fetch();
 
         if ($existing) {
-            $currentHour = intval(date('H'));
             $isPulangFlag = isset($data['is_pulang']) && ($data['is_pulang'] === true || $data['is_pulang'] === 1 || $data['is_pulang'] === '1');
-            $isPulangRequest = $isPulangFlag || ($currentHour >= 9);
+            $minPulangSetting = $settings['jam_min_pulang'] ?? '12:30';
+            $minPulangFormatted = substr($minPulangSetting, 0, 5);
+            $currentMinutes = (intval(date('H')) * 60) + intval(date('i'));
+            $isPulangRequest = $isPulangFlag || ($currentMinutes >= gp_time_to_minutes($minPulangFormatted));
 
             if (!$isPulangRequest) {
-                sendResponse(false, 'Anda sudah presensi masuk. Belum bisa presensi pulang sebelum pukul 09:00 WIB.');
+                sendResponse(false, 'Anda sudah presensi masuk. Belum bisa presensi pulang sebelum pukul ' . $minPulangFormatted . ' WIB.');
             }
 
             gp_enforce_attendance_location($settings, $user, $data['latitude'], $data['longitude'], $today, true);
