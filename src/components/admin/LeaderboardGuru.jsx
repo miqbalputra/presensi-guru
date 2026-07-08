@@ -241,6 +241,7 @@ function LeaderboardGuru() {
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase">Skor</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase">Kehadiran</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase">Tepat Waktu</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase">Pulang</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase">Badge</th>
                 </tr>
               </thead>
@@ -296,11 +297,11 @@ function LeaderboardGuru() {
                         </div>
                       </td>
 
-                      {/* Kehadiran (tidak alfa: hadir + izin + sakit) */}
+                      {/* Kehadiran fisik (hadir / hari aktif; izin, sakit & alfa mengurangi) */}
                       <td className="px-4 py-4 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="font-semibold text-gray-800" title={`${guru.totalHadir} hadir · ${guru.izin} izin · ${guru.sakit} sakit`}>
-                            {guru.totalHadirEfektif ?? guru.totalHadir}/{guru.totalHariAktif}
+                          <span className="font-semibold text-gray-800" title={`${guru.totalHadir} hadir · ${guru.izin} izin · ${guru.sakit} sakit · ${guru.tidakPresensi} alfa`}>
+                            {guru.totalHadir}/{guru.totalHariAktif}
                           </span>
                           <span className={`text-xs px-2 py-1 rounded font-semibold ${
                             guru.persentaseKehadiran === 100 ? 'bg-green-100 text-green-700' :
@@ -340,6 +341,28 @@ function LeaderboardGuru() {
                         </div>
                       </td>
 
+                      {/* Kelengkapan Pulang */}
+                      <td className="px-4 py-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="font-semibold text-gray-800" title={`${guru.totalPulangLengkap ?? guru.totalHadir} pulang lengkap dari ${guru.totalHadir} hadir`}>
+                            {guru.totalPulangLengkap ?? guru.totalHadir}/{guru.totalHadir}
+                          </span>
+                          <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                            guru.persentasePulang === 100 ? 'bg-green-100 text-green-700' :
+                            guru.persentasePulang >= 90 ? 'bg-blue-100 text-blue-700' :
+                            guru.persentasePulang >= 75 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {guru.persentasePulang ?? 100}%
+                          </span>
+                          {guru.lupaPulang > 0 && (
+                            <span className="text-xs text-red-600 font-semibold">
+                              {guru.lupaPulang}× lupa pulang
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Badge */}
                       <td className="px-4 py-4">
                         <div className="flex justify-center">
@@ -355,7 +378,7 @@ function LeaderboardGuru() {
                   )
                 }) : (
                   <tr>
-                    <td colSpan="6" className="px-4 py-12 text-center text-gray-400">
+                    <td colSpan="7" className="px-4 py-12 text-center text-gray-400">
                       <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
                       <p>Belum ada data leaderboard untuk periode ini</p>
                     </td>
@@ -370,17 +393,18 @@ function LeaderboardGuru() {
         <div className="mt-4 p-4 bg-white rounded-lg border-2 border-blue-100">
           <p className="text-xs font-semibold text-gray-700 mb-2">📊 Cara Perhitungan Skor:</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
-            <div>• <strong>Skor = (Kehadiran × 70%) + (Tepat Waktu × 30%)</strong></div>
+            <div>• <strong>Skor = (Kehadiran × 50%) + (Tepat Waktu × 25%) + (Kelengkapan Pulang × 25%)</strong></div>
             <div>• Periode: {getPeriodLabel()}</div>
-            <div>• <strong>Kehadiran</strong>: (Hadir + Izin + Sakit) / Total hari aktif — hanya alpa yang mengurangi</div>
-            <div>• <strong>Tepat Waktu</strong>: Hadir tepat / Total hadir</div>
+            <div>• <strong>Kehadiran</strong>: Hadir / Total hari aktif — izin, sakit & alpa mengurangi</div>
+            <div>• <strong>Tepat Waktu</strong>: Hadir tepat / Total hadir — terlambat mengurangi</div>
+            <div>• <strong>Kelengkapan Pulang</strong>: Hadir yang sudah pulang / Total hadir — lupa pulang mengurangi</div>
             <div>• 🏆 Top 3 = Ranking tertinggi</div>
             <div>• ⭐ Skor ≥90% = Excellent</div>
             <div>• ✓ Skor ≥75% = Good</div>
             <div>• <strong>Juara</strong>: Selalu hadir + Selalu tepat waktu</div>
           </div>
           <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-800">
-            <strong>💡 Tips Jadi Juara:</strong> Hadir setiap hari + Tidak pernah terlambat = Skor 100%
+            <strong>💡 Tips Jadi Juara:</strong> Hadir setiap hari + Tidak pernah terlambat + Tidak pernah lupa presensi pulang = Skor 100%
           </div>
         </div>
       </div>

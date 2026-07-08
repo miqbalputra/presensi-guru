@@ -299,7 +299,7 @@ try {
         $guruRows = $usersStmt->fetchAll();
 
         $statsStmt = $pdo->prepare("
-            SELECT user_id, tanggal, status
+            SELECT user_id, tanggal, status, jam_pulang
             FROM attendance_logs
             WHERE 1=1 {$dateFilter}
         ");
@@ -323,22 +323,34 @@ try {
                     'terlambat' => 0,
                     'izin' => 0,
                     'sakit' => 0,
+                    'lupaPulang' => 0,
                     'records' => 0
                 ];
             }
 
             $byUser[$userId]['records']++;
+            $status = $row['status'];
+            $isHadir = in_array($status, ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true);
 
-            if ($row['status'] === 'hadir') {
+            if ($status === 'hadir') {
                 $byUser[$userId]['hadir']++;
                 $byUser[$userId]['tepatWaktu']++;
-            } elseif (in_array($row['status'], ['hadir_terlambat', 'hadir_izin_terlambat'], true)) {
+            } elseif ($status === 'hadir_terlambat' || $status === 'hadir_izin_terlambat') {
                 $byUser[$userId]['hadir']++;
                 $byUser[$userId]['terlambat']++;
-            } elseif ($row['status'] === 'izin') {
+            } elseif ($status === 'izin') {
                 $byUser[$userId]['izin']++;
-            } elseif ($row['status'] === 'sakit') {
+            } elseif ($status === 'sakit') {
                 $byUser[$userId]['sakit']++;
+            }
+
+            // Lupa presensi pulang: hari HADIR di masa lalu (sebelum hari ini) tanpa jam pulang.
+            // Hari ini dikecualikan karena guru mungkin belum pulang.
+            if ($isHadir && $row['tanggal'] < $today) {
+                $jp = $row['jam_pulang'] ?? null;
+                if ($jp === null || $jp === '' || $jp === '-' || $jp === '00:00:00') {
+                    $byUser[$userId]['lupaPulang']++;
+                }
             }
         }
 
@@ -350,29 +362,36 @@ try {
                 'terlambat' => 0,
                 'izin' => 0,
                 'sakit' => 0,
+                'lupaPulang' => 0,
                 'records' => 0
             ];
 
             $userTotalHariAktif = count(getWorkdayDates($pdo, $startDate, $endDate, $guru['jenis_kelamin']));
             $tidakPresensi = max($userTotalHariAktif - $userStats['records'], 0);
-            // Kehadiran = "tidak alfa": hari hadir/izin/sakit dihitung memenuhi kewajiban.
-            // Hanya alfa (tidak ada presensi sama sekali) yang menurunkan persentase kehadiran,
-            // sehingga izin/sakit yang absah tidak menghukum skor disiplin.
-            $totalHadirEfektif = $userStats['hadir'] + $userStats['izin'] + $userStats['sakit'];
-            $persentaseKehadiran = $userTotalHariAktif > 0 ? ($totalHadirEfektif / $userTotalHariAktif) * 100 : 0;
-            $persentaseTepatWaktu = $userStats['hadir'] > 0 ? ($userStats['tepatWaktu'] / $userStats['hadir']) * 100 : 0;
-            $skor = ($persentaseKehadiran * 0.7) + ($persentaseTepatWaktu * 0.3);
+            $totalHadir = $userStats['hadir'];
+            $lupaPulang = $userStats['lupaPulang'];
+
+            // Skor disiplin penuh — guru ideal = 100% hadir fisik, tidak terlambat,
+            // dan tidak pernah lupa presensi pulang. Izin, sakit, alpa, terlambat,
+            // dan lupa pulang semuanya menurunkan skor.
+            $persentaseKehadiran = $userTotalHariAktif > 0 ? ($totalHadir / $userTotalHariAktif) * 100 : 0;
+            $persentaseTepatWaktu = $totalHadir > 0 ? ($userStats['tepatWaktu'] / $totalHadir) * 100 : 0;
+            $totalPulangLengkap = max($totalHadir - $lupaPulang, 0);
+            $persentasePulang = $totalHadir > 0 ? ($totalPulangLengkap / $totalHadir) * 100 : 0;
+            $skor = ($persentaseKehadiran * 0.5) + ($persentaseTepatWaktu * 0.25) + ($persentasePulang * 0.25);
 
             $leaderboard[] = [
                 'id' => (int)$guru['id'],
                 'nama' => $guru['nama'],
                 'jabatan' => parseJabatan($guru['jabatan']),
-                'totalHadir' => $userStats['hadir'],
-                'totalHadirEfektif' => $totalHadirEfektif,
+                'totalHadir' => $totalHadir,
                 'tepatWaktu' => $userStats['tepatWaktu'],
                 'terlambat' => $userStats['terlambat'],
                 'izin' => $userStats['izin'],
                 'sakit' => $userStats['sakit'],
+                'lupaPulang' => $lupaPulang,
+                'totalPulangLengkap' => $totalPulangLengkap,
+                'persentasePulang' => round($persentasePulang, 1),
                 'tidakPresensi' => $tidakPresensi,
                 'totalHariAktif' => $userTotalHariAktif,
                 'persentaseKehadiran' => round($persentaseKehadiran, 1),
@@ -382,10 +401,14 @@ try {
         }
 
         usort($leaderboard, function ($a, $b) {
-            if ($b['skor'] === $a['skor']) {
-                return $b['tepatWaktu'] <=> $a['tepatWaktu'];
+            if ($b['skor'] !== $a['skor']) {
+                return $b['skor'] <=> $a['skor'];
             }
-            return $b['skor'] <=> $a['skor'];
+            // Tiebreak: lebih sedikit lupa pulang, lalu lebih banyak tepat waktu.
+            if ($a['lupaPulang'] !== $b['lupaPulang']) {
+                return $a['lupaPulang'] <=> $b['lupaPulang'];
+            }
+            return $b['tepatWaktu'] <=> $a['tepatWaktu'];
         });
 
         sendResponse(true, 'Leaderboard guru berhasil diambil', [
