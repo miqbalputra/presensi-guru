@@ -252,11 +252,28 @@ try {
     if ($chart === 'leaderboard') {
         $period = $_GET['period'] ?? 'month';
         $startDate = null;
+        $endDate = $today;
 
         if ($period === 'week') {
             $startDate = date('Y-m-d', strtotime('-6 days'));
         } elseif ($period === 'month') {
             $startDate = date('Y-m-d', strtotime('-29 days'));
+        } elseif ($period === 'custom') {
+            $customStart = $_GET['start_date'] ?? null;
+            $customEnd = $_GET['end_date'] ?? null;
+            if (!validateDate($customStart) || !validateDate($customEnd)) {
+                sendResponse(false, 'Rentang tanggal kustom tidak valid');
+            }
+            if ($customStart > $customEnd) {
+                sendResponse(false, 'Tanggal mulai tidak boleh setelah tanggal akhir');
+            }
+            $startDate = $customStart;
+            // Batasi akhir sampai hari ini: tidak ada presensi setelah hari ini,
+            // dan hari kerja masa depan akan membuat "alfa" menggembung secara artifisial.
+            $endDate = min($customEnd, $today);
+            if ($startDate > $endDate) {
+                $startDate = $endDate;
+            }
         } elseif ($period !== 'all') {
             sendResponse(false, 'Invalid period');
         }
@@ -268,8 +285,8 @@ try {
         }
 
         $dateFilter = "AND tanggal BETWEEN ? AND ?";
-        $params = [$startDate, $today];
-        $totalHariAktif = count(getWorkdayDates($pdo, $startDate, $today));
+        $params = [$startDate, $endDate];
+        $totalHariAktif = count(getWorkdayDates($pdo, $startDate, $endDate));
 
         $usersStmt = $pdo->prepare("
             SELECT id, nama, jabatan, jenis_kelamin
@@ -336,9 +353,13 @@ try {
                 'records' => 0
             ];
 
-            $userTotalHariAktif = count(getWorkdayDates($pdo, $startDate, $today, $guru['jenis_kelamin']));
+            $userTotalHariAktif = count(getWorkdayDates($pdo, $startDate, $endDate, $guru['jenis_kelamin']));
             $tidakPresensi = max($userTotalHariAktif - $userStats['records'], 0);
-            $persentaseKehadiran = $userTotalHariAktif > 0 ? ($userStats['hadir'] / $userTotalHariAktif) * 100 : 0;
+            // Kehadiran = "tidak alfa": hari hadir/izin/sakit dihitung memenuhi kewajiban.
+            // Hanya alfa (tidak ada presensi sama sekali) yang menurunkan persentase kehadiran,
+            // sehingga izin/sakit yang absah tidak menghukum skor disiplin.
+            $totalHadirEfektif = $userStats['hadir'] + $userStats['izin'] + $userStats['sakit'];
+            $persentaseKehadiran = $userTotalHariAktif > 0 ? ($totalHadirEfektif / $userTotalHariAktif) * 100 : 0;
             $persentaseTepatWaktu = $userStats['hadir'] > 0 ? ($userStats['tepatWaktu'] / $userStats['hadir']) * 100 : 0;
             $skor = ($persentaseKehadiran * 0.7) + ($persentaseTepatWaktu * 0.3);
 
@@ -347,6 +368,7 @@ try {
                 'nama' => $guru['nama'],
                 'jabatan' => parseJabatan($guru['jabatan']),
                 'totalHadir' => $userStats['hadir'],
+                'totalHadirEfektif' => $totalHadirEfektif,
                 'tepatWaktu' => $userStats['tepatWaktu'],
                 'terlambat' => $userStats['terlambat'],
                 'izin' => $userStats['izin'],
@@ -368,6 +390,8 @@ try {
 
         sendResponse(true, 'Leaderboard guru berhasil diambil', [
             'period' => $period,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
             'totalHariAktif' => $totalHariAktif,
             'items' => $leaderboard
         ]);

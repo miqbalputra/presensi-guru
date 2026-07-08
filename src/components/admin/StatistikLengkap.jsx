@@ -211,7 +211,7 @@ function StatistikLengkap() {
             </div>
             <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-black uppercase">Persentase</span>
           </div>
-          <div className="p-0 max-h-[400px] overflow-y-auto">
+          <div className="p-0 max-h-[400px] overflow-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
@@ -222,7 +222,7 @@ function StatistikLengkap() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {lateStats.statsPerGuru.map((guru, idx) => (
+                {lateStats.statsPerGuru.length > 0 ? lateStats.statsPerGuru.map((guru, idx) => (
                   <tr key={guru.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-bold text-gray-700">{guru.nama}</td>
                     <td className="px-6 py-4 text-center text-gray-500">{guru.total}</td>
@@ -233,7 +233,14 @@ function StatistikLengkap() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
+                      <Info className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                      <p>Belum ada data kehadiran pada periode ini</p>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -245,7 +252,7 @@ function StatistikLengkap() {
             <AlertTriangle className="w-5 h-5 text-red-500" />
             <h3 className="font-bold text-gray-800">Terlambat Saat Jadwal Piket</h3>
           </div>
-          <div className="p-0 max-h-[400px] overflow-y-auto">
+          <div className="p-0 max-h-[400px] overflow-auto">
             {latePiket.length > 0 ? (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
@@ -282,7 +289,7 @@ function StatistikLengkap() {
             <LogOut className="w-5 h-5 text-orange-500" />
             <h3 className="font-bold text-gray-800">Riwayat Pulang Awal Piket</h3>
           </div>
-          <div className="p-0 max-h-[400px] overflow-y-auto">
+          <div className="p-0 max-h-[400px] overflow-auto">
             {earlyCheckouts.length > 0 ? (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
@@ -298,7 +305,7 @@ function StatistikLengkap() {
                       <td className="px-6 py-4 font-bold text-gray-700">{l.nama}</td>
                       <td className="px-6 py-4 text-gray-500">{l.tanggal}</td>
                       <td className="px-6 py-4 text-xs text-gray-600 italic">
-                        {l.keterangan.replace('(Izin Pulang Awal Piket)', '').replace(' | Alasan: ', '').trim() || 'Tanpa alasan detail'}
+                        {(l.keterangan || '').replace('(Izin Pulang Awal Piket)', '').replace(' | Alasan: ', '').trim() || 'Tanpa alasan detail'}
                       </td>
                     </tr>
                   ))}
@@ -319,7 +326,7 @@ function StatistikLengkap() {
             <UserX className="w-5 h-5 text-slate-500" />
             <h3 className="font-bold text-gray-800">Lupa Checkout</h3>
           </div>
-          <div className="p-0 max-h-[400px] overflow-y-auto">
+          <div className="p-0 max-h-[400px] overflow-auto">
             {forgotten.length > 0 ? (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">

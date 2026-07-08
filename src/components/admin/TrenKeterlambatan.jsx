@@ -55,14 +55,16 @@ const computeStats = (logs, startStr, endStr) => {
   logs.forEach(log => {
     if (!byDate[log.tanggal]) return
     const s = log.status
-    if (s === 'hadir' || s === 'hadir_izin_terlambat') {
+    // Konsisten dengan Leaderboard & StatistikLengkap: hadir_terlambat & hadir_izin_terlambat
+    // keduanya dihitung sebagai "terlambat"; hanya status 'hadir' murni yang "tepat waktu".
+    if (s === 'hadir') {
       byDate[log.tanggal].hadir++
       const mins = timeToMinutes(log.jamMasuk)
       if (mins !== null) {
         byDate[log.tanggal].totalMins += mins
         byDate[log.tanggal].countMins++
       }
-    } else if (s === 'hadir_terlambat') {
+    } else if (s === 'hadir_terlambat' || s === 'hadir_izin_terlambat') {
       byDate[log.tanggal].terlambat++
       const mins = timeToMinutes(log.jamMasuk)
       if (mins !== null) {
@@ -324,6 +326,12 @@ function TrenKeterlambatan() {
           </div>
 
           {/* Chart */}
+          {statsA.hadir + statsA.terlambat + statsA.tidakHadir === 0 ? (
+            <div className="h-80 flex flex-col items-center justify-center text-gray-400">
+              <BarChart2 className="w-10 h-10 mb-2 opacity-30" />
+              <p className="text-sm">Tidak ada data presensi pada periode ini</p>
+            </div>
+          ) : (
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
@@ -357,6 +365,7 @@ function TrenKeterlambatan() {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          )}
         </>
       )}
 

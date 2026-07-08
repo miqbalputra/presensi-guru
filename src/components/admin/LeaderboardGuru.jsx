@@ -1,27 +1,43 @@
-import { useState, useEffect } from 'react'
-import { Trophy, Award, Star, TrendingUp, Clock, Target } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Trophy, Award, Star, TrendingUp, Clock, Target, Calendar } from 'lucide-react'
 import { adminChartsAPI } from '../../services/api'
 
+const toDateStr = (d) => d.toISOString().split('T')[0]
+
 function LeaderboardGuru() {
+  const todayStr = toDateStr(new Date())
   const [leaderboardData, setLeaderboardData] = useState([])
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState('month') // week, month, all
+  const [period, setPeriod] = useState('month') // week, month, all, custom
 
-  useEffect(() => {
-    loadLeaderboard()
-  }, [period])
+  // Rentang kustom (default: 30 hari terakhir, sama dengan preset "month")
+  const [customStart, setCustomStart] = useState(toDateStr(new Date(Date.now() - 29 * 86400000)))
+  const [customEnd, setCustomEnd] = useState(todayStr)
 
-  const loadLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await adminChartsAPI.getLeaderboard(period)
+      let response
+      if (period === 'custom') {
+        if (!customStart || !customEnd || customStart > customEnd) {
+          setLeaderboardData([])
+          return
+        }
+        response = await adminChartsAPI.getLeaderboard('custom', customStart, customEnd)
+      } else {
+        response = await adminChartsAPI.getLeaderboard(period)
+      }
       setLeaderboardData(response.data?.items || [])
     } catch (error) {
       console.error('Failed to load leaderboard:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [period, customStart, customEnd])
+
+  useEffect(() => {
+    fetchLeaderboard()
+  }, [fetchLeaderboard])
 
   // Tidak perlu lagi karena kita hitung dari data aktual
   // const getWorkingDays = (period) => { ... }
@@ -89,6 +105,7 @@ function LeaderboardGuru() {
       case 'week': return '7 Hari Terakhir'
       case 'month': return '30 Hari Terakhir'
       case 'all': return 'Semua Waktu'
+      case 'custom': return `${customStart} s/d ${customEnd}`
       default: return '30 Hari Terakhir'
     }
   }
@@ -106,7 +123,7 @@ function LeaderboardGuru() {
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg shadow-lg">
+    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl shadow-lg">
       <div className="p-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -119,15 +136,40 @@ function LeaderboardGuru() {
               <p className="text-sm text-gray-600">Guru Paling Rajin & Disiplin</p>
             </div>
           </div>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="week">7 Hari Terakhir</option>
-            <option value="month">30 Hari Terakhir</option>
-            <option value="all">Semua Waktu</option>
-          </select>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+            >
+              <option value="week">7 Hari Terakhir</option>
+              <option value="month">30 Hari Terakhir</option>
+              <option value="all">Semua Waktu</option>
+              <option value="custom">Periode Kustom</option>
+            </select>
+
+            {period === 'custom' && (
+              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2">
+                <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <input
+                  type="date"
+                  value={customStart}
+                  max={customEnd}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+                />
+                <span className="text-gray-400 text-xs">s/d</span>
+                <input
+                  type="date"
+                  value={customEnd}
+                  min={customStart}
+                  max={todayStr}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Top 3 Podium */}
@@ -189,10 +231,10 @@ function LeaderboardGuru() {
         )}
 
         {/* Full Leaderboard Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-xl shadow overflow-hidden">
+          <div className="overflow-auto max-h-[600px]">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+              <thead className="bg-gradient-to-r from-blue-500 to-purple-500 text-white sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase">Rank</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase">Nama Guru</th>
@@ -203,7 +245,7 @@ function LeaderboardGuru() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {leaderboardData.map((guru, index) => {
+                {leaderboardData.length > 0 ? leaderboardData.map((guru, index) => {
                   const rank = index + 1
                   const badge = getBadge(rank, guru.skor)
                   const BadgeIcon = badge.icon
@@ -254,11 +296,11 @@ function LeaderboardGuru() {
                         </div>
                       </td>
 
-                      {/* Kehadiran */}
+                      {/* Kehadiran (tidak alfa: hadir + izin + sakit) */}
                       <td className="px-4 py-4 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="font-semibold text-gray-800">
-                            {guru.totalHadir}/{guru.totalHariAktif}
+                          <span className="font-semibold text-gray-800" title={`${guru.totalHadir} hadir · ${guru.izin} izin · ${guru.sakit} sakit`}>
+                            {guru.totalHadirEfektif ?? guru.totalHadir}/{guru.totalHariAktif}
                           </span>
                           <span className={`text-xs px-2 py-1 rounded font-semibold ${
                             guru.persentaseKehadiran === 100 ? 'bg-green-100 text-green-700' :
@@ -311,7 +353,14 @@ function LeaderboardGuru() {
                       </td>
                     </tr>
                   )
-                })}
+                }) : (
+                  <tr>
+                    <td colSpan="6" className="px-4 py-12 text-center text-gray-400">
+                      <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p>Belum ada data leaderboard untuk periode ini</p>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -323,7 +372,7 @@ function LeaderboardGuru() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
             <div>• <strong>Skor = (Kehadiran × 70%) + (Tepat Waktu × 30%)</strong></div>
             <div>• Periode: {getPeriodLabel()}</div>
-            <div>• <strong>Kehadiran</strong>: Total hadir / Total hari aktif</div>
+            <div>• <strong>Kehadiran</strong>: (Hadir + Izin + Sakit) / Total hari aktif — hanya alpa yang mengurangi</div>
             <div>• <strong>Tepat Waktu</strong>: Hadir tepat / Total hadir</div>
             <div>• 🏆 Top 3 = Ranking tertinggi</div>
             <div>• ⭐ Skor ≥90% = Excellent</div>

@@ -347,8 +347,15 @@ export const adminChartsAPI = {
     })
   },
 
-  getLeaderboard: async (period = 'month') => {
-    const params = new URLSearchParams({ chart: 'leaderboard', period })
+  getLeaderboard: async (period = 'month', startDate = null, endDate = null) => {
+    const params = new URLSearchParams({ chart: 'leaderboard' })
+    if (startDate && endDate) {
+      params.set('period', 'custom')
+      params.set('start_date', startDate)
+      params.set('end_date', endDate)
+    } else {
+      params.set('period', period)
+    }
     return fetchAPI(`/admin_charts.php?${params}`, {
       method: 'GET',
       timeoutMs: 8000,
