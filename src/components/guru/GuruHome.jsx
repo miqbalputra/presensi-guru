@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
-import { CheckCircle, FileText, AlertCircle, Clock, QrCode, History, Users, LogOut, MapPin, ArrowRight } from 'lucide-react'
+import { CheckCircle, FileText, AlertCircle, Clock, QrCode, History, Users, LogOut, MapPin, ArrowRight, Home, HelpCircle } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { calculateDistance, getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
 import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI, locationTrackingAPI } from '../../services/api'
@@ -53,6 +53,10 @@ function GuruHome({ user, onChangeTab }) {
   const [trackingStatus, setTrackingStatus] = useState({ state: 'idle', message: '' })
   const [monthlyStats, setMonthlyStats] = useState({ hadir: 0, izin: 0, sakit: 0, alfa: 0, percentage: 0, total: 0 })
   const [recentLogs, setRecentLogs] = useState([])
+
+  // Presensi pulang di luar sekolah (lupa): popup konfirmasi lokasi
+  const [pulangLuarModal, setPulangLuarModal] = useState(false)
+  const [pendingPulang, setPendingPulang] = useState(null) // { izinPulangAwal, keteranganCustom, location, currentTime }
 
   useEffect(() => {
     loadInitialData()
@@ -654,52 +658,24 @@ function GuruHome({ user, onChangeTab }) {
 
     try {
       const location = await getFastLocation()
+      const currentTime = formatTimeForDB() // Format HH:MM:SS untuk database
 
+      // Cek apakah di dalam radius sekolah. Jika di luar (dan bukan testing),
+      // munculkan popup konfirmasi: apakah presensi pulang di sekolah atau di luar (lupa)?
       if (!TESTING_MODE) {
         const validation = validateAttendanceLocation(location, true)
 
         if (!validation.isValid) {
-          setMessage({
-            type: 'error',
-            text: validation.message
-          })
+          // Jangan blokir — simpan draf & tanyakan lokasi pulang.
+          setPendingPulang({ izinPulangAwal, keteranganCustom, location, currentTime })
+          setPulangLuarModal(true)
           setLoading(false)
           return
         }
       }
 
-      // Update presensi dengan jam pulang
-      const currentTime = formatTimeForDB() // Format HH:MM:SS untuk database
-
-      const updatedData = {
-        id: todayAttendance.id,
-        status: todayAttendance.status,
-        jamMasuk: todayAttendance.jam_masuk,
-        jamPulang: currentTime,
-        jamHadir: todayAttendance.jam_hadir,
-        jamIzin: todayAttendance.jam_izin,
-        jamSakit: todayAttendance.jam_sakit,
-        keterangan: keteranganCustom,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        izin_pulang_awal: izinPulangAwal
-      }
-
-      const response = await presensiAPI.update(updatedData)
-
-      setMessage({
-        type: 'success',
-        text: 'Presensi pulang berhasil disimpan!'
-      })
-
-      setTodayAttendance(getAttendanceFromResponse(response) || {
-        ...todayAttendance,
-        jam_pulang: currentTime,
-        jamPulang: currentTime // Alias untuk compatibility
-      })
-
-      setLoading(false)
-      loadMonthlyStats()
+      // Di dalam radius (atau mode testing) → langsung submit sebagai 'sekolah'
+      await submitPulang(izinPulangAwal, keteranganCustom, location, currentTime, 'sekolah')
     } catch (error) {
       if (error.message.startsWith('PIKET_RESTRICTION|')) {
         const jam = error.message.split('|')[1]
@@ -715,6 +691,68 @@ function GuruHome({ user, onChangeTab }) {
       }
       setLoading(false)
     }
+  }
+
+  // Submit presensi pulang ke server dengan penanda lokasi (sekolah/luar).
+  const submitPulang = async (izinPulangAwal, keteranganCustom, location, currentTime, lokasiPulang) => {
+    setLoading(true)
+    try {
+      const updatedData = {
+        id: todayAttendance.id,
+        status: todayAttendance.status,
+        jamMasuk: todayAttendance.jam_masuk,
+        jamPulang: currentTime,
+        jamHadir: todayAttendance.jam_hadir,
+        jamIzin: todayAttendance.jam_izin,
+        jamSakit: todayAttendance.jam_sakit,
+        keterangan: keteranganCustom,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        izin_pulang_awal: izinPulangAwal,
+        lokasi_pulang: lokasiPulang
+      }
+
+      const response = await presensiAPI.update(updatedData)
+
+      setMessage({
+        type: 'success',
+        text: lokasiPulang === 'luar'
+          ? 'Presensi pulang dicatat (di luar sekolah — lupa pulang).'
+          : 'Presensi pulang berhasil disimpan!'
+      })
+
+      setTodayAttendance(getAttendanceFromResponse(response) || {
+        ...todayAttendance,
+        jam_pulang: currentTime,
+        jamPulang: currentTime // Alias untuk compatibility
+      })
+
+      setLoading(false)
+      setPulangLuarModal(false)
+      setPendingPulang(null)
+      loadMonthlyStats()
+    } catch (error) {
+      if (error.message.startsWith('PIKET_RESTRICTION|')) {
+        const jam = error.message.split('|')[1]
+        setPiketCheckoutTime(jam)
+        setPiketStep(1)
+        setShowPiketModal(true)
+        setPendingQRData(null)
+      } else {
+        setMessage({
+          type: 'error',
+          text: 'Gagal menyimpan presensi pulang: ' + error.message
+        })
+      }
+      setLoading(false)
+    }
+  }
+
+  // Konfirmasi pilihan lokasi pulang dari popup (dipanggil tombol modal).
+  const confirmPulangLocation = (lokasiPulang) => {
+    if (!pendingPulang) return
+    const { izinPulangAwal, keteranganCustom, location, currentTime } = pendingPulang
+    submitPulang(izinPulangAwal, keteranganCustom, location, currentTime, lokasiPulang)
   }
 
   const handleQRScanPiketRestriction = (jam, qrData) => {
@@ -1248,6 +1286,62 @@ function GuruHome({ user, onChangeTab }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Lokasi Presensi Pulang (di luar radius sekolah) */}
+      {pulangLuarModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[70]">
+          <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl transform transition-all animate-in fade-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <HelpCircle className="w-8 h-8 text-amber-500" />
+            </div>
+
+            <h3 className="text-lg font-black text-slate-800 text-center mb-2">
+              Di Mana Anda Presensi Pulang?
+            </h3>
+
+            <p className="text-slate-600 text-center text-xs leading-relaxed mb-8">
+              GPS mendeteksi Anda berada di <span className="font-bold text-amber-600">luar radius sekolah</span>.
+              Konfirmasi lokasi presensi pulang Anda hari ini.
+            </p>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => confirmPulangLocation('sekolah')}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-100 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Home className="w-5 h-5" />
+                SAYA DI SEKOLAH
+              </button>
+
+              <button
+                onClick={() => confirmPulangLocation('luar')}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <MapPin className="w-5 h-5" />
+                DI LUAR (LUPA PULANG)
+              </button>
+
+              <button
+                onClick={() => {
+                  setPulangLuarModal(false)
+                  setPendingPulang(null)
+                  setLoading(false)
+                }}
+                disabled={loading}
+                className="w-full py-3 text-slate-400 font-bold text-xs hover:text-slate-600 transition-all"
+              >
+                BATAL
+              </button>
+            </div>
+
+            <p className="text-slate-400 text-center text-[10px] leading-relaxed mt-5">
+              Pilih <strong>"Di Luar (Lupa Pulang)"</strong> jika Anda lupa presensi pulang di sekolah dan baru ingat di rumah. Data akan ditandai sebagai lupa pulang.
+            </p>
           </div>
         </div>
       )}

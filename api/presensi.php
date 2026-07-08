@@ -187,6 +187,7 @@ if ($method === 'PUT') {
                 'method' => 'manual',
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
+                'lokasi_pulang' => $data['lokasi_pulang'] ?? null,
                 'validate_location' => true
             ]);
 

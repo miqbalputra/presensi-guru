@@ -13,6 +13,7 @@ function gp_map_attendance_record($record)
     $record['jamHadir'] = $record['jam_hadir'];
     $record['jamIzin'] = $record['jam_izin'];
     $record['jamSakit'] = $record['jam_sakit'];
+    $record['lokasiPulang'] = $record['lokasi_pulang'] ?? null;
     return $record;
 }
 
@@ -165,6 +166,59 @@ function gp_enforce_attendance_location($settings, $user, $latitude, $longitude,
     $areaLabel = implode(' / ', array_unique($allowedLabels));
     $distanceText = $nearestDistance === null ? '-' : $nearestDistance . 'm';
     sendResponse(false, "Anda berada di luar area {$areaLabel}. Jarak terdekat: {$distanceText} dari {$nearestLabel}, Maksimal: {$radius}m");
+}
+
+/**
+ * Cek apakah koordinat berada di dalam radius salah satu lokasi presensi.
+ * Mengembalikan true jika di dalam radius (atau mode testing aktif), false jika di luar.
+ * Tidak memblokir (tidak memanggil sendResponse) — dipakai untuk presensi pulang
+ * agar guru yang lupa pulang tetap bisa checkout dari luar sekolah (ditandai 'luar').
+ */
+function gp_is_in_attendance_radius($settings, $latitude, $longitude, $date, $isCheckout = false)
+{
+    if (!validateCoordinates($latitude, $longitude)) {
+        return false;
+    }
+    if (($settings['mode_testing'] ?? '0') == '1') {
+        return true;
+    }
+
+    $targets = gp_get_attendance_location_targets($settings, null, $date, $isCheckout);
+    if (empty($targets)) {
+        return false;
+    }
+
+    $radius = (int)($settings['radius_gps'] ?? 100);
+    foreach ($targets as $target) {
+        $distance = gp_calculate_distance((float)$latitude, (float)$longitude, $target['lat'], $target['lon']);
+        if ($distance <= $radius) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Pastikan kolom lokasi_pulang ada di attendance_logs (idempoten, sekali per request).
+ * Menyimpan penanda 'sekolah'/'luar' saat presensi pulang.
+ */
+function gp_ensure_checkout_location_column($pdo)
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance_logs' AND COLUMN_NAME = 'lokasi_pulang'");
+        $stmt->execute();
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->exec("ALTER TABLE attendance_logs ADD COLUMN lokasi_pulang VARCHAR(16) NULL DEFAULT NULL COMMENT 'sekolah|luar — lokasi saat presensi pulang'");
+        }
+    } catch (Exception $e) {
+        // abaikan — kolom mungkin sudah ada atau gagal dienvoironment read-only
+    }
+    $ensured = true;
 }
 
 function gp_day_name($date)
@@ -376,7 +430,16 @@ function gp_checkout_attendance($pdo, $options)
     }
 
     [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
-    if (!empty($options['validate_location'])) {
+
+    gp_ensure_checkout_location_column($pdo);
+
+    // Tentukan lokasi pulang (sekolah/luar). Tidak memblokir — guru yang lupa
+    // pulang tetap bisa checkout dari luar sekolah, ditandai 'luar'.
+    $lokasiPulang = $options['lokasi_pulang'] ?? null;
+    if ($method === 'qr_scan') {
+        // QR scan sudah menegaskan geofence di qr_scan.php, jadi dianggap di sekolah.
+        $lokasiPulang = 'sekolah';
+    } elseif (!empty($options['validate_location'])) {
         $settings = gp_get_settings($pdo, [
             'sekolah_latitude', 'sekolah_longitude', 'radius_gps', 'mode_testing',
             'lokasi_laki_latitude', 'lokasi_laki_longitude',
@@ -384,14 +447,19 @@ function gp_checkout_attendance($pdo, $options)
             'lokasi_apel_latitude', 'lokasi_apel_longitude',
             'apel_senin_enabled'
         ]);
-        gp_enforce_attendance_location(
-            $settings,
-            $user,
-            $options['latitude'] ?? null,
-            $options['longitude'] ?? null,
-            $date,
-            true
-        );
+        if (!validateCoordinates($options['latitude'] ?? null, $options['longitude'] ?? null)) {
+            sendResponse(false, 'Koordinat GPS diperlukan untuk presensi pulang');
+        }
+        if (($settings['mode_testing'] ?? '0') == '1') {
+            $lokasiPulang = $lokasiPulang ?: 'sekolah';
+        } elseif (gp_is_in_attendance_radius($settings, $options['latitude'], $options['longitude'], $date, true)) {
+            $lokasiPulang = 'sekolah';
+        } else {
+            // Di luar radius: harapkan deklarasi guru (popup). Default 'luar' (lupa).
+            $lokasiPulang = in_array($lokasiPulang, ['sekolah', 'luar'], true) ? $lokasiPulang : 'luar';
+        }
+    } else {
+        $lokasiPulang = $lokasiPulang ?: 'sekolah';
     }
 
     $piket = gp_get_piket($pdo, $record['user_id'], $date);
@@ -410,13 +478,17 @@ function gp_checkout_attendance($pdo, $options)
         $suffix = '(Izin Pulang Awal Piket' . ($reason ? ' | Alasan: ' . $reason : '') . ')';
         $keterangan = trim(($keterangan ? $keterangan . ' ' : '') . $suffix);
     }
+    if ($lokasiPulang === 'luar' && strpos($keterangan, 'Pulang di Luar Sekolah') === false) {
+        $marker = '(Pulang di Luar Sekolah - Lupa)';
+        $keterangan = trim(($keterangan ? $keterangan . ' ' : '') . $marker);
+    }
 
     $stmt = $pdo->prepare("
         UPDATE attendance_logs
-        SET jam_pulang = ?, keterangan = ?, updated_at = NOW()
+        SET jam_pulang = ?, keterangan = ?, lokasi_pulang = ?, updated_at = NOW()
         WHERE id = ?
     ");
-    $stmt->execute([$time, $keterangan, $record['id']]);
+    $stmt->execute([$time, $keterangan, $lokasiPulang, $record['id']]);
 
     gp_write_activity(
         $pdo,
