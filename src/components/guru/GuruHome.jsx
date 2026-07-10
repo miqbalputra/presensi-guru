@@ -1044,7 +1044,7 @@ function GuruHome({ user, onChangeTab }) {
                   <>
                     {canShowPulangButton() ? (
                       <button
-                        onClick={handlePulang}
+                        onClick={() => handlePulang()}
                         disabled={loading}
                         className="w-full bg-indigo-600 dark:bg-indigo-500 text-white py-4 rounded-2xl font-bold text-base hover:bg-indigo-700 dark:hover:bg-indigo-400 disabled:bg-slate-300 dark:disabled:bg-slate-800 disabled:text-slate-500 dark:disabled:text-slate-500 flex items-center justify-center gap-3 shadow-sm transition-all"
                       >
