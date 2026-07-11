@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   KEY `idx_users_archived_at` (`archived_at`),
   KEY `idx_users_piket_group` (`piket_group`),
   KEY `idx_users_role_nama` (`role`,`nama`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Attendance Logs (Presensi)
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS `attendance_logs` (
   KEY `idx_attendance_tanggal_id` (`tanggal`,`id`),
   KEY `idx_attendance_tanggal_status` (`tanggal`,`status`),
   CONSTRAINT `attendance_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Activity Logs (Log Aktivitas)
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS `activity_logs` (
   PRIMARY KEY (`id`),
   KEY `waktu` (`waktu`),
   KEY `idx_activity_waktu_id` (`waktu`,`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Settings (konfigurasi aplikasi)
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS `settings` (
   `updated_by` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `setting_key` (`setting_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Holidays (Hari Libur / Hari Kerja Khusus)
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS `holidays` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `tanggal` (`tanggal`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Optional Workdays (Hari kerja opsional/insidental)
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `user_weekend_overrides` (
   KEY `idx_user_weekend_overrides_user` (`user_id`),
   KEY `idx_user_weekend_overrides_date` (`tanggal`),
   CONSTRAINT `user_weekend_overrides_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Remember Tokens (remember-me guru, 30 hari)
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS `remember_tokens` (
   KEY `idx_remember_tokens_user` (`user_id`),
   KEY `idx_remember_tokens_expires` (`expires_at`),
   CONSTRAINT `remember_tokens_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Location Tracks (tracking lokasi guru setelah presensi hadir)
@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS `location_tracks` (
   KEY `idx_location_tracks_attendance` (`attendance_id`),
   CONSTRAINT `location_tracks_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `location_tracks_attendance_fk` FOREIGN KEY (`attendance_id`) REFERENCES `attendance_logs` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- Tabel Webhook Config & Logs (pengingat WhatsApp via n8n)
@@ -217,7 +217,7 @@ CREATE TABLE IF NOT EXISTS `webhook_config` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `webhook_logs` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS `webhook_logs` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_webhook_logs_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
 -- SEED DATA

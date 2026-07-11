@@ -6,9 +6,9 @@ Repo ini siap deploy sebagai Docker image berbasis **FrankenPHP classic mode**. 
 
 ## 1. Buat Database & Import
 
-Di Coolify, buat service database **MySQL 8** (hindari MariaDB untuk import awal karena skema memakai collation `utf8mb4_0900_ai_ci`).
+Di Coolify, buat service database **MySQL 8** atau **MariaDB 10.x** (skema `database.sql` pakai collation `utf8mb4_unicode_ci` yang kompatibel di keduanya — versi MariaDB-friendly untuk jejak lebih ringan).
 
-Import **`database.sql`** (sudah ikut repo, bersih — bukan data produksi) ke database MySQL 8 via phpMyAdmin / SQL console Coolify:
+Import **`database.sql`** (sudah ikut repo, bersih — bukan data produksi) ke database via phpMyAdmin / SQL console Coolify:
 
 ```bash
 # contoh via CLI (sesuaikan user/host/db)
