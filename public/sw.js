@@ -1,10 +1,9 @@
-const CACHE_NAME = 'geo-presensi-v15';
+const CACHE_NAME = 'geo-presensi-v16';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/icon_pwa.png'
 ];
 
 // Install: Cache aset dasar dan paksa aktif segera
