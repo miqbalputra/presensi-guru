@@ -19,8 +19,8 @@ RUN npm run build
 FROM dunglas/frankenphp:1-php8.2 AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl libcurl4-openssl-dev \
-    && docker-php-ext-install pdo_mysql curl \
+    && apt-get install -y --no-install-recommends curl \
+    && docker-php-ext-install pdo_mysql \
     && rm -rf /var/lib/apt/lists/*
 
 ENV APP_ENV=production \
