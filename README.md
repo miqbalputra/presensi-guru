@@ -28,7 +28,7 @@ Contoh cek koneksi:
 
 ```bash
 curl -H "X-API-Key: $HERMES_API_KEY" \
-  "https://domain-presensi-anda.com/api/hermes_connect.php"
+  "https://geo.pkbmtunasilmu.web.id/api/hermes_connect.php"
 ```
 
 Response sukses akan berisi status koneksi database, kemampuan Hermes, dan daftar endpoint baca/edit presensi yang tersedia.
@@ -54,7 +54,7 @@ Contoh:
 
 ```bash
 curl -H "X-API-Key: $HERMES_API_KEY" \
-  "https://geo.griyaquran.web.id/api/hermes_presensi_overview.php?period=30days&include_logs=1"
+  "https://geo.pkbmtunasilmu.web.id/api/hermes_presensi_overview.php?period=30days&include_logs=1"
 ```
 
 Endpoint untuk melihat semua data presensi serta menambah/mengedit record:
@@ -73,7 +73,7 @@ Contoh edit presensi:
 ```bash
 curl -X PUT -H "X-API-Key: $HERMES_API_KEY" -H "Content-Type: application/json" \
   -d '{"id":930,"status":"hadir","jamMasuk":"07:15","jamPulang":"13:00","keterangan":"Diedit oleh Hermes"}' \
-  "https://geo.griyaquran.web.id/api/hermes_presensi.php"
+  "https://geo.pkbmtunasilmu.web.id/api/hermes_presensi.php"
 ```
 
 Field payload yang didukung: `id`, `userId`/`user_id`, `tanggal`, `status`, `jamMasuk`/`jam_masuk`, `jamPulang`/`jam_pulang`, `jamHadir`/`jam_hadir`, `jamIzin`/`jam_izin`, `jamSakit`/`jam_sakit`, `keterangan`, `latitude`, `longitude`, dan `metode`.
@@ -83,9 +83,9 @@ Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat,
 ---
 
 ## 🌐 Informasi Akses
-*   **Domain Utama:** [https://geo.griyaquran.web.id](https://geo.griyaquran.web.id)
-*   **Halaman Guru:** [https://geo.griyaquran.web.id/guru](https://geo.griyaquran.web.id/guru)
-*   **Halaman Admin:** [https://geo.griyaquran.web.id/admin](https://geo.griyaquran.web.id/admin)
+*   **Domain Utama:** [https://geo.pkbmtunasilmu.web.id](https://geo.pkbmtunasilmu.web.id)
+*   **Halaman Guru:** [https://geo.pkbmtunasilmu.web.id/guru](https://geo.pkbmtunasilmu.web.id/guru)
+*   **Halaman Admin:** [https://geo.pkbmtunasilmu.web.id/admin](https://geo.pkbmtunasilmu.web.id/admin)
 
 ---
 
@@ -132,7 +132,7 @@ Berikut adalah daftar masalah yang sering terjadi beserta solusinya:
 *   **Penyebab:** GPS HP mati, Izin lokasi (Permission) diblokir pada browser, atau sinyal GPS terhalang bangunan beton.
 *   **Penyelesaian:** 
     1. Pastikan GPS HP Aktif (Akurasi Tinggi).
-    2. Cek pengaturan browser, pastikan situs `geo.griyaquran.web.id` diizinkan (Allow) mengakses lokasi.
+    2. Cek pengaturan browser, pastikan situs `geo.pkbmtunasilmu.web.id` diizinkan (Allow) mengakses lokasi.
     3. Coba me-refresh halaman aplikasi.
     4. Coba berpindah ke dekat jendela atau area luar ruangan.
 

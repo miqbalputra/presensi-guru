@@ -243,14 +243,12 @@ function securityLog($event, $details = [])
 function setupCORS($custom_origin = null)
 {
     $allowed_origins = [
-        'https://geo.griyaquran.web.id',      // Domain utama per user request
-        'https://geoloc.kelolasekolah.web.id', // Domain alternatif 2026
-        'https://geo.kelolasekolah.web.id',   // Alternatif domain
+        'https://geo.pkbmtunasilmu.web.id',   // Domain utama PKBM Tunas Ilmu
         'http://localhost:5173', // Untuk development
         'http://localhost:3000'  // Untuk development
     ];
 
-    // Jika ada custom origin, gunakan itu
+    // Jika ada custom origin (dari config.php berdasarkan env APP_URL/CORS_ALLOWED_ORIGINS), gunakan itu
     if ($custom_origin) {
         $allowed_origins[] = $custom_origin;
     }
@@ -259,9 +257,9 @@ function setupCORS($custom_origin = null)
 
     if (in_array($origin, $allowed_origins)) {
         header("Access-Control-Allow-Origin: $origin");
-    } else {
-        // Default ke domain utama
-        header('Access-Control-Allow-Origin: https://geo.griyaquran.web.id');
+    } elseif ($custom_origin) {
+        // Default ke origin dari env (bukan domain hardcode)
+        header("Access-Control-Allow-Origin: $custom_origin");
     }
 
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -289,9 +287,8 @@ function handleError($e, $context = '')
         'line' => $e->getLine()
     ]);
 
-    // Di production, jangan expose detail error
-    $host = $_SERVER['HTTP_HOST'] ?? '';
-    $isProduction = in_array($host, ['geoloc.kelolasekolah.web.id', 'geo.kelolasekolah.web.id', 'geo.griyaquran.web.id']);
+    // Di production, jangan expose detail error (ditentukan oleh env APP_ENV, bukan host hardcode)
+    $isProduction = defined('APP_ENV') && APP_ENV === 'production';
 
     if ($isProduction) {
         sendResponse(false, 'Terjadi kesalahan. Silakan coba lagi atau hubungi administrator.');

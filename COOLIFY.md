@@ -44,9 +44,9 @@ Isi variable berikut di Coolify:
 
 ```env
 APP_ENV=production
-APP_URL=https://domain-presensi-anda.com
+APP_URL=https://geo.pkbmtunasilmu.web.id
 APP_TIMEZONE=Asia/Jakarta
-CORS_ALLOWED_ORIGINS=https://domain-presensi-anda.com
+CORS_ALLOWED_ORIGINS=https://geo.pkbmtunasilmu.web.id
 
 DB_HOST=nama-service-mysql-atau-host-internal
 DB_PORT=3306
@@ -84,7 +84,7 @@ Frontend di dalam Docker default memakai `VITE_API_URL=/api`, jadi API berjalan 
 Jika fitur reminder dipakai, buat scheduled task di Coolify (atau cron VPS) yang memanggil:
 
 ```bash
-curl -fsS https://domain-presensi-anda.com/api/webhook_reminder.php
+curl -fsS https://geo.pkbmtunasilmu.web.id/api/webhook_reminder.php
 ```
 
 Jalankan pada jam `08:00`, `09:00`, dan `10:00` WIB.

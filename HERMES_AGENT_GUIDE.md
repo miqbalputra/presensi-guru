@@ -5,7 +5,7 @@ Endpoint utama untuk Hermes Agent mengakses data presensi guru dari Geo Presensi
 ## Base URL
 
 ```
-https://geo.griyaquran.web.id/api
+https://geo.pkbmtunasilmu.web.id/api
 ```
 
 ## Autentikasi
@@ -46,7 +46,7 @@ X-API-Key: <API_KEY>
 ### Contoh Request
 
 ```http
-GET https://geo.griyaquran.web.id/api/hermes_presensi_overview.php?start_date=2026-06-01&end_date=2026-06-23&include_logs=1&limit=500
+GET https://geo.pkbmtunasilmu.web.id/api/hermes_presensi_overview.php?start_date=2026-06-01&end_date=2026-06-23&include_logs=1&limit=500
 X-API-Key: <API_KEY>
 ```
 

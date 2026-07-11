@@ -130,18 +130,25 @@ try {
     $successCount = 0;
     $failedCount = 0;
     
+    // URL aplikasi untuk link presensi di pesan WhatsApp.
+    // Dipakai dari env APP_URL (di-set di Coolify); fallback ke domain default.
+    $appUrl = rtrim(envValue('APP_URL', 'https://geo.pkbmtunasilmu.web.id'), '/');
+    if ($appUrl === '') {
+        $appUrl = 'https://geo.pkbmtunasilmu.web.id';
+    }
+
     foreach ($guruBelumPresensi as $guru) {
         // Template pesan berdasarkan jenis reminder
         $message = '';
-        
+
         if ($reminderType === 'first') {
-            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
+            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 {$appUrl}\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
         } elseif ($reminderType === 'second') {
-            $message = "⚠️ *Pengingat Presensi (Kedua)*\n\nHalo *{$guru['nama']}*,\n\nAnda masih belum melakukan presensi hari ini.\nMohon segera isi presensi:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
+            $message = "⚠️ *Pengingat Presensi (Kedua)*\n\nHalo *{$guru['nama']}*,\n\nAnda masih belum melakukan presensi hari ini.\nMohon segera isi presensi:\n👉 {$appUrl}\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
         } elseif ($reminderType === 'final') {
-            $message = "🚨 *Pengingat Presensi (Terakhir)*\n\nHalo *{$guru['nama']}*,\n\nIni adalah pengingat terakhir.\nAnda belum melakukan presensi hari ini.\n\nMohon SEGERA isi presensi:\n👉 https://kelolasekolah.web.id\n\nJika ada kendala, hubungi admin.\n_Sistem PKBM Tunas Ilmu_";
+            $message = "🚨 *Pengingat Presensi (Terakhir)*\n\nHalo *{$guru['nama']}*,\n\nIni adalah pengingat terakhir.\nAnda belum melakukan presensi hari ini.\n\nMohon SEGERA isi presensi:\n👉 {$appUrl}\n\nJika ada kendala, hubungi admin.\n_Sistem PKBM Tunas Ilmu_";
         } else {
-            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
+            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 {$appUrl}\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
         }
         
         // Kirim WhatsApp

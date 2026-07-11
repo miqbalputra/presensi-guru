@@ -47,7 +47,7 @@ Catatan git lokal:
    - Matikan mode testing: `UPDATE settings SET setting_value='0' WHERE setting_key='mode_testing';`
    - Ganti password admin (dan akun contoh).
    - Sesuaikan koordinat sekolah & `qr_secret` di Pengaturan.
-5. **Cron reminder** (opsional): `curl -fsS https://domain/api/webhook_reminder.php` jam 08:00 / 09:00 / 10:00 WIB.
+5. **Cron reminder** (opsional): `curl -fsS https://geo.pkbmtunasilmu.web.id/api/webhook_reminder.php` jam 08:00 / 09:00 / 10:00 WIB.
 6. **Healthcheck** bawaan: `/api/health.php`.
 
 ## Status verifikasi
