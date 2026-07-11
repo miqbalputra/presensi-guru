@@ -308,62 +308,34 @@ function Login({ onLogin }) {
 
   const changelog = [
     {
-      version: 'v1.4.1',
-      date: '25 Juni 2026',
+      version: 'v1.0.1',
+      date: 'Juli 2026',
       stable: true,
       features: [
-        'Menu Akun Guru — setiap guru kini punya tab khusus untuk melihat & mengupdate data diri (email, no HP, alamat) yang otomatis tersimpan ke database utama',
-        'Login dengan Google — opsi Sign in with Google di halaman login, akun dicocokkan otomatis berdasarkan email guru',
-        'Indikator Login Google — halaman Akun menampilkan status terhubung/belum terhubung ke akun Google',
-        'Ganti Password Mandiri — guru bisa ubah password sendiri (password lama, baru, konfirmasi) langsung dari menu Akun',
-        'Konfigurasi Google Client ID via API — cukup set 1 env var runtime (GOOGLE_CLIENT_ID), tidak perlu rebuild image'
+        'Mode Presensi Pokjar — presensi sederhana untuk guru 3 Pokjar binaan (Lentera Qalbu, Umar bin Khattab, Nashirus Sunnah): cukup Hadir / Sakit / Izin (+ keterangan), klik murni tanpa GPS & tanpa jam terikat',
+        'Laporan Pokjar — laporan Excel khusus per Pokjar dengan ringkasan Hadir/Sakit/Izin + detail presensi',
+        'Tag Pokjar di Data Guru — penugasan guru ke Pokjar lewat modal guru, ditampilkan sebagai kolom & badge di tabel',
+        'Icon PWA baru (icon_pwa.png) — ikon aplikasi & favicon diperbarui, Service Worker v16 memaksa refresh cache',
+        'Hardening keamanan — berhenti melacak file debug yang membocorkan data guru tanpa autentikasi'
       ]
     },
     {
-      version: 'v1.4.0',
-      date: '23 Juni 2026',
+      version: 'v1.0.0',
+      date: 'Juli 2026',
       stable: true,
       features: [
-        'Dark Mode & Light Mode — toggle tema di seluruh halaman (login, guru, admin)',
-        'Redesain total UI halaman Guru: welcome card, info pills, holiday card, floating bottom nav',
-        'Redesain halaman Login dengan gaya konsisten TimeZen-style (rounded card, indigo accent)',
-        'Service Worker v6 — update agresif, auto recovery dari error chunk, cache bersih tiap deploy',
-        'Bulk holiday range creation — admin bisa tambah banyak hari libur sekaligus',
-        'Perbaikan Statistik Guru — data hadir/alfa kini akurat dengan perhitungan hari kerja + optional',
-        'Perbaikan libur sekolah — diperlakukan sebagai libur total, hanya is_workday=1 yang hari kerja',
-        'Hermes API presensi overview — selaras dengan laporan download admin (per-user weekend override)',
-        'Session guru 30 hari — tidak perlu login ulang selama 30 hari, heartbeat otomatis'
-      ]
-    },
-    {
-      version: 'v1.3.0',
-      date: '24 Mei 2026',
-      features: [
-        'Tracking lokasi guru setelah presensi hadir dengan interval yang bisa diatur admin',
-        'Dashboard Tracking Lokasi untuk melihat titik terakhir, akurasi GPS, peta, dan riwayat harian',
-        'Presensi hadir dan pulang mendukung lokasi gender masing-masing dengan fallback ke lokasi sekolah utama',
-        'Status izin dan sakit tidak lagi membutuhkan validasi GPS',
-        'Session guru lebih tahan lama dengan pemulihan otomatis saat PWA dibuka kembali'
-      ]
-    },
-    {
-      version: 'v1.2.0',
-      date: '21 April 2026',
-      features: [
-        'Sistem Pembatasan Pulang Piket (Wajib Izin jika pulang awal)',
-        'Logika Otomatis Apel Senin (Dinamis sesuai status Apel)',
-        'Default Jam Pulang Jumat (10:15 WIB)',
-        'Sistem Heartbeat untuk menjaga sesi login tetap aktif',
-        'Toggle Pengaturan Apel Senin di Dashboard Admin'
-      ]
-    },
-    {
-      version: 'v1.1.0',
-      date: 'Maret 2026',
-      features: [
-        'Integrasi PWA (Aplikasi bisa di-install di HP)',
-        'Validasi Geolocation (GPS) & Radius Sekolah',
-        'Scan QR Code Presensi'
+        'Peluncuran Geo Presensi PKBM Tunas Ilmu — rebranding total dari aplikasi lama',
+        'Hari kerja hanya Sabtu (dapat dikonfigurasi admin) — sesuai jadwal kegiatan PKBM',
+        'Presensi Geolocation (GPS) + Geofencing radius sekolah, didukung scan QR Code',
+        'PWA — aplikasi dapat di-install di HP, sesi login 30 hari + heartbeat otomatis',
+        'Tanda tangan digital per akun guru — disimpan sekali di menu Akun, admin lihat sebagai bukti',
+        'Rotasi Piket dwi-pekanan per bulan — Grup A (pekan 1 & 3), Grup B (pekan 2 & 4), pekan ke-5 semua guru (dapat diatur)',
+        'Presensi pulang dengan jam minimum, izin pulang awal, dan deteksi lupa pulang',
+        'Login dengan Google — akun dicocokkan otomatis berdasarkan email guru',
+        'Menu Akun Guru — update data diri, ganti password mandiri, dan tanda tangan digital',
+        'Dashboard admin: Data Guru & Arsip Guru (import/export Excel), Edit Presensi, Presensi Manual, Hari Libur, Hari Kerja Opsional, Override Weekend, Log Aktivitas, Lokasi & Geofence, Tracking Lokasi, QR Code, Pengaturan, AI Agent',
+        'Laporan & leaderboard adaptif — perhitungan hari kerja otomatis mengikuti jadwal Sabtu',
+        'Dark Mode & Light Mode di seluruh halaman'
       ]
     }
   ]
