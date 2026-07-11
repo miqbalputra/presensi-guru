@@ -35,6 +35,8 @@ COPY api /var/www/html/api
 
 RUN rm -f \
         /var/www/html/api/debug_presensi.php \
+        /var/www/html/api/debug_simple.php \
+        /var/www/html/api/debug_workdays.php \
         /var/www/html/api/generate_password.php \
         /var/www/html/api/import_guru.php \
         /var/www/html/api/list_users_temp.php \

@@ -92,10 +92,6 @@ try {
 
             if ($isWorkday) {
                 $workdayDates[] = $date;
-            } elseif (isset($optionalWorkdays[$date])) {
-                // optional day: not a mandatory workday
-            } else {
-                $nonWorkdayDates[] = $date;
             }
         }
 

@@ -275,12 +275,12 @@ if ($method === 'PUT') {
                     $hRow = $stmt_h->fetch();
                     $isSpecialWorkday = $hRow && $hRow['is_workday'] == 1;
 
-                    if (!$isSpecialWorkday && $piketRow && !empty($piketRow['jam_pulang_piket'])) {
+                    if (!$isSpecialWorkday && $piket && !empty($piket['jam_pulang_piket'])) {
                         $nowMin    = (intval(date('H')) * 60) + intval(date('i'));
-                        list($pH, $pM) = explode(':', $piketRow['jam_pulang_piket']);
+                        list($pH, $pM) = explode(':', $piket['jam_pulang_piket']);
                         $piketMin  = (intval($pH) * 60) + intval($pM);
                         if ($nowMin < $piketMin && empty($data['izin_pulang_awal'])) {
-                            sendResponse(false, "PIKET_RESTRICTION|" . substr($piketRow['jam_pulang_piket'], 0, 5));
+                            sendResponse(false, "PIKET_RESTRICTION|" . substr($piket['jam_pulang_piket'], 0, 5));
                         }
                         if (!empty($data['izin_pulang_awal'])) {
                             $ket = $data['keterangan'] ?? '';

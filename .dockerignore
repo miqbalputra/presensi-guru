@@ -22,6 +22,8 @@ dummy_data.sql
 api/config_laragon.php
 api/config_subdomain.php
 api/debug_presensi.php
+api/debug_simple.php
+api/debug_workdays.php
 api/generate_password.php
 api/import_guru.php
 api/list_users_temp.php

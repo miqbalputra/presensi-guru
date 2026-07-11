@@ -247,9 +247,11 @@ function gp_get_holiday($pdo, $date)
     return $stmt->fetch();
 }
 
-function gp_validate_workday($pdo, $date, $gender = null)
+function gp_validate_workday($pdo, $date, $gender = null, $userId = null)
 {
-    $status = gpw_get_date_status($pdo, $date, $gender);
+    // UserId diteruskan agar override hari kerja per-guru (user_weekend_overrides)
+    // berlaku saat validasi presensi — bukan hanya di laporan workday.
+    $status = gpw_get_date_status($pdo, $date, $gender, $userId);
     $holiday = $status['holiday'];
     $isWeekend = $status['isWeekend'];
     $isSpecialWorkday = $status['isSpecialWorkday'];
@@ -433,7 +435,7 @@ function gp_create_attendance($pdo, $options)
         sendResponse(false, 'Anda sudah melakukan presensi hari ini.');
     }
 
-    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
+    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null, $user['id'] ?? null);
     $settings = gp_get_settings($pdo, ['jam_masuk_normal', 'toleransi_terlambat', 'apel_senin_enabled']);
 
     $status = $requestedStatus;
@@ -535,7 +537,7 @@ function gp_checkout_attendance($pdo, $options)
         sendResponse(false, 'Data guru tidak ditemukan');
     }
 
-    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
+    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null, $user['id'] ?? null);
 
     gp_ensure_checkout_location_column($pdo);
 

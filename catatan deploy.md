@@ -47,7 +47,7 @@ Catatan git lokal:
    - Matikan mode testing: `UPDATE settings SET setting_value='0' WHERE setting_key='mode_testing';`
    - Ganti password admin (dan akun contoh).
    - Sesuaikan koordinat sekolah & `qr_secret` di Pengaturan.
-5. **Cron reminder** (opsional): `curl -fsS https://geo.pkbmtunasilmu.web.id/api/webhook_reminder.php` jam 08:00 / 09:00 / 10:00 WIB.
+5. **Cron reminder** (opsional): `curl -fsS https://geo.pkbmtunasilmu.web.id/api/webhook_reminder_direct.php` jam 08:00 / 09:00 / 10:00 WIB (butuh env `GOWA_*` + `webhook_config.enabled=1`; varian n8n: `webhook_reminder.php`).
 6. **Healthcheck** bawaan: `/api/health.php`.
 
 ## Status verifikasi
@@ -57,5 +57,13 @@ Validasi yang sudah dilakukan:
 - Build Vite lulus (frontend kompilasi OK).
 - `php -l` bersih untuk semua file PHP yang diubah.
 - Struktur `database.sql` dicek: 11 tabel, 34 settings unik, FK konsisten.
+- **Code review menyeluruh** (backend + frontend + deploy/DB) sudah dilakukan; temuan kritis diperbaiki:
+  - `presensi.php`: variabel salah `$piketRow` → `$piket` (PIKET_RESTRICTION pulang).
+  - `attendance_service.php`: `gp_validate_workday` kini meneruskan `userId` agar override hari kerja per-guru berlaku saat presensi (sebelumnya hanya di laporan).
+  - `teachers_workdays.php`: hapus state mati `$nonWorkdayDates`.
+  - `settings.php`: pekan 1-4 saja untuk grup A/B (pekan ke-5 via `piket_week5_mode`); frontend `Pengaturan.jsx` disamakan.
+  - `DownloadLaporan.jsx`: perbaiki false "Terlambat Piket" (banding jam HH:MM) + perhitungan pekan tahan zona waktu.
+  - File debug (`debug_simple.php`, `debug_workdays.php`) diblokir di image produksi (`.dockerignore` + `Dockerfile` + `Caddyfile`) — sebelumnya bocor data guru tanpa auth.
+  - `config.php`: default produksi DB diubah dari legacy (`geogqpresence`/`geopresensi`/`mysql`) ke `pkbm_presence`/`pkbm_user`/`mariadb`.
 
-Sebelum deploy produksi: uji import `database.sql` ke 1 DB MySQL 8 kosong + login `admin` sekali di staging.
+Sebelum deploy produksi: uji import `database.sql` ke 1 DB MariaDB 11.4 kosong + login `admin` sekali di staging.

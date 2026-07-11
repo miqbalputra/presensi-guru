@@ -15,9 +15,12 @@ $isLocalhost = in_array($httpHost, ['localhost', '127.0.0.1', 'geopresensi.test'
     ($_SERVER['SERVER_NAME'] ?? '') === 'localhost';
 
 define('APP_ENV', envValue('APP_ENV', $isLocalhost ? 'local' : 'production'));
-define('DB_HOST', envValue('DB_HOST', $isLocalhost ? 'localhost' : 'mysql'));
-define('DB_NAME', envValue('DB_NAME', $isLocalhost ? 'geopresensi' : 'geogqpresence'));
-define('DB_USER', envValue('DB_USER', $isLocalhost ? 'root' : 'geopresensi'));
+// Default produksi mengikuti konfigurasi deploy PKBM (lihat env_deploy.md).
+// PENTING: env DB_HOST/DB_NAME/DB_USER/DB_PASS wajib di-set di Coolify; default
+// di sini hanya mencegah fallback ke nilai legacy lama (geogqpresence/geopresensi).
+define('DB_HOST', envValue('DB_HOST', $isLocalhost ? 'localhost' : 'mariadb'));
+define('DB_NAME', envValue('DB_NAME', $isLocalhost ? 'geopresensi' : 'pkbm_presence'));
+define('DB_USER', envValue('DB_USER', $isLocalhost ? 'root' : 'pkbm_user'));
 define('DB_PASS', envValue('DB_PASS', $isLocalhost ? '' : ''));
 define('DB_PORT', envValue('DB_PORT', '3306'));
 define('DB_TIMEZONE', envValue('DB_TIMEZONE', '+07:00'));

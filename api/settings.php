@@ -133,15 +133,16 @@ if ($method === 'PUT') {
             sendResponse(false, 'Nilai rotasi piket harus 0 atau 1');
         }
 
-        // piket_group_a_weeks / piket_group_b_weeks — CSV angka 1-5, normalisasi unik & urut.
+        // piket_group_a_weeks / piket_group_b_weeks — CSV angka 1-4, normalisasi unik & urut.
+        // Pekan ke-5 TIDAK diatur di sini — sepenuhnya dikontrol oleh piket_week5_mode.
         if (in_array($data['setting_key'], ['piket_group_a_weeks', 'piket_group_b_weeks'], true)) {
             $parts = preg_split('/[\s,]+/', trim((string)$data['setting_value']));
             $weeks = [];
             foreach ($parts as $p) {
                 if ($p === '') continue;
                 $n = (int)$p;
-                if ($n < 1 || $n > 5) {
-                    sendResponse(false, 'Pekan harus angka 1-5');
+                if ($n < 1 || $n > 4) {
+                    sendResponse(false, 'Pekan harus angka 1-4 (pekan ke-5 diatur oleh Mode Pekan ke-5)');
                 }
                 if (!in_array($n, $weeks, true)) $weeks[] = $n;
             }

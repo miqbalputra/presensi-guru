@@ -15,7 +15,7 @@
 	header /api/* Cache-Control "no-store, no-cache, must-revalidate"
 
 	@blockedApiFiles {
-		path /api/config.php /api/security.php /api/security_subdomain.php /api/config_laragon.php /api/config_subdomain.php
+		path /api/config.php /api/security.php /api/security_subdomain.php /api/config_laragon.php /api/config_subdomain.php /api/debug_simple.php /api/debug_workdays.php /api/debug_presensi.php
 	}
 	respond @blockedApiFiles 404
 

@@ -6,7 +6,7 @@ Repo ini siap deploy sebagai Docker image berbasis **FrankenPHP classic mode**. 
 
 ## 1. Buat Database & Import
 
-Di Coolify, buat service database **MySQL 8** atau **MariaDB 10.x** (skema `database.sql` pakai collation `utf8mb4_unicode_ci` yang kompatibel di keduanya — versi MariaDB-friendly untuk jejak lebih ringan).
+Di Coolify, buat service database **MariaDB 11.4 LTS** (skema `database.sql` pakai collation `utf8mb4_unicode_ci` yang kompatibel; MariaDB dipilih karena lebih ringan dari MySQL).
 
 Import **`database.sql`** (sudah ikut repo, bersih — bukan data produksi) ke database via phpMyAdmin / SQL console Coolify:
 
@@ -81,13 +81,21 @@ Frontend di dalam Docker default memakai `VITE_API_URL=/api`, jadi API berjalan 
 
 ## 4. Cron Reminder WhatsApp
 
-Jika fitur reminder dipakai, buat scheduled task di Coolify (atau cron VPS) yang memanggil:
+Jika fitur reminder dipakai, buat scheduled task di Coolify (atau cron VPS) yang memanggil endpoint reminder. Ada dua varian — pilih sesuai mekanisme pengiriman:
+
+**A. Direct GOWA (rekomendasi, tanpa n8n)** — butuh env `GOWA_WEBHOOK_URL`, `GOWA_USERNAME`, `GOWA_PASSWORD` (lihat `env_deploy.md`) + `webhook_config.enabled=1`:
+
+```bash
+curl -fsS https://geo.pkbmtunasilmu.web.id/api/webhook_reminder_direct.php
+```
+
+**B. Via n8n relay** — butuh `webhook_config.n8n_webhook_url` terisi (di tabel `webhook_config`) + `webhook_config.enabled=1`:
 
 ```bash
 curl -fsS https://geo.pkbmtunasilmu.web.id/api/webhook_reminder.php
 ```
 
-Jalankan pada jam `08:00`, `09:00`, dan `10:00` WIB.
+Jalankan pada jam `08:00`, `09:00`, dan `10:00` WIB. Kedua varian memerlukan baris `webhook_config` (id=1) aktif (`enabled=1`); aktifkan via phpMyAdmin bila perlu.
 
 ## 5. Catatan Keamanan
 

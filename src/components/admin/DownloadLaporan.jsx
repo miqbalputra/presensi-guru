@@ -26,7 +26,7 @@ const isGuruPiketOnDate = (guru, config, dateStr) => {
   const group = guru?.piket_group
   if (group !== 'A' && group !== 'B') return false
 
-  const date = new Date(dateStr)
+  const date = new Date(dateStr + 'T00:00:00')
   const day = date.getDate()
   const week = Math.floor((day - 1) / 7) + 1
 
@@ -394,7 +394,9 @@ function DownloadLaporan() {
       const isPiket = isGuruPiketOnDate({ piket_group: group }, piketConfig, log.tanggal)
       if (!isPiket) return false
       // Bandingkan jam masuk (HH:MM) dengan jam piket — string compare aman untuk format 24-jam.
-      return log.jamMasuk && log.jamMasuk > jamPiketMasuk
+      // jamMasuk bisa HH:MM atau HH:MM:SS; potong ke 5 char agar "07:00:00" tidak salah dinilai
+      // lebih besar dari "07:00" (false positive "terlambat" saat masuk tepat waktu).
+      return log.jamMasuk && String(log.jamMasuk).slice(0, 5) > jamPiketMasuk
     }).map(l => ({
       'Nama Guru': l.nama,
       'Tanggal': l.tanggal,

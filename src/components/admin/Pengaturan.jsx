@@ -205,7 +205,7 @@ function Pengaturan() {
               </div>
             </div>
 
-            {/* Grup A & B - checkboxes pekan 1-5 */}
+            {/* Grup A & B - checkboxes pekan 1-4 (pekan ke-5 diatur terpisah oleh Mode Pekan ke-5) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               {[
                 { key: 'piket_group_a_weeks', label: 'Grup A piket pekan', color: 'blue' },
@@ -215,8 +215,8 @@ function Pengaturan() {
                 return (
                   <div key={group.key}>
                     <p className="block text-sm font-medium text-gray-700 mb-2">{group.label}</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {[1, 2, 3, 4, 5].map(week => {
+                    <div className="grid grid-cols-4 gap-2">
+                      {[1, 2, 3, 4].map(week => {
                         const checked = selected.has(week)
                         const colorClasses = group.color === 'blue'
                           ? (checked ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50')
