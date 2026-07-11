@@ -481,7 +481,7 @@ function Login({ onLogin }) {
         <div className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
           <p className="mb-1">Supported by SistemFlow</p>
           <p>
-            Hak Cipta &copy; 2025{' '}
+            Hak Cipta &copy; 2026{' '}
             <a
               href="https://sistemflow.com"
               target="_blank"
