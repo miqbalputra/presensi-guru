@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `username` (`username`),
   UNIQUE KEY `id_guru` (`id_guru`),
   KEY `idx_users_archived_at` (`archived_at`),
-  KEY `idx_users_piket_group` (`piket_group`)
+  KEY `idx_users_piket_group` (`piket_group`),
+  KEY `idx_users_role_nama` (`role`,`nama`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ---------------------------------------------------------------------
@@ -78,6 +79,8 @@ CREATE TABLE IF NOT EXISTS `attendance_logs` (
   UNIQUE KEY `user_date` (`user_id`,`tanggal`),
   KEY `user_id` (`user_id`),
   KEY `tanggal` (`tanggal`),
+  KEY `idx_attendance_tanggal_id` (`tanggal`,`id`),
+  KEY `idx_attendance_tanggal_status` (`tanggal`,`status`),
   CONSTRAINT `attendance_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -91,7 +94,8 @@ CREATE TABLE IF NOT EXISTS `activity_logs` (
   `aktivitas` varchar(100) NOT NULL,
   `status` varchar(50) NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `waktu` (`waktu`)
+  KEY `waktu` (`waktu`),
+  KEY `idx_activity_waktu_id` (`waktu`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ---------------------------------------------------------------------
@@ -222,7 +226,8 @@ CREATE TABLE IF NOT EXISTS `webhook_logs` (
   `status` enum('success','failed') NOT NULL,
   `response` text,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_webhook_logs_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- =====================================================================

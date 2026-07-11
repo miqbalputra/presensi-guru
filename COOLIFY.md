@@ -1,14 +1,31 @@
 # Deploy Geo Presensi PKBM Tunas Ilmu di Coolify
 
-Repo ini sudah disiapkan untuk deploy sebagai Docker image berbasis **FrankenPHP classic mode**. Coolify cukup pull repo GitHub dan build dari `Dockerfile`.
+Repo ini siap deploy sebagai Docker image berbasis **FrankenPHP classic mode**. Coolify cukup pull repo GitHub dan build dari `Dockerfile`. Frontend (React/Vite) di-build saat pembuatan image, jadi tidak perlu commit folder `dist/`.
 
-## 1. Buat Database
+---
 
-Di Coolify, buat service database **MySQL 8**. Hindari MariaDB untuk import awal karena dump cPanel memakai collation `utf8mb4_0900_ai_ci`.
+## 1. Buat Database & Import
 
-Import dump `geogqpresence.sql` ke database MySQL 8. File dump sengaja tidak ikut Git karena berisi data produksi.
+Di Coolify, buat service database **MySQL 8** (hindari MariaDB untuk import awal karena skema memakai collation `utf8mb4_0900_ai_ci`).
 
-Setelah import, pastikan setting produksi:
+Import **`database.sql`** (sudah ikut repo, bersih — bukan data produksi) ke database MySQL 8 via phpMyAdmin / SQL console Coolify:
+
+```bash
+# contoh via CLI (sesuaikan user/host/db)
+mysql -h <DB_HOST> -u <DB_USER> -p <DB_NAME> < database.sql
+```
+
+Setelah import, aplikasi langsung bisa dipakai. Login default (ganti password segera):
+
+| Username | Password   | Peran            |
+|----------|------------|------------------|
+| admin    | admin123   | admin            |
+| kepsek   | admin123   | kepala sekolah   |
+| guru1    | admin123   | guru (contoh)    |
+
+Skema `database.sql` sudah mencakup semua tabel + index performa, jadi **tidak perlu** menjalankan migration tambahan untuk install baru.
+
+Untuk produksi, matikan mode testing GPS (contoh awal diset `1` agar mudah uji):
 
 ```sql
 UPDATE settings SET setting_value = '0' WHERE setting_key = 'mode_testing';
@@ -16,7 +33,7 @@ UPDATE settings SET setting_value = '0' WHERE setting_key = 'mode_testing';
 
 ## 2. Buat Application
 
-1. Pilih repository `https://github.com/miqbalputra/presensi-guru.git`.
+1. Repository: `https://github.com/miqbalputra/pkbm-geo-presence.git`
 2. Build Pack: **Dockerfile**.
 3. Port aplikasi: `80`.
 4. Domain: arahkan ke domain/subdomain presensi.
@@ -33,7 +50,7 @@ CORS_ALLOWED_ORIGINS=https://domain-presensi-anda.com
 
 DB_HOST=nama-service-mysql-atau-host-internal
 DB_PORT=3306
-DB_NAME=geogqpresence
+DB_NAME=pkbm_presence
 DB_USER=user_database
 DB_PASS=password_database
 DB_TIMEZONE=+07:00
@@ -41,7 +58,7 @@ DB_TIMEZONE=+07:00
 N8N_API_KEY=isi-dengan-random-key-yang-kuat
 ```
 
-Opsional jika memakai webhook WhatsApp direct:
+Opsional jika memakai webhook WhatsApp direct (GOWA):
 
 ```env
 GOWA_WEBHOOK_URL=
@@ -60,19 +77,11 @@ Cukup set **satu env var runtime** ini (tidak perlu build arg). Frontend mengamb
 Client ID dari endpoint `/api/google_config.php` saat halaman login dimuat.
 Jangan lupa tambahkan URL aplikasi ke **Authorized JavaScript origins** di Google Cloud.
 
-Opsional jika memakai webhook WhatsApp direct:
-
-```env
-GOWA_WEBHOOK_URL=
-GOWA_USERNAME=
-GOWA_PASSWORD=
-```
-
 Frontend di dalam Docker default memakai `VITE_API_URL=/api`, jadi API berjalan same-origin dan tidak perlu URL API berbeda.
 
-## 4. Cron Reminder
+## 4. Cron Reminder WhatsApp
 
-Jika fitur reminder dipakai, buat scheduled task di Coolify atau cron VPS untuk memanggil:
+Jika fitur reminder dipakai, buat scheduled task di Coolify (atau cron VPS) yang memanggil:
 
 ```bash
 curl -fsS https://domain-presensi-anda.com/api/webhook_reminder.php
@@ -80,28 +89,13 @@ curl -fsS https://domain-presensi-anda.com/api/webhook_reminder.php
 
 Jalankan pada jam `08:00`, `09:00`, dan `10:00` WIB.
 
-## 5. Optimasi Database Produksi
+## 5. Catatan Keamanan
 
-Setelah import database dan deploy pertama berhasil, jalankan migrasi index berikut satu kali di database MySQL produksi:
+- Endpoint debug/reset/import lama sudah dikeluarkan dari image production (lihat `Dockerfile`).
+- Credential database & API key harus disimpan di environment variable Coolify, bukan di file PHP.
+- `geogqpresence.sql` (dump lama berisi data produksi) **sengaja di-gitignore** dan tidak ikut repo. Untuk install baru cukup pakai `database.sql`.
+- Runtime production memakai FrankenPHP classic mode dengan OPcache aktif.
 
-```sql
-SOURCE migrations/2026-05-08-performance-indexes.sql;
-```
+## 6. Healthcheck
 
-Jika menjalankan dari SQL console Coolify/MySQL, copy isi file `migrations/2026-05-08-performance-indexes.sql` lalu execute. Migrasi ini hanya menambahkan index jika belum ada, sehingga aman dijalankan ulang dan tidak mengubah isi data presensi.
-
-## 6. Catatan Keamanan
-
-Endpoint debug/reset/import lama sudah dikeluarkan dari image production. Credential database dan API key harus disimpan di environment variable Coolify, bukan di file PHP.
-
-Runtime production memakai FrankenPHP classic mode dengan OPcache aktif. Worker mode belum dipakai supaya tetap aman untuk struktur PHP procedural saat ini.
-
-## 7. Healthcheck
-
-Image Docker sudah punya healthcheck bawaan ke:
-
-```bash
-/api/health.php
-```
-
-Endpoint ini mengecek runtime FrankenPHP/PHP dan koneksi MySQL ringan (`SELECT 1`). Jika Coolify menampilkan container unhealthy, cek env database (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`) dan pastikan service MySQL berjalan.
+Image Docker punya healthcheck bawaan ke `/api/health.php` — mengecek runtime FrankenPHP/PHP dan koneksi MySQL ringan (`SELECT 1`). Jika Coolify menampilkan container unhealthy, cek env database (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`) dan pastikan service MySQL berjalan.

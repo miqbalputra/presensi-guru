@@ -8,10 +8,12 @@ Project ini sudah mendukung deploy via Dockerfile berbasis FrankenPHP classic mo
 Ringkasnya:
 
 1. Buat database MySQL 8 di Coolify.
-2. Import dump produksi `geogqpresence.sql` secara manual ke database.
+2. Import **`database.sql`** (skema + seed PKBM, bersih) ke database. Login default: `admin` / `admin123` (ganti segera).
 3. Buat app dari repo GitHub ini dengan build pack Dockerfile.
 4. Isi environment variable `APP_URL`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, dan `N8N_API_KEY`.
 5. Deploy. Frontend akan memakai API same-origin di `/api`.
+
+Panduan lengkap (env var, cron reminder, Google login, healthcheck): lihat [COOLIFY.md](COOLIFY.md).
 
 ## API Hermes Agent
 
@@ -26,7 +28,7 @@ Contoh cek koneksi:
 
 ```bash
 curl -H "X-API-Key: $HERMES_API_KEY" \
-  "https://geo.griyaquran.web.id/api/hermes_connect.php"
+  "https://domain-presensi-anda.com/api/hermes_connect.php"
 ```
 
 Response sukses akan berisi status koneksi database, kemampuan Hermes, dan daftar endpoint baca/edit presensi yang tersedia.
