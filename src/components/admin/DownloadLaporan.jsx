@@ -7,13 +7,58 @@ import * as XLSX from 'xlsx'
 import { guruAPI, jadwalPiketAPI } from '../../services/api'
 import { useGuruReport } from '../../hooks/useGuruReport'
 
+// Parse CSV pekan ("1,3") -> [1,3]. Menggantikan gp_parse_piket_weeks backend.
+const parsePiketWeeks = (value) => {
+  const out = []
+  String(value ?? '').split(/[\s,]+/).forEach((part) => {
+    part = part.trim()
+    if (part === '') return
+    const n = parseInt(part, 10)
+    if (n >= 1 && n <= 5) out.push(n)
+  })
+  return out
+}
+
+// Mirror backend gp_get_piket: apakah guru piket pada dateStr (YYYY-MM-DD)?
+// guru = { piket_group } (group 'A'/'B'); bila diluar itu -> tidak piket.
+const isGuruPiketOnDate = (guru, config, dateStr) => {
+  if (!config || String(config.piket_rotation_enabled) !== '1') return false
+  const group = guru?.piket_group
+  if (group !== 'A' && group !== 'B') return false
+
+  const date = new Date(dateStr)
+  const day = date.getDate()
+  const week = Math.floor((day - 1) / 7) + 1
+
+  if (week >= 5) {
+    const mode = config.piket_week5_mode || 'all'
+    if (mode === 'none') return false
+    if (mode === 'A') return group === 'A'
+    if (mode === 'B') return group === 'B'
+    return true // 'all' (default)
+  }
+  const weeks = parsePiketWeeks(
+    group === 'A'
+      ? (config.piket_group_a_weeks || '1,3')
+      : (config.piket_group_b_weeks || '2,4')
+  )
+  return weeks.includes(week)
+}
+
+// Jam piket untuk tanggal tertentu — sama untuk semua piket hari itu.
+const getPiketJam = (config) => ({
+  jamMasuk: String(config?.piket_jam_masuk || '07:00').slice(0, 5),
+  jamPulang: String(config?.piket_jam_pulang || '13:00').slice(0, 5),
+})
+
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
   const [dataGuru, setDataGuru] = useState([])
   const [selectedGuru, setSelectedGuru] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [jadwalPiket, setJadwalPiket] = useState([])
+  const [piketConfig, setPiketConfig] = useState(null)
+  const [piketGroupMap, setPiketGroupMap] = useState({})
   const [notification, setNotification] = useState({ show: false, message: '' })
   const [loading, setLoading] = useState(true)
 
@@ -34,11 +79,18 @@ function DownloadLaporan() {
       setLoading(true)
       const [guruResponse, piketResponse] = await Promise.all([
         guruAPI.getAllIncludingArchived(),
-        jadwalPiketAPI.getAll(),
+        jadwalPiketAPI.getRotation(),
       ])
 
       setDataGuru(guruResponse.data)
-      setJadwalPiket(piketResponse.data)
+      setPiketConfig(piketResponse.data.config)
+      // Map user_id -> piket_group. Guru yang tidak ada di daftar rotasi
+      // (mis. arsip) diperlakukan sebagai tidak piket (group undefined).
+      const groupMap = {}
+      ;(piketResponse.data.guru || []).forEach(g => {
+        groupMap[g.user_id] = g.piket_group
+      })
+      setPiketGroupMap(groupMap)
     } catch (error) {
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message)
@@ -330,14 +382,19 @@ function DownloadLaporan() {
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Kehadiran')
 
     // 2. Terlambat Piket Sheet
+    // Piket kini dihitung dari rotasi dwi-pekanan (bukan tabel jadwal_piket per-hari).
+    // Seorang guru dianggap "Terlambat Piket" bila pada tanggal tersebut ia piket
+    // (sesuai rotasi) dan jam masuknya melebihi piket_jam_masuk dari konfigurasi.
     const rangeLogs = attendanceLogs.filter(log => log.tanggal >= startDate && log.tanggal <= endDate)
-    const hariMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
-    
+    const { jamMasuk: jamPiketMasuk } = getPiketJam(piketConfig)
+
     const latePiketData = rangeLogs.filter(log => {
-      const logDate = new Date(log.tanggal)
-      const hariIni = hariMap[logDate.getDay()]
-      const isPiket = jadwalPiket.some(p => p.user_id === log.userId && p.hari === hariIni)
-      return isPiket && (log.status === 'hadir_terlambat' || log.status === 'hadir_izin_terlambat')
+      const group = piketGroupMap[log.userId]
+      if (!group) return false // guru tidak terdaftar di rotasi (mis. arsip) -> tidak piket
+      const isPiket = isGuruPiketOnDate({ piket_group: group }, piketConfig, log.tanggal)
+      if (!isPiket) return false
+      // Bandingkan jam masuk (HH:MM) dengan jam piket — string compare aman untuk format 24-jam.
+      return log.jamMasuk && log.jamMasuk > jamPiketMasuk
     }).map(l => ({
       'Nama Guru': l.nama,
       'Tanggal': l.tanggal,
@@ -345,9 +402,13 @@ function DownloadLaporan() {
       'Status': l.status.toUpperCase(),
       'Keterangan': l.keterangan || '-'
     }))
-    if (latePiketData.length > 0) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(latePiketData), 'Terlambat Piket')
-    }
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(latePiketData, {
+        header: ['Nama Guru', 'Tanggal', 'Jam Masuk', 'Status', 'Keterangan'],
+      }),
+      'Terlambat Piket'
+    )
 
     // 3. Pulang Awal Piket Sheet
     const earlyData = rangeLogs.filter(log => log.keterangan && log.keterangan.includes('Izin Pulang Awal Piket'))

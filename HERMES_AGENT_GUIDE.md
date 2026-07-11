@@ -1,6 +1,6 @@
-# Hermes Agent - Geo-Presensi GQ API Guide
+# Hermes Agent - PKBM Tunas Ilmu API Guide
 
-Endpoint utama untuk Hermes Agent mengakses data presensi guru dari Geo-Presensi GQ.
+Endpoint utama untuk Hermes Agent mengakses data presensi guru dari Geo Presensi PKBM Tunas Ilmu.
 
 ## Base URL
 

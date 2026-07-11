@@ -71,6 +71,7 @@ try {
     }
 
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
+    $workdayDays = gpw_get_workday_days($pdo);
 
     // Optional workdays: tanggal di mana kehadiran dihitung bonus, tetapi tidak wajib
     $optionalStmt = $pdo->prepare("SELECT tanggal, nama, keterangan FROM optional_workdays WHERE tanggal BETWEEN ? AND ?");
@@ -100,9 +101,8 @@ try {
             // Optional workdays are NOT mandatory workdays; they only count if the teacher attends.
             $isWorkday = false;
         } else {
-            $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
             $isSpecialWorkday = gpw_is_special_workday($holiday);
-            $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
+            $isWorkday = $isSpecialWorkday || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $workdayDays));
         }
 
         $entry = [

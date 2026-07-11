@@ -238,22 +238,14 @@ if ($method === 'PUT') {
             }
             // Jika payload jamPulang kosong → pertahankan yang ada (tidak diubah)
         } elseif ($isTodayDate) {
-            // Hari ini: cek jam pulang berdasarkan jadwal
-            $dayEng    = date('l');
-            $dayMap    = [
-                'Monday'    => 'Senin',  'Tuesday' => 'Selasa', 'Wednesday' => 'Rabu',
-                'Thursday'  => 'Kamis',  'Friday'  => 'Jumat',  'Saturday'  => 'Sabtu',
-                'Sunday'    => 'Minggu'
-            ];
-            $hariIni = $dayMap[$dayEng] ?? 'Senin';
-
-            $stmtP = $pdo->prepare("SELECT jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ? AND is_active = 1");
-            $stmtP->execute([$rec['user_id'], $hariIni]);
-            $piketRow = $stmtP->fetch();
-
-            $jamPulangTarget = ($hariIni === 'Jumat') ? '10:15:00' : '13:00:00';
-            if ($piketRow && !empty($piketRow['jam_pulang_piket'])) {
-                $jamPulangTarget = $piketRow['jam_pulang_piket'];
+            // Hari ini: cek jam pulang berdasarkan rotasi piket (gp_get_piket).
+            // Bila guru piket hari ini, pakai jam_pulang_piket dari setting rotasi;
+            // selain itu pakai default 13:00.
+            $jamPulangTarget = '13:00:00';
+            $piket = gp_get_piket($pdo, (int)$rec['user_id'], date('Y-m-d'));
+            if ($piket && !empty($piket['jam_pulang_piket'])) {
+                $jp = substr($piket['jam_pulang_piket'], 0, 5);
+                $jamPulangTarget = strlen($jp) === 5 ? $jp . ':00' : $jp;
             }
 
             $nowTime       = date('H:i:s');

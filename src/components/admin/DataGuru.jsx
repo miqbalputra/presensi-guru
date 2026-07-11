@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Archive, Download, Upload } from 'lucide-react'
+import { Plus, Edit2, Archive, Download, Upload, PenLine, CheckCircle, Circle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { calculateWorkDuration, formatDate } from '../../utils/dateUtils'
 import GuruModal from './GuruModal'
@@ -195,7 +195,7 @@ function DataGuru() {
           tanggalBertugas: row['Tanggal Bertugas'] || row['tanggal bertugas'] || '',
           tanggalLahir: tglLahir,
           noHP: row['Nomor HP'] || row['no hp'] || '',
-          idGuru: row['ID Guru'] || row['id guru'] || `GQ${String(dataGuru.length + index + 1).padStart(3, '0')}`,
+          idGuru: row['ID Guru'] || row['id guru'] || `PKBM${String(dataGuru.length + index + 1).padStart(3, '0')}`,
           username: generatedUserPass,
           password: generatedUserPass,
           role: 'guru'
@@ -342,6 +342,8 @@ function DataGuru() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lama Bertugas</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grup Piket</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanda Tangan</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
               </tr>
             </thead>
@@ -379,6 +381,26 @@ function DataGuru() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.username}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{'•'.repeat(guru.password?.length || 8)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {guru.piketGroup === 'A' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Grup A</span>
+                    ) : guru.piketGroup === 'B' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Grup B</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {guru.punyaTandaTangan ? (
+                      <span title="Punya tanda tangan">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      </span>
+                    ) : (
+                      <span title="Belum ada tanda tangan">
+                        <Circle className="w-4 h-4 text-gray-300" />
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEdit(guru)}
@@ -399,7 +421,7 @@ function DataGuru() {
                 )
               }) : (
                 <tr>
-                  <td colSpan="14" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="16" className="px-6 py-8 text-center text-gray-500">
                     Tidak ada data guru yang sesuai dengan filter
                   </td>
                 </tr>

@@ -63,7 +63,7 @@ function AdminDashboard({ user, onLogout }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white shadow-sm lg:hidden">
           <div className="px-4 py-4 flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-800">Geo-Presensi GQ</h1>
+            <h1 className="text-xl font-bold text-gray-800">Geo Presensi PKBM Tunas Ilmu</h1>
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="text-gray-600 hover:text-gray-800"

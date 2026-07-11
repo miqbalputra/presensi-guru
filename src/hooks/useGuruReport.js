@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { formatDateForInput, getWorkdayDates } from '../utils/dateUtils'
+import { formatDateForInput, getWorkdayDates, parseWorkdayDays } from '../utils/dateUtils'
 import {
   presensiAPI,
   holidaysAPI,
@@ -155,6 +155,7 @@ export function useGuruReport(guru, startDate, endDate, options = {}) {
         saturday_female_workday_enabled: settings.saturday_female_workday_enabled,
         sunday_male_workday_enabled: settings.sunday_male_workday_enabled,
         sunday_female_workday_enabled: settings.sunday_female_workday_enabled,
+        workdayDays: parseWorkdayDays(settings.workday_days),
         gender: getGender(g),
       })
     },

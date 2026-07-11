@@ -72,7 +72,7 @@ function GuruDashboard({ user, onLogout }) {
       <header className="sticky top-0 z-40 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-sm px-5 pt-5 pb-3 transition-colors">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div>
-            <p className="text-xs font-medium text-slate-400 dark:text-slate-500">Geo-Presensi GQ</p>
+            <p className="text-xs font-medium text-slate-400 dark:text-slate-500">Geo Presensi PKBM Tunas Ilmu</p>
             <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">
               Assalamu'alaikum <span className="text-blue-700 dark:text-blue-400">{firstName}</span>
             </h1>

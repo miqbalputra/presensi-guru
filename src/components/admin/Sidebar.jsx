@@ -6,7 +6,7 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/data-guru', icon: Users, label: 'Data Guru' },
     { path: '/admin/arsip-guru', icon: Archive, label: 'Arsip Guru', isNew: true },
-    { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Jadwal Piket' },
+    { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Rotasi Piket' },
     { path: '/admin/edit-presensi', icon: Edit, label: 'Edit Presensi' },
     { path: '/admin/download-laporan', icon: Download, label: 'Download Laporan' },
     { path: '/admin/hari-libur', icon: Calendar, label: 'Hari Libur' },
@@ -41,7 +41,7 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
         {/* Header - Fixed */}
         <div className="flex-shrink-0 p-6 border-b border-blue-800 bg-blue-900">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Geo-Presensi GQ</h2>
+            <h2 className="text-xl font-bold">Geo Presensi PKBM Tunas Ilmu</h2>
             <button
               onClick={() => setIsOpen(false)}
               className="lg:hidden text-white hover:text-gray-300"

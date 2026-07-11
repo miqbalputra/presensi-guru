@@ -1,4 +1,4 @@
-# 📱 GeoPresensi Griya Quran
+# 📱 Geo Presensi PKBM Tunas Ilmu
 ### Sistem Absensi Guru Berbasis Lokasi (GPS) & QR Code
 
 ## Deploy Cepat ke Coolify
@@ -171,5 +171,5 @@ Jika ingin mengubah radius atau titik pusat sekolah, edit pada Database (Tabel `
 *   `longitude_sekolah`: (Koordinat Longitude).
 
 ---
-**GeoPresensi Griya Quran** - *Membangun Kedisiplinan dengan Teknologi Modern.*
-**Versi:** 2.1.0 | **Dibuat oleh:** IT Team Griya Quran
+**Geo Presensi PKBM Tunas Ilmu** - *Membangun Kedisiplinan dengan Teknologi Modern.*
+**Versi:** 2.1.0 | **Dibuat oleh:** IT Team PKBM Tunas Ilmu

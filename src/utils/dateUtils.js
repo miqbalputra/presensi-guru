@@ -35,6 +35,22 @@ export const eachDateInRange = (startDate, endDate) => {
   return dates
 }
 
+// Parse setting `workday_days` (CSV "0=Minggu..6=Sabtu") ke array angka.
+// Default [6] (Sabtu saja) — sesuai aturan PKBM Tunas Ilmu.
+export const parseWorkdayDays = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return [6]
+  const days = raw.split(/[\s,]+/).map(p => parseInt(p, 10)).filter(n => n >= 0 && n <= 6)
+  return days.length ? days : [6]
+}
+
+// Nomor pekan dalam bulan (1..5). Pekan 1 = tanggal 1-7, pekan 2 = 8-14, dst.
+// Dipakai untuk rotasi piket dwi-pekanan Sabtu.
+export const getWeekOfMonth = (date) => {
+  const d = new Date(`${date}T00:00:00`)
+  return Math.floor((d.getDate() - 1) / 7) + 1
+}
+
 export const getWorkdayDates = (startDate, endDate, holidays = [], options = {}) => {
   const holidaysByDate = new Map(holidays.map(holiday => [holiday.tanggal, holiday]))
   const isEnabled = (value) => value === true || value === '1' || value === 1
@@ -72,6 +88,11 @@ export const getWorkdayDates = (startDate, endDate, holidays = [], options = {})
     return false
   }
 
+  // Hari kerja reguler ditentukan oleh setting `workday_days` (default Sabtu saja).
+  // Bila tidak disediakan, fallback ke logika weekend lama (backward-compat).
+  const workdayDays = options.workdayDays || parseWorkdayDays(options.workday_days)
+  const useWorkdayDays = workdayDays && workdayDays.length > 0
+
   return eachDateInRange(startDate, endDate).filter(date => {
     const holiday = holidaysByDate.get(date)
     const day = new Date(`${date}T00:00:00`).getDay()
@@ -80,8 +101,11 @@ export const getWorkdayDates = (startDate, endDate, holidays = [], options = {})
     // dianggap hari kerja khusus. Libur jenis 'sekolah' dengan is_workday=0
     // adalah libur total, BUKAN hari kerja.
     const isSpecialWorkday = holiday && Number(holiday.is_workday) === 1
+    const isRegularWorkday = useWorkdayDays
+      ? workdayDays.includes(day)
+      : (!isWeekend || isWeekendWorkday(day))
 
-    return isSpecialWorkday || (!holiday && (!isWeekend || isWeekendWorkday(day)))
+    return isSpecialWorkday || (!holiday && isRegularWorkday)
   })
 }
 

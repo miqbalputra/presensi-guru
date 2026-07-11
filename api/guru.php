@@ -5,7 +5,7 @@ require_once 'attendance_service.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Helper: map row users (snake_case) -> camelCase + parse jabatan + hapus password
-function gp_map_guru(&$g)
+function gp_map_guru(&$g, $includeSignature = false)
 {
     if ($g['jabatan']) {
         $g['jabatan'] = json_decode($g['jabatan'], true);
@@ -17,9 +17,14 @@ function gp_map_guru(&$g)
     $g['tanggalBertugas'] = $g['tanggal_bertugas'];
     $g['tanggalLahir'] = $g['tanggal_lahir'];
     $g['tipeGuru'] = $g['tipe_guru'];
-    $g['archivedAt'] = $g['archived_at'];
-    $g['archiveReason'] = $g['archive_reason'];
-    unset($g['password']); // Hapus password dari response
+    $g['piketGroup'] = $g['piket_group'] ?? null;
+    $g['punyaTandaTangan'] = !empty($g['tanda_tangan']);
+    // Tanda tangan base64 hanya dikirim saat GET by-id (payload besar);
+    // daftar guru cukup flag punyaTandaTangan.
+    if ($includeSignature && !empty($g['tanda_tangan'])) {
+        $g['tandaTangan'] = $g['tanda_tangan'];
+    }
+    unset($g['tanda_tangan'], $g['password']); // Hapus field berat & password dari response
 }
 
 // ARCHIVE / UNARCHIVE GURU - Hanya Admin (soft-archive, data presensi tetap utuh)
@@ -104,7 +109,7 @@ if ($method === 'GET' && isset($_GET['id'])) {
         $guru = $stmt->fetch();
         
         if ($guru) {
-            gp_map_guru($guru);
+            gp_map_guru($guru, true);
             sendResponse(true, 'Data guru ditemukan', $guru);
         } else {
             sendResponse(false, 'Guru tidak ditemukan');
@@ -141,12 +146,19 @@ if ($method === 'POST') {
         // Encode jabatan ke JSON
         $jabatan = json_encode($data['jabatan']);
         $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
-        
+
+        // Validasi & normalisasi grup piket (A / B / null)
+        $piketGroup = strtoupper(trim($data['piketGroup'] ?? ''));
+        if ($piketGroup !== '' && !in_array($piketGroup, ['A', 'B'], true)) {
+            sendResponse(false, 'Grup piket harus A, B, atau kosong');
+        }
+        $piketGroup = $piketGroup !== '' ? $piketGroup : null;
+
         $stmt = $pdo->prepare("
-            INSERT INTO users (id_guru, username, password, role, nama, tanggal_lahir, jenis_kelamin, alamat, no_hp, jabatan, tanggal_bertugas, tipe_guru)
-            VALUES (?, ?, ?, 'guru', ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id_guru, username, password, role, nama, tanggal_lahir, jenis_kelamin, alamat, no_hp, jabatan, tanggal_bertugas, tipe_guru, piket_group)
+            VALUES (?, ?, ?, 'guru', ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        
+
         $stmt->execute([
             $data['idGuru'],
             $data['username'],
@@ -158,7 +170,8 @@ if ($method === 'POST') {
             $data['noHP'],
             $jabatan,
             $data['tanggalBertugas'],
-            $data['tipeGuru'] ?? 'full_time'
+            $data['tipeGuru'] ?? 'full_time',
+            $piketGroup
         ]);
         
         sendResponse(true, 'Guru berhasil ditambahkan', ['id' => $pdo->lastInsertId()]);
@@ -184,14 +197,21 @@ if ($method === 'PUT') {
         }
         
         $jabatan = json_encode($data['jabatan']);
-        
+
+        // Validasi & normalisasi grup piket (A / B / null)
+        $piketGroup = strtoupper(trim($data['piketGroup'] ?? ''));
+        if ($piketGroup !== '' && !in_array($piketGroup, ['A', 'B'], true)) {
+            sendResponse(false, 'Grup piket harus A, B, atau kosong');
+        }
+        $piketGroup = $piketGroup !== '' ? $piketGroup : null;
+
         // Cek apakah id_guru atau username sudah digunakan oleh guru lain
         $stmt = $pdo->prepare("SELECT id FROM users WHERE (id_guru = ? OR username = ?) AND id != ?");
         $stmt->execute([$data['idGuru'], $data['username'], $data['id']]);
         if ($stmt->fetch()) {
             sendResponse(false, 'ID Guru atau Username sudah digunakan oleh guru lain');
         }
-        
+
         // Jika password diisi, update password
         if (!empty($data['password'])) {
             // Validasi password strength
@@ -199,13 +219,13 @@ if ($method === 'PUT') {
             if ($passwordValidation !== true) {
                 sendResponse(false, $passwordValidation);
             }
-            
+
             $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("
-                UPDATE users SET 
-                    id_guru = ?, username = ?, password = ?, nama = ?, 
-                    tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?, 
-                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?
+                UPDATE users SET
+                    id_guru = ?, username = ?, password = ?, nama = ?,
+                    tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?,
+                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?, piket_group = ?
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -220,15 +240,16 @@ if ($method === 'PUT') {
                 $jabatan,
                 $data['tanggalBertugas'],
                 $data['tipeGuru'] ?? 'full_time',
+                $piketGroup,
                 $data['id']
             ]);
         } else {
             // Update tanpa password
             $stmt = $pdo->prepare("
-                UPDATE users SET 
-                    id_guru = ?, username = ?, nama = ?, 
-                    tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?, 
-                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?
+                UPDATE users SET
+                    id_guru = ?, username = ?, nama = ?,
+                    tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?,
+                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?, piket_group = ?
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -242,6 +263,7 @@ if ($method === 'PUT') {
                 $jabatan,
                 $data['tanggalBertugas'],
                 $data['tipeGuru'] ?? 'full_time',
+                $piketGroup,
                 $data['id']
             ]);
         }

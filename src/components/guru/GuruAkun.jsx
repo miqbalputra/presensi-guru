@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { User, Mail, Phone, MapPin, Save, Loader2, ShieldCheck, Hash, BadgeCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { User, Mail, Phone, MapPin, Save, Loader2, ShieldCheck, Hash, BadgeCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2, Trash2, Eraser, FileSignature, PenLine } from 'lucide-react'
 import { guruProfileAPI } from '../../services/api'
 
 function GuruAkun({ user }) {
@@ -18,6 +18,19 @@ function GuruAkun({ user }) {
   const [savingPw, setSavingPw] = useState(false)
   const [pwMessage, setPwMessage] = useState({ type: '', text: '' })
 
+  // State untuk tanda tangan digital
+  const [tandaTangan, setTandaTangan] = useState(null)
+  const [punyaTandaTangan, setPunyaTandaTangan] = useState(false)
+  const [savingSignature, setSavingSignature] = useState(false)
+  const [signAction, setSignAction] = useState(null) // 'save' | 'delete' | null
+  const [hasDrawn, setHasDrawn] = useState(false)
+  const [signatureMessage, setSignatureMessage] = useState({ type: '', text: '' })
+
+  const canvasRef = useRef(null)
+  const drawingRef = useRef(false)
+  const lastPosRef = useRef(null)
+  const hasDrawnRef = useRef(false)
+
   // Muat profil guru saat komponen pertama kali dirender
   useEffect(() => {
     let cancelled = false
@@ -35,6 +48,8 @@ function GuruAkun({ user }) {
         setProfile(data)
         setForm(filled)
         setOriginal(filled)
+        setTandaTangan(data.tandaTangan || null)
+        setPunyaTandaTangan(!!data.punyaTandaTangan)
       } catch (err) {
         if (!cancelled) {
           // Fallback: gunakan data dari props user bila API gagal
@@ -53,6 +68,8 @@ function GuruAkun({ user }) {
           })
           setForm(filled)
           setOriginal(filled)
+          setTandaTangan(null)
+          setPunyaTandaTangan(false)
           setMessage({ type: 'error', text: 'Gagal memuat data profil: ' + err.message })
         }
       } finally {
@@ -173,6 +190,148 @@ function GuruAkun({ user }) {
 
   const togglePw = (field) => () => {
     setShowPw(prev => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  // --- Tanda tangan digital ---
+  // Siapkan canvas (DPR + ukuran responsif) setelah profil selesai dimuat.
+  useEffect(() => {
+    if (loading) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const setupCanvas = () => {
+      const dpr = window.devicePixelRatio || 1
+      const rect = canvas.getBoundingClientRect()
+      const cssWidth = rect.width || canvas.clientWidth || 300
+      const cssHeight = 200
+      canvas.width = Math.round(cssWidth * dpr)
+      canvas.height = Math.round(cssHeight * dpr)
+      canvas.style.height = cssHeight + 'px'
+      const ctx = canvas.getContext('2d')
+      ctx.setTransform(1, 0, 0, 1, 0, 0) // reset sebelum scale ulang
+      ctx.scale(dpr, dpr)
+      ctx.strokeStyle = '#1e293b' // slate-800
+      ctx.lineWidth = 2.5
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+    }
+
+    setupCanvas()
+    const onResize = () => {
+      // Ukuran berubah -> reset konteks (gambar tidak dipertahankan saat resize).
+      hasDrawnRef.current = false
+      setHasDrawn(false)
+      setupCanvas()
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [loading])
+
+  const getPointerPos = (e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    }
+  }
+
+  const handlePointerDown = (e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    e.preventDefault()
+    drawingRef.current = true
+    const pos = getPointerPos(e)
+    lastPosRef.current = pos
+    const ctx = canvas.getContext('2d')
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+    // titik awal: gambar setitik agar klik tunggal tetap meninggalkan tanda
+    ctx.lineTo(pos.x + 0.1, pos.y + 0.1)
+    ctx.stroke()
+    if (!hasDrawnRef.current) {
+      hasDrawnRef.current = true
+      setHasDrawn(true)
+    }
+  }
+
+  const handlePointerMove = (e) => {
+    if (!drawingRef.current) return
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const pos = getPointerPos(e)
+    const last = lastPosRef.current || pos
+    ctx.beginPath()
+    ctx.moveTo(last.x, last.y)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+    lastPosRef.current = pos
+  }
+
+  const handlePointerUp = () => {
+    drawingRef.current = false
+  }
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    hasDrawnRef.current = false
+    setHasDrawn(false)
+  }
+
+  const handleSaveSignature = async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    if (!hasDrawn) {
+      setSignatureMessage({ type: 'error', text: 'Tanda tangan masih kosong. Silakan gambar terlebih dahulu.' })
+      return
+    }
+    setSignatureMessage({ type: '', text: '' })
+    setSavingSignature(true)
+    setSignAction('save')
+    try {
+      const dataUrl = canvas.toDataURL('image/png')
+      const res = await guruProfileAPI.saveSignature(dataUrl)
+      const data = res.data || {}
+      setTandaTangan(data.tandaTangan || null)
+      setPunyaTandaTangan(!!data.punyaTandaTangan)
+      clearCanvas()
+      setSignatureMessage({ type: 'success', text: res.message || 'Tanda tangan berhasil disimpan.' })
+    } catch (err) {
+      setSignatureMessage({ type: 'error', text: 'Gagal menyimpan tanda tangan: ' + err.message })
+    } finally {
+      setSavingSignature(false)
+      setSignAction(null)
+    }
+  }
+
+  const handleDeleteSignature = async () => {
+    setSignatureMessage({ type: '', text: '' })
+    setSavingSignature(true)
+    setSignAction('delete')
+    try {
+      const res = await guruProfileAPI.saveSignature('')
+      const data = res.data || {}
+      setTandaTangan(data.tandaTangan || null)
+      setPunyaTandaTangan(!!data.punyaTandaTangan)
+      clearCanvas()
+      setSignatureMessage({ type: 'success', text: res.message || 'Tanda tangan berhasil dihapus.' })
+    } catch (err) {
+      setSignatureMessage({ type: 'error', text: 'Gagal menghapus tanda tangan: ' + err.message })
+    } finally {
+      setSavingSignature(false)
+      setSignAction(null)
+    }
+  }
+
+  const handleClearCanvas = () => {
+    clearCanvas()
+    setSignatureMessage({ type: '', text: '' })
   }
 
   if (loading) {
@@ -426,6 +585,95 @@ function GuruAkun({ user }) {
           )}
         </button>
       </form>
+
+      {/* Kartu tanda tangan digital */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-5 space-y-5">
+        <div>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+            <FileSignature className="w-4 h-4 text-indigo-500" /> Tanda Tangan Digital
+          </h3>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+            Tanda tangan disimpan sekali di akun Anda dan dapat dilihat admin sebagai bukti. Presensi Hadir tidak memerlukan tanda tangan ulang.
+          </p>
+        </div>
+
+        {/* Preview tanda tangan yang sudah tersimpan */}
+        {punyaTandaTangan && tandaTangan ? (
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/10 p-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Tersimpan</span>
+            </div>
+            <img
+              src={tandaTangan}
+              alt="Tanda tangan tersimpan"
+              className="max-h-24 w-full object-contain bg-white dark:bg-slate-50 rounded-lg border border-slate-100 dark:border-slate-800 p-2"
+            />
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-4 text-center text-xs text-slate-400 dark:text-slate-500">
+            Belum ada tanda tangan tersimpan.
+          </div>
+        )}
+
+        {/* Canvas menggambar */}
+        <div>
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+            <PenLine className="w-3.5 h-3.5" /> Gambar Tanda Tangan
+          </label>
+          <canvas
+            ref={canvasRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            onTouchStart={(e) => e.preventDefault()}
+            onTouchMove={(e) => e.preventDefault()}
+            style={{ touchAction: 'none', height: 200 }}
+            className="w-full bg-white dark:bg-slate-50 rounded-xl border border-slate-200 dark:border-slate-700 cursor-crosshair touch-none"
+          />
+        </div>
+
+        {/* Pesan */}
+        {signatureMessage.text && (
+          <div className={`flex items-start gap-2 p-3 rounded-xl text-sm font-medium ${
+            signatureMessage.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20'
+              : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20'
+          }`}>
+            {signatureMessage.type === 'success' ? <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" /> : null}
+            <span className="whitespace-pre-line">{signatureMessage.text}</span>
+          </div>
+        )}
+
+        {/* Tombol aksi */}
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={handleSaveSignature}
+            disabled={savingSignature || !hasDrawn}
+            className="bg-indigo-600 dark:bg-indigo-500 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 shadow-sm hover:bg-indigo-700 dark:hover:bg-indigo-400 disabled:bg-slate-300 dark:disabled:bg-slate-800 disabled:text-slate-500 dark:disabled:text-slate-500 disabled:cursor-not-allowed transition-colors"
+          >
+            {signAction === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan
+          </button>
+          <button
+            type="button"
+            onClick={handleClearCanvas}
+            disabled={savingSignature}
+            className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Eraser className="w-4 h-4" /> Bersihkan
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteSignature}
+            disabled={savingSignature || !punyaTandaTangan}
+            className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {signAction === 'delete' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Hapus
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

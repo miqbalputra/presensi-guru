@@ -415,7 +415,7 @@ function Login({ onLogin }) {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl mb-4">
             <LogIn className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Geo-Presensi GQ</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Geo Presensi PKBM Tunas Ilmu</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1.5 text-sm">Sistem Presensi Geolocation & QR Code</p>
         </div>
 
@@ -530,7 +530,7 @@ function Login({ onLogin }) {
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-600 dark:bg-indigo-500 text-white">
               <div>
                 <h2 className="text-xl font-bold">Informasi Aplikasi</h2>
-                <p className="text-indigo-100 dark:text-indigo-200 text-xs mt-0.5">Geo-Presensi GQ Version Control</p>
+                <p className="text-indigo-100 dark:text-indigo-200 text-xs mt-0.5">PKBM Tunas Ilmu Version Control</p>
               </div>
               <button
                 onClick={() => setShowInfo(false)}

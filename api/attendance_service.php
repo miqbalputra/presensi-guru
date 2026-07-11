@@ -264,11 +264,117 @@ function gp_validate_workday($pdo, $date, $gender = null)
     return [$holiday, $isSpecialWorkday];
 }
 
+/**
+ * Nomor pekan dalam bulan (1..5). Pekan 1 = tanggal 1-7, pekan 2 = 8-14, dst.
+ * Dipakai untuk rotasi piket dwi-pekanan Sabtu (PKBM Tunas Ilmu).
+ */
+function gp_week_of_month($date)
+{
+    $day = (int)date('j', strtotime($date));
+    return (int)floor(($day - 1) / 7) + 1;
+}
+
+/**
+ * Setting rotasi piket dwi-pekanan dari tabel settings.
+ */
+function gp_get_piket_rotation_settings($pdo)
+{
+    $keys = [
+        'piket_rotation_enabled',
+        'piket_group_a_weeks',
+        'piket_group_b_weeks',
+        'piket_week5_mode',
+        'piket_jam_masuk',
+        'piket_jam_pulang',
+    ];
+    $placeholders = implode(',', array_fill(0, count($keys), '?'));
+    $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ({$placeholders})");
+    $stmt->execute($keys);
+    $settings = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $settings[$row['setting_key']] = $row['setting_value'];
+    }
+    return $settings;
+}
+
+/**
+ * Parse CSV pekan ("1,3") menjadi array int [1,3].
+ */
+function gp_parse_piket_weeks($value)
+{
+    $out = [];
+    foreach (preg_split('/[\s,]+/', (string)$value) as $part) {
+        $part = trim($part);
+        if ($part === '') {
+            continue;
+        }
+        $n = (int)$part;
+        if ($n >= 1 && $n <= 5) {
+            $out[] = $n;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Apakah guru (userId) piket pada tanggal $date, berdasarkan rotasi dwi-pekanan:
+ *   - Guru grup A piket Sabtu pekan sesuai setting `piket_group_a_weeks` (default 1,3)
+ *   - Guru grup B piket Sabtu pekan sesuai setting `piket_group_b_weeks` (default 2,4)
+ *   - Pekan ke-5 mengikuti `piket_week5_mode` (all|none|A|B), default 'all'
+ *   - Jam masuk/pulang piket dari setting `piket_jam_masuk` / `piket_jam_pulang`
+ *
+ * Mengembalikan array ['jam_piket'=>..., 'jam_pulang_piket'=>...] bila piket, atau null.
+ * Sumber tunggal — dipakai gp_get_checkin_target, gp_checkout_attendance, guru_home.
+ */
 function gp_get_piket($pdo, $userId, $date)
 {
-    $stmt = $pdo->prepare("SELECT jam_piket, jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ? AND is_active = 1 LIMIT 1");
-    $stmt->execute([$userId, gp_day_name($date)]);
-    return $stmt->fetch();
+    $settings = gp_get_piket_rotation_settings($pdo);
+
+    // Rotasi piket nonaktif -> tidak ada piket.
+    if (!gpw_bool_setting($settings['piket_rotation_enabled'] ?? '1')) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare("SELECT piket_group FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$userId]);
+    $row = $stmt->fetch();
+    $group = $row ? $row['piket_group'] : null;
+
+    // Guru belum diberi grup piket.
+    if ($group !== 'A' && $group !== 'B') {
+        return null;
+    }
+
+    $week = gp_week_of_month($date);
+    if ($week >= 5) {
+        $mode = $settings['piket_week5_mode'] ?? 'all';
+        if ($mode === 'none') {
+            $isPiket = false;
+        } elseif ($mode === 'A') {
+            $isPiket = ($group === 'A');
+        } elseif ($mode === 'B') {
+            $isPiket = ($group === 'B');
+        } else {
+            // 'all' (default) -> semua guru piket
+            $isPiket = true;
+        }
+    } else {
+        $weeks = gp_parse_piket_weeks(
+            $group === 'A'
+                ? ($settings['piket_group_a_weeks'] ?? '1,3')
+                : ($settings['piket_group_b_weeks'] ?? '2,4')
+        );
+        $isPiket = in_array($week, $weeks, true);
+    }
+
+    if (!$isPiket) {
+        return null;
+    }
+
+    return [
+        'jam_piket' => substr($settings['piket_jam_masuk'] ?? '07:00', 0, 5),
+        'jam_pulang_piket' => substr($settings['piket_jam_pulang'] ?? '13:00', 0, 5),
+    ];
 }
 
 function gp_get_checkin_target($pdo, $userId, $date, $settings, $holiday, $isSpecialWorkday)

@@ -284,46 +284,20 @@ export const settingsAPI = {
   },
 }
 
-// Jadwal Piket API
+// Jadwal Piket API — kini rotasi dwi-pekanan (bukan CRUD per-hari).
 export const jadwalPiketAPI = {
-  getAll: async (filters = {}) => {
-    const params = new URLSearchParams(filters)
-    return fetchAPI(`/jadwal_piket.php?${params}`, {
+  // Overview rotasi: config (settings) + daftar guru beserta piket_group +
+  // info "Sabtu ini pekan ke-N, grup X piket".
+  getRotation: async () => {
+    return fetchAPI('/jadwal_piket.php', {
       method: 'GET',
     })
   },
 
+  // Status piket hari ini untuk guru yang sedang login (response.data.jadwal).
   getToday: async () => {
     return fetchAPI('/jadwal_piket.php?today=1', {
       method: 'GET',
-    })
-  },
-
-  create: async (jadwalData) => {
-    return fetchAPI('/jadwal_piket.php', {
-      method: 'POST',
-      body: JSON.stringify(jadwalData),
-    })
-  },
-
-  update: async (jadwalData) => {
-    return fetchAPI('/jadwal_piket.php', {
-      method: 'PUT',
-      body: JSON.stringify(jadwalData),
-    })
-  },
-
-  delete: async (id) => {
-    return fetchAPI(`/jadwal_piket.php?id=${id}`, {
-      method: 'DELETE',
-    })
-  },
-
-  // Toggle status aktif/nonaktif jadwal piket (PATCH)
-  toggleActive: async (id) => {
-    return fetchAPI('/jadwal_piket.php', {
-      method: 'PATCH',
-      body: JSON.stringify({ id }),
     })
   },
 }
@@ -419,6 +393,15 @@ export const guruProfileAPI = {
       method: 'POST',
       body: JSON.stringify({ passwordLama, passwordBaru, konfirmasiBaru }),
       timeoutMs: 8000,
+    })
+  },
+
+  // Simpan / hapus tanda tangan digital per akun (base64 PNG; '' = hapus)
+  saveSignature: async (tandaTangan) => {
+    return fetchAPI('/guru_profile.php?action=signature', {
+      method: 'POST',
+      body: JSON.stringify({ tanda_tangan: tandaTangan }),
+      timeoutMs: 12000,
     })
   },
 }

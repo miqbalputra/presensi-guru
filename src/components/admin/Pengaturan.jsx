@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck } from 'lucide-react'
+import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Users } from 'lucide-react'
 import { settingsAPI } from '../../services/api'
 
 function Pengaturan() {
@@ -22,7 +22,14 @@ function Pengaturan() {
     apel_senin_enabled: '1',
     location_tracking_enabled: '0',
     location_tracking_interval_minutes: '15',
-    location_tracking_accuracy_limit: '100'
+    location_tracking_accuracy_limit: '100',
+    workday_days: '6',
+    piket_rotation_enabled: '1',
+    piket_group_a_weeks: '1,3',
+    piket_group_b_weeks: '2,4',
+    piket_week5_mode: 'all',
+    piket_jam_masuk: '07:00',
+    piket_jam_pulang: '13:00'
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -74,6 +81,26 @@ function Pengaturan() {
     handleSave(key, newValue)
   }
 
+  // Parse CSV setting (e.g. "6" or "1,3") into a Set of numbers
+  const parseCsvNumbers = (csv) => {
+    if (!csv) return new Set()
+    return new Set(String(csv).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)))
+  }
+
+  // Toggle a number's membership in a CSV setting and persist it
+  const toggleCsvNumber = (key, num) => {
+    const set = parseCsvNumbers(settings[key])
+    if (set.has(num)) {
+      set.delete(num)
+    } else {
+      set.add(num)
+    }
+    // Sort ascending with a stable order; keep numbers as-is
+    const newValue = Array.from(set).sort((a, b) => a - b).join(',')
+    handleChange(key, newValue)
+    handleSave(key, newValue)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -88,62 +115,203 @@ function Pengaturan() {
         <h1 className="text-2xl font-bold text-gray-800">Pengaturan Sistem</h1>
       </div>
 
-      {/* Presensi Akhir Pekan */}
+      {/* Hari Kerja Aktif */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
         <div className="flex items-start gap-4">
-          <div className={`p-3 rounded-lg ${
-            settings.saturday_male_workday_enabled == '1' ||
-            settings.saturday_female_workday_enabled == '1' ||
-            settings.sunday_male_workday_enabled == '1' ||
-            settings.sunday_female_workday_enabled == '1'
-              ? 'bg-emerald-100'
-              : 'bg-gray-100'
-          }`}>
-            <CalendarCheck className={`w-6 h-6 ${
-              settings.saturday_male_workday_enabled == '1' ||
-              settings.saturday_female_workday_enabled == '1' ||
-              settings.sunday_male_workday_enabled == '1' ||
-              settings.sunday_female_workday_enabled == '1'
-                ? 'text-emerald-600'
-                : 'text-gray-600'
-            }`} />
+          <div className={`p-3 rounded-lg ${parseCsvNumbers(settings.workday_days).size > 0 ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+            <CalendarCheck className={`w-6 h-6 ${parseCsvNumbers(settings.workday_days).size > 0 ? 'text-emerald-600' : 'text-gray-600'}`} />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-bold text-gray-800 mb-2">Presensi Akhir Pekan</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Hari Kerja Aktif</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Aktifkan sesuai jadwal kegiatan sekolah. Hari dan kelompok yang aktif akan bisa presensi dan ikut dihitung dalam rekap.
+              Centang hari yang aktif untuk presensi. PKBM Tunas Ilmu default: Sabtu saja.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
               {[
-                { key: 'saturday_male_workday_enabled', day: 'Sabtu', group: 'Ustadz / Guru Laki-laki' },
-                { key: 'saturday_female_workday_enabled', day: 'Sabtu', group: 'Ustadzah / Guru Perempuan' },
-                { key: 'sunday_male_workday_enabled', day: 'Minggu', group: 'Ustadz / Guru Laki-laki' },
-                { key: 'sunday_female_workday_enabled', day: 'Minggu', group: 'Ustadzah / Guru Perempuan' }
-              ].map(item => (
-                <div key={item.key} className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 p-4">
-                  <div>
-                    <p className="font-bold text-gray-800">{item.day}</p>
-                    <p className="text-xs text-gray-500">{item.group}</p>
-                    <p className={`text-xs font-semibold mt-1 ${settings[item.key] == '1' ? 'text-emerald-600' : 'text-gray-500'}`}>
-                      {settings[item.key] == '1' ? 'Dihitung hari masuk' : 'Libur'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => toggleSetting(item.key)}
-                    disabled={saving}
-                    className={`relative inline-flex h-8 w-16 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
-                      settings[item.key] == '1' ? 'bg-emerald-600' : 'bg-gray-400'
-                    }`}
+                { num: 1, label: 'Senin' },
+                { num: 2, label: 'Selasa' },
+                { num: 3, label: 'Rabu' },
+                { num: 4, label: 'Kamis' },
+                { num: 5, label: 'Jumat' },
+                { num: 6, label: 'Sabtu' },
+                { num: 0, label: 'Minggu' }
+              ].map(day => {
+                const checked = parseCsvNumbers(settings.workday_days).has(day.num)
+                return (
+                  <label
+                    key={day.num}
+                    className={`flex items-center gap-2 rounded-lg border p-3 cursor-pointer select-none transition-colors ${
+                      checked ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+                    } ${saving ? 'opacity-60 pointer-events-none' : ''}`}
                   >
-                    <span
-                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                        settings[item.key] == '1' ? 'translate-x-9' : 'translate-x-1'
-                      }`}
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleCsvNumber('workday_days', day.num)}
+                      className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                     />
+                    <span className={`text-sm font-medium ${checked ? 'text-emerald-700' : 'text-gray-700'}`}>
+                      {day.label}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Konfigurasi Rotasi Piket Sabtu */}
+      <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+        <div className="flex items-start gap-4">
+          <div className={`p-3 rounded-lg ${settings.piket_rotation_enabled == '1' ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+            <Users className={`w-6 h-6 ${settings.piket_rotation_enabled == '1' ? 'text-indigo-600' : 'text-gray-600'}`} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Konfigurasi Rotasi Piket Sabtu</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Guru grup A piket Sabtu pekan yang dicentang, grup B di pekan lainnya. Pekan dihitung dari tanggal dalam bulan (1-7=pekan 1, dst).
+            </p>
+
+            {/* Toggle Rotasi Piket */}
+            <div className="flex items-center gap-4 mb-6">
+              <button
+                onClick={() => {
+                  const newValue = settings.piket_rotation_enabled == '1' ? '0' : '1'
+                  handleChange('piket_rotation_enabled', newValue)
+                  handleSave('piket_rotation_enabled', newValue)
+                }}
+                disabled={saving}
+                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  settings.piket_rotation_enabled == '1' ? 'bg-indigo-600' : 'bg-gray-400'
+                }`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                    settings.piket_rotation_enabled == '1' ? 'translate-x-9' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <div>
+                <p className={`font-bold ${settings.piket_rotation_enabled == '1' ? 'text-indigo-600' : 'text-gray-600'}`}>
+                  {settings.piket_rotation_enabled == '1' ? 'ROTASI PIKET AKTIF' : 'ROTASI PIKET NONAKTIF'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {settings.piket_rotation_enabled == '1'
+                    ? 'Guru dibagi rotasi grup A/B berdasarkan pekan Sabtu'
+                    : 'Rotasi piket Sabtu dinonaktifkan'}
+                </p>
+              </div>
+            </div>
+
+            {/* Grup A & B - checkboxes pekan 1-5 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {[
+                { key: 'piket_group_a_weeks', label: 'Grup A piket pekan', color: 'blue' },
+                { key: 'piket_group_b_weeks', label: 'Grup B piket pekan', color: 'indigo' }
+              ].map(group => {
+                const selected = parseCsvNumbers(settings[group.key])
+                return (
+                  <div key={group.key}>
+                    <p className="block text-sm font-medium text-gray-700 mb-2">{group.label}</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[1, 2, 3, 4, 5].map(week => {
+                        const checked = selected.has(week)
+                        const colorClasses = group.color === 'blue'
+                          ? (checked ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50')
+                          : (checked ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50')
+                        const textClasses = group.color === 'blue'
+                          ? (checked ? 'text-blue-700' : 'text-gray-700')
+                          : (checked ? 'text-indigo-700' : 'text-gray-700')
+                        return (
+                          <label
+                            key={week}
+                            className={`flex flex-col items-center justify-center gap-1 rounded-lg border p-3 cursor-pointer select-none transition-colors ${colorClasses} ${saving ? 'opacity-60 pointer-events-none' : ''}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleCsvNumber(group.key, week)}
+                              className={`w-4 h-4 border-gray-300 rounded ${group.color === 'blue' ? 'text-blue-600 focus:ring-blue-500' : 'text-indigo-600 focus:ring-indigo-500'}`}
+                            />
+                            <span className={`text-xs font-medium ${textClasses}`}>Pekan {week}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Pekan ke-5 mode */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Pekan ke-5 (jika ada Sabtu ke-5)</label>
+              <div className="flex items-center gap-4">
+                <select
+                  value={settings.piket_week5_mode || 'all'}
+                  onChange={(e) => {
+                    handleChange('piket_week5_mode', e.target.value)
+                    handleSave('piket_week5_mode', e.target.value)
+                  }}
+                  disabled={saving}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="all">Semua guru</option>
+                  <option value="none">Tidak ada</option>
+                  <option value="A">Grup A</option>
+                  <option value="B">Grup B</option>
+                </select>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Menentukan grup mana yang piket bila dalam satu bulan terdapat Sabtu ke-5.
+              </p>
+            </div>
+
+            {/* Jam Masuk & Jam Pulang Piket */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Jam Masuk Piket</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={settings.piket_jam_masuk || '07:00'}
+                    onChange={(e) => handleChange('piket_jam_masuk', e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => handleSave('piket_jam_masuk')}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
+                  >
+                    <Save className="w-4 h-4" />
+                    Simpan
                   </button>
                 </div>
-              ))}
+                <p className="text-xs text-gray-500 mt-1">Contoh: 07:00</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Jam Pulang Piket</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={settings.piket_jam_pulang || '13:00'}
+                    onChange={(e) => handleChange('piket_jam_pulang', e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => handleSave('piket_jam_pulang')}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
+                  >
+                    <Save className="w-4 h-4" />
+                    Simpan
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Contoh: 13:00</p>
+              </div>
             </div>
           </div>
         </div>

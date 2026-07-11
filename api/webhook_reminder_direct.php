@@ -135,13 +135,13 @@ try {
         $message = '';
         
         if ($reminderType === 'first') {
-            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem GeoPresensi Sekolah_";
+            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
         } elseif ($reminderType === 'second') {
-            $message = "⚠️ *Pengingat Presensi (Kedua)*\n\nHalo *{$guru['nama']}*,\n\nAnda masih belum melakukan presensi hari ini.\nMohon segera isi presensi:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem GeoPresensi Sekolah_";
+            $message = "⚠️ *Pengingat Presensi (Kedua)*\n\nHalo *{$guru['nama']}*,\n\nAnda masih belum melakukan presensi hari ini.\nMohon segera isi presensi:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
         } elseif ($reminderType === 'final') {
-            $message = "🚨 *Pengingat Presensi (Terakhir)*\n\nHalo *{$guru['nama']}*,\n\nIni adalah pengingat terakhir.\nAnda belum melakukan presensi hari ini.\n\nMohon SEGERA isi presensi:\n👉 https://kelolasekolah.web.id\n\nJika ada kendala, hubungi admin.\n_Sistem GeoPresensi Sekolah_";
+            $message = "🚨 *Pengingat Presensi (Terakhir)*\n\nHalo *{$guru['nama']}*,\n\nIni adalah pengingat terakhir.\nAnda belum melakukan presensi hari ini.\n\nMohon SEGERA isi presensi:\n👉 https://kelolasekolah.web.id\n\nJika ada kendala, hubungi admin.\n_Sistem PKBM Tunas Ilmu_";
         } else {
-            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem GeoPresensi Sekolah_";
+            $message = "🔔 *Pengingat Presensi*\n\nHalo *{$guru['nama']}*,\n\nAnda belum melakukan presensi hari ini.\nMohon segera isi presensi melalui:\n👉 https://kelolasekolah.web.id\n\nTerima kasih.\n_Sistem PKBM Tunas Ilmu_";
         }
         
         // Kirim WhatsApp
@@ -165,7 +165,7 @@ try {
             return ($i+1) . ". " . $g['nama'];
         }, $guruBelumPresensi, array_keys($guruBelumPresensi));
         
-        $adminMessage = "📊 *Laporan Presensi - 10:00 WIB*\n\n⚠️ Total guru belum presensi: *" . count($guruBelumPresensi) . " orang*\n\nDaftar guru:\n" . implode("\n", $namaGuru) . "\n\nPengingat terakhir telah dikirim.\nMohon tindak lanjut.\n\n_Sistem GeoPresensi Sekolah_\n_" . date('Y-m-d H:i:s') . "_";
+        $adminMessage = "📊 *Laporan Presensi - 10:00 WIB*\n\n⚠️ Total guru belum presensi: *" . count($guruBelumPresensi) . " orang*\n\nDaftar guru:\n" . implode("\n", $namaGuru) . "\n\nPengingat terakhir telah dikirim.\nMohon tindak lanjut.\n\n_Sistem PKBM Tunas Ilmu_\n_" . date('Y-m-d H:i:s') . "_";
         
         $adminResult = sendWhatsApp($config['admin_phone'], $adminMessage, $gowaUrl, $gowaUsername, $gowaPassword);
         

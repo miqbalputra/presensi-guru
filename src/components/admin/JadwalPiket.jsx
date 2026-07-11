@@ -1,44 +1,30 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2, Calendar, Clock, User, Info } from 'lucide-react'
+import { Calendar, Clock, Users, Info, Settings, UserCheck, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { jadwalPiketAPI, guruAPI } from '../../services/api'
 
 function JadwalPiket() {
-  const [jadwalPiket, setJadwalPiket] = useState([])
-  const [dataGuru, setDataGuru] = useState([])
+  const [data, setData] = useState(null) // payload dari getRotation()
   const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
-  const [editingJadwal, setEditingJadwal] = useState(null)
+  const [error, setError] = useState(null)
+  const [savingId, setSavingId] = useState(null) // user_id yang sedang disimpan
   const [notification, setNotification] = useState({ show: false, message: '', type: '' })
-  const [filterHari, setFilterHari] = useState('all')
-
-  const hariList = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-
-  const [formData, setFormData] = useState({
-    user_id: '',
-    nama_guru: '',
-    hari: 'Senin',
-    jam_piket: '07:00',
-    jam_pulang_piket: '13:00',
-    keterangan: '',
-    is_active: 1
-  })
+  const navigate = useNavigate()
 
   useEffect(() => {
-    loadData()
+    loadRotation()
   }, [])
 
-  const loadData = async () => {
+  const loadRotation = async () => {
     try {
       setLoading(true)
-      const [jadwalResponse, guruResponse] = await Promise.all([
-        jadwalPiketAPI.getAll(),
-        guruAPI.getAll()
-      ])
-      setJadwalPiket(jadwalResponse.data)
-      setDataGuru(guruResponse.data)
-    } catch (error) {
-      console.error('Failed to load data:', error)
-      showNotification('Gagal memuat data: ' + error.message, 'error')
+      setError(null)
+      const response = await jadwalPiketAPI.getRotation()
+      setData(response.data)
+    } catch (err) {
+      console.error('Gagal memuat rotasi piket:', err)
+      setError(err.message || 'Gagal memuat data rotasi piket')
+      showNotification('Gagal memuat data rotasi piket: ' + err.message, 'error')
     } finally {
       setLoading(false)
     }
@@ -49,412 +35,396 @@ function JadwalPiket() {
     setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000)
   }
 
-  const handleAdd = () => {
-    setEditingJadwal(null)
-    setFormData({
-      user_id: '',
-      nama_guru: '',
-      hari: 'Senin',
-      jam_piket: '07:00',
-      jam_pulang_piket: '13:00',
-      keterangan: '',
-      is_active: 1
-    })
-    setShowModal(true)
-  }
+  // ── Persistensi per-guru yang AMAN ──
+  // Backend PUT /guru.php menimpa SEMUA kolom dari payload, jadi kita wajib
+  // mengirim data guru lengkap. Alur: getById → gabungkan field lama + piketGroup baru → update.
+  const handleGroupChange = async (guru, newGroup) => {
+    // newGroup: 'A' | 'B' | null
+    const userId = guru.user_id
+    const prevGroup = guru.piket_group ?? null
 
-  const handleEdit = (jadwal) => {
-    setEditingJadwal(jadwal)
-    setFormData({
-      user_id: jadwal.user_id,
-      nama_guru: jadwal.nama_guru,
-      hari: jadwal.hari,
-      jam_piket: jadwal.jam_piket.substring(0, 5), // HH:MM
-      jam_pulang_piket: (jadwal.jam_pulang_piket || '13:00:00').substring(0, 5),
-      keterangan: jadwal.keterangan || '',
-      is_active: jadwal.is_active
-    })
-    setShowModal(true)
-  }
+    // Tidak ada perubahan
+    if ((prevGroup ?? '') === (newGroup ?? '')) return
 
-  const handleDelete = async (id) => {
-    if (confirm('Apakah Anda yakin ingin menghapus jadwal piket ini?')) {
-      try {
-        await jadwalPiketAPI.delete(id)
-        showNotification('Jadwal piket berhasil dihapus!')
-        loadData()
-      } catch (error) {
-        showNotification('Gagal menghapus jadwal piket: ' + error.message, 'error')
-      }
-    }
-  }
-
-  const handleToggleActive = async (jadwal) => {
-    try {
-      await jadwalPiketAPI.toggleActive(jadwal.id)
-      showNotification(
-        jadwal.is_active == 1
-          ? 'Jadwal piket dinonaktifkan. Data tetap tersimpan.'
-          : 'Jadwal piket diaktifkan kembali.'
+    // Optimistic: langsung perbarui tampilan
+    setData(prev => ({
+      ...prev,
+      guru: prev.guru.map(g =>
+        g.user_id === userId ? { ...g, piket_group: newGroup } : g
       )
-      loadData()
-    } catch (error) {
-      showNotification('Gagal mengubah status jadwal piket: ' + error.message, 'error')
-    }
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (!formData.user_id || !formData.nama_guru) {
-      showNotification('Pilih guru terlebih dahulu', 'error')
-      return
-    }
+    }))
+    setSavingId(userId)
 
     try {
-      if (editingJadwal) {
-        await jadwalPiketAPI.update({ ...formData, id: editingJadwal.id })
-        showNotification('Jadwal piket berhasil diupdate!')
-      } else {
-        await jadwalPiketAPI.create(formData)
-        showNotification('Jadwal piket berhasil ditambahkan!')
-      }
-      setShowModal(false)
-      loadData()
-    } catch (error) {
-      showNotification('Gagal menyimpan jadwal piket: ' + error.message, 'error')
+      const fullRes = await guruAPI.getById(userId)
+      const full = fullRes.data
+      const payload = buildUpdatePayload(full, newGroup)
+      await guruAPI.update(payload)
+      showNotification(
+        `Grup piket ${guru.nama} diperbarui ke ${
+          newGroup === 'A' ? 'Grup A' : newGroup === 'B' ? 'Grup B' : 'tidak ditugaskan'
+        }.`
+      )
+    } catch (err) {
+      console.error('Gagal menyimpan grup piket:', err)
+      // Rollback optimistic
+      setData(prev => ({
+        ...prev,
+        guru: prev.guru.map(g =>
+          g.user_id === userId ? { ...g, piket_group: prevGroup } : g
+        )
+      }))
+      showNotification('Gagal menyimpan grup piket: ' + err.message, 'error')
+    } finally {
+      setSavingId(null)
     }
   }
 
-  const handleGuruChange = (e) => {
-    const guruId = parseInt(e.target.value)
-    const guru = dataGuru.find(g => g.id === guruId)
-    if (guru) {
-      setFormData({
-        ...formData,
-        user_id: guru.id,
-        nama_guru: guru.nama
-      })
+  // Membangun payload update yang mirror field wajib (lihat GuruModal / backend guru.php PUT).
+  // Field: id, idGuru, username, nama, tanggalLahir, jenisKelamin, alamat, noHP,
+  // jabatan (array), tanggalBertugas, tipeGuru, piketGroup.
+  const buildUpdatePayload = (fullData, piketGroup) => {
+    const jabatan = fullData.jabatan
+    const jabatanArray = Array.isArray(jabatan)
+      ? jabatan.filter(j => j && String(j).trim() !== '')
+      : jabatan
+        ? [jabatan]
+        : []
+
+    return {
+      id: fullData.id,
+      idGuru: fullData.idGuru,
+      username: fullData.username,
+      nama: fullData.nama,
+      tanggalLahir: fullData.tanggalLahir || '',
+      jenisKelamin: fullData.jenisKelamin,
+      alamat: fullData.alamat,
+      noHP: fullData.noHP || '',
+      jabatan: jabatanArray,
+      tanggalBertugas: fullData.tanggalBertugas,
+      tipeGuru: fullData.tipeGuru || 'full_time',
+      // '' dikirim agar backend menyimpan null (lihat guru.php: trim('') => null)
+      piketGroup: piketGroup || ''
     }
   }
 
-  const handleHariChange = (e) => {
-    const newHari = e.target.value
-    let newJamPulang = formData.jam_pulang_piket
-    
-    // Jika ganti ke Jumat, set default 10:15
-    if (newHari === 'Jumat') {
-      newJamPulang = '10:15'
-    } else if (formData.hari === 'Jumat') {
-      // Jika sebelumnya Jumat dan ganti ke hari lain, set kembali ke 13:00
-      newJamPulang = '13:00'
+  // ── Helper tampilan ──
+  const formatTanggal = (tanggal) => {
+    if (!tanggal) return '-'
+    const d = new Date(tanggal)
+    if (isNaN(d.getTime())) return tanggal
+    return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  }
+
+  const parseWeeks = (csv) => {
+    if (!csv) return '-'
+    const weeks = String(csv)
+      .split(',')
+      .map(w => w.trim())
+      .filter(Boolean)
+    if (weeks.length === 0) return '-'
+    return weeks.map(w => `Pekan ${w}`).join(', ')
+  }
+
+  const week5Label = (mode) => {
+    switch (mode) {
+      case 'all': return 'Semua guru'
+      case 'none': return 'Tidak ada'
+      case 'A': return 'Grup A'
+      case 'B': return 'Grup B'
+      default: return mode || '-'
     }
-
-    setFormData({ 
-      ...formData, 
-      hari: newHari,
-      jam_pulang_piket: newJamPulang
-    })
   }
 
-  const getFilteredJadwal = () => {
-    if (filterHari === 'all') return jadwalPiket
-    return jadwalPiket.filter(j => j.hari === filterHari)
+  const groupsLabel = (groups) => {
+    if (!groups || groups.length === 0) return 'tidak ada'
+    return groups.map(g => (g === 'A' ? 'Grup A' : g === 'B' ? 'Grup B' : g)).join(' & ')
   }
 
-  const filteredJadwal = getFilteredJadwal()
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
-  // Group by hari
-  const jadwalByHari = hariList.reduce((acc, hari) => {
-    acc[hari] = filteredJadwal.filter(j => j.hari === hari)
-    return acc
-  }, {})
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+  if (error && !data) {
+    return (
+      <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Jadwal Piket Guru</h1>
-          <p className="text-sm text-gray-600 mt-1">Kelola jadwal piket guru per hari</p>
+          <h1 className="text-2xl font-bold text-gray-800">Rotasi Piket Sabtu</h1>
+          <p className="text-sm text-gray-600 mt-1">Pengaturan rotasi piket dwi-pekanan</p>
         </div>
-        <div className="flex gap-2">
-          <select
-            value={filterHari}
-            onChange={(e) => setFilterHari(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Semua Hari</option>
-            {hariList.map(hari => (
-              <option key={hari} value={hari}>{hari}</option>
-            ))}
-          </select>
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-6 text-center">
+          <p className="font-semibold">Gagal memuat data</p>
+          <p className="text-sm mt-1">{error}</p>
           <button
-            onClick={handleAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            onClick={loadRotation}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
-            <Plus className="w-4 h-4" />
-            Tambah Jadwal
+            Coba lagi
           </button>
         </div>
       </div>
+    )
+  }
 
-      {/* Info banner: fitur toggle aktif/nonaktif */}
-      <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-        <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div className="text-sm text-amber-800">
-          <p className="font-semibold">Fitur Aktifkan / Nonaktifkan Jadwal Piket</p>
-          <p className="mt-0.5">
-            Gunakan tombol <span className="font-bold">On / Off</span> pada setiap jadwal untuk menonaktifkan sementara tanpa menghapus data. 
-            Cocok ketika ada agenda rapat atau libur peserta didik — jadwal tetap tersimpan dan bisa diaktifkan kembali kapan saja. 
-            Jadwal yang <span className="font-bold">Off</span> tidak akan diterapkan saat presensi.
+  const config = data?.config || {}
+  const today = data?.today || {}
+  const guruList = data?.guru || []
+  const piketToday = data?.piket_today || []
+
+  const grupA = guruList.filter(g => g.piket_group === 'A')
+  const grupB = guruList.filter(g => g.piket_group === 'B')
+  const belum = guruList.filter(g => g.piket_group !== 'A' && g.piket_group !== 'B')
+
+  const rotationEnabled = config.piket_rotation_enabled == '1'
+
+  // Render satu kartu grup
+  const renderGroupCard = (title, color, list, emptyMsg) => {
+    const colorMap = {
+      blue: { badge: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500', ring: 'ring-blue-500' },
+      indigo: { badge: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500', ring: 'ring-indigo-500' },
+      gray: { badge: 'bg-gray-200 text-gray-600', dot: 'bg-gray-400', ring: 'ring-gray-400' }
+    }
+    const c = colorMap[color]
+
+    return (
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`inline-block w-2.5 h-2.5 rounded-full ${c.dot}`}></span>
+            <h3 className="font-bold text-gray-800">{title}</h3>
+          </div>
+          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${c.badge}`}>
+            {list.length} Guru
+          </span>
+        </div>
+        <div className="p-4">
+          {list.length > 0 ? (
+            <div className="space-y-2">
+              {list.map(guru => {
+                const isSaving = savingId === guru.user_id
+                const current = guru.piket_group ?? ''
+                return (
+                  <div
+                    key={guru.user_id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Users className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-800 truncate">{guru.nama}</p>
+                        <p className="text-[11px] text-gray-500 truncate">@{guru.username}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {isSaving && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+                      {/* Segmented control: A | B | — */}
+                      <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+                        {['A', 'B', ''].map(opt => {
+                          const active = current === opt
+                          const label = opt === '' ? '—' : opt
+                          return (
+                            <button
+                              key={opt || 'none'}
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => handleGroupChange(guru, opt || null)}
+                              title={opt === '' ? 'Tidak ditugaskan' : `Grup ${opt}`}
+                              className={`px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                active
+                                  ? opt === 'A'
+                                    ? 'bg-blue-600 text-white'
+                                    : opt === 'B'
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-gray-500 text-white'
+                                  : 'bg-white text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-gray-500">
+              <Users className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">{emptyMsg}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">Rotasi Piket Sabtu</h1>
+        <p className="text-sm text-gray-600 mt-1">
+          Kelola penugasan grup piket dwi-pekanan untuk guru Sabtu
+        </p>
+      </div>
+
+      {/* Banner Sabtu ini */}
+      <div className={`rounded-lg p-4 border ${rotationEnabled ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'}`}>
+        <div className="flex items-start gap-3">
+          <Calendar className={`w-6 h-6 flex-shrink-0 mt-0.5 ${rotationEnabled ? 'text-indigo-600' : 'text-gray-500'}`} />
+          <div className="flex-1">
+            <p className="text-sm text-gray-600">
+              {today.day_name ? `${today.day_name}, ` : ''}{formatTanggal(today.tanggal)}
+            </p>
+            <p className="text-lg font-bold text-gray-800 mt-1">
+              {today.week_of_month
+                ? `Sabtu ini pekan ke-${today.week_of_month}`
+                : 'Sabtu ini'}
+              {' — '}
+              <span className={rotationEnabled ? 'text-indigo-600' : 'text-gray-500'}>
+                piket: {rotationEnabled ? groupsLabel(today.groups_piket) : 'rotasi nonaktif'}
+              </span>
+            </p>
+            {!rotationEnabled && (
+              <p className="text-xs text-gray-500 mt-1">
+                Rotasi piket sedang nonaktif. Aktifkan di menu Pengaturan untuk menerapkan penugasan grup.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Ringkasan konfigurasi (read-only) */}
+      <div className="bg-white rounded-lg shadow p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Settings className="w-5 h-5 text-gray-600" />
+            <h3 className="font-bold text-gray-800">Konfigurasi Rotasi</h3>
+          </div>
+          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${rotationEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+            {rotationEnabled ? 'Rotasi Aktif' : 'Rotasi Nonaktif'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+            <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Grup A piket pekan</p>
+            <p className="text-sm font-semibold text-gray-800 mt-1">{parseWeeks(config.piket_group_a_weeks)}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100">
+            <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">Grup B piket pekan</p>
+            <p className="text-sm font-semibold text-gray-800 mt-1">{parseWeeks(config.piket_group_b_weeks)}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+            <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Pekan ke-5 (Sabtu ke-5)</p>
+            <p className="text-sm font-semibold text-gray-800 mt-1">{week5Label(config.piket_week5_mode)}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+            <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Jam Masuk Piket</p>
+            <p className="text-sm font-semibold text-gray-800 mt-1 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-emerald-500" />
+              {config.piket_jam_masuk || '-'}
+            </p>
+          </div>
+          <div className="p-3 rounded-lg bg-rose-50 border border-rose-100">
+            <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Jam Pulang Piket</p>
+            <p className="text-sm font-semibold text-gray-800 mt-1 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-rose-500" />
+              {config.piket_jam_pulang || '-'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2 mt-4 text-xs text-gray-500">
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <p>
+            Konfigurasi rotasi (pekan, mode pekan ke-5, jam piket) hanya dapat diubah di menu{' '}
+            <button
+              onClick={() => navigate('/pengaturan')}
+              className="font-semibold text-blue-600 hover:text-blue-800 underline"
+            >
+              Pengaturan
+            </button>
+            . Halaman ini hanya mengelola penugasan grup per guru.
           </p>
         </div>
       </div>
 
-      {/* Jadwal per Hari */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {hariList.map(hari => {
-          const jadwalHari = jadwalByHari[hari]
-          if (filterHari !== 'all' && filterHari !== hari) return null
-          const aktifCount = jadwalHari.filter(j => j.is_active == 1).length
-          const nonaktifCount = jadwalHari.length - aktifCount
-          
-          return (
-            <div key={hari} className="bg-white rounded-lg shadow">
-              <div className="p-4 border-b border-gray-200 bg-blue-50">
-                <div className="flex items-center justify-between">
+      {/* Daftar guru per grup */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-800 mb-3">Penugasan Grup Piket</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {renderGroupCard('Grup A', 'blue', grupA, 'Belum ada guru di Grup A')}
+          {renderGroupCard('Grup B', 'indigo', grupB, 'Belum ada guru di Grup B')}
+          {renderGroupCard('Belum Ditugaskan', 'gray', belum, 'Semua guru sudah ditugaskan')}
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          Gunakan tombol <span className="font-bold">A</span> / <span className="font-bold">B</span> / <span className="font-bold">—</span> pada setiap guru untuk mengubah grup piket. Perubahan disimpan otomatis.
+        </p>
+      </div>
+
+      {/* Piket hari ini */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-5 h-5 text-green-600" />
+            <h3 className="font-bold text-gray-800">Piket Sabtu Ini</h3>
+          </div>
+          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+            piketToday.length > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+          }`}>
+            {piketToday.length} Guru
+          </span>
+        </div>
+        <div className="p-4">
+          {piketToday.length > 0 ? (
+            <div className="space-y-2">
+              {piketToday.map(p => (
+                <div
+                  key={p.user_id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-gray-50"
+                >
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-blue-600" />
-                    <h3 className="font-bold text-gray-800">{hari}</h3>
+                    <Users className="w-4 h-4 text-gray-500" />
+                    <div>
+                      <p className="font-semibold text-gray-800">{p.nama_guru}</p>
+                      <p className="text-[11px] text-gray-500">
+                        Grup {p.piket_group === 'A' ? 'A' : p.piket_group === 'B' ? 'B' : '-'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {nonaktifCount > 0 && (
-                      <span className="px-2.5 py-1 bg-gray-200 text-gray-600 text-xs font-semibold rounded-full">
-                        {nonaktifCount} Off
-                      </span>
-                    )}
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                      aktifCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {jadwalHari.length} Guru
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                      <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                      Datang: {(p.jam_piket || '-').substring(0, 5)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                      <Clock className="w-3.5 h-3.5 text-rose-500" />
+                      Pulang: {(p.jam_pulang_piket || '-').substring(0, 5)}
                     </span>
                   </div>
                 </div>
-              </div>
-              <div className="p-4">
-                {jadwalHari.length > 0 ? (
-                  <div className="space-y-2">
-                    {jadwalHari.map(jadwal => {
-                      const isActive = jadwal.is_active == 1
-                      return (
-                      <div 
-                        key={jadwal.id}
-                        className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                          isActive ? 'bg-gray-50 hover:bg-gray-100' : 'bg-gray-100 opacity-60 hover:opacity-80'
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <User className={`w-4 h-4 ${isActive ? 'text-gray-500' : 'text-gray-400'}`} />
-                            <p className={`font-semibold ${isActive ? 'text-gray-800' : 'text-gray-500 line-through'}`}>{jadwal.nama_guru}</p>
-                            {!isActive && (
-                              <span className="px-2 py-0.5 bg-gray-300 text-gray-600 text-[9px] font-bold rounded-full uppercase">
-                                Nonaktif
-                              </span>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-3 h-3 text-emerald-500" />
-                              <p className="text-[10px] text-gray-600">
-                                Datang: {jadwal.jam_piket.substring(0, 5)}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-3 h-3 text-rose-500" />
-                              <p className="text-[10px] text-gray-600">
-                                Pulang: {(jadwal.jam_pulang_piket || '16:00:00').substring(0, 5)}
-                              </p>
-                            </div>
-                          </div>
-                          {jadwal.keterangan && (
-                            <p className="text-xs text-gray-500 mt-1">{jadwal.keterangan}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {/* Toggle Switch Aktif/Nonaktif */}
-                          <button
-                            onClick={() => handleToggleActive(jadwal)}
-                            className="flex items-center gap-1 group"
-                            title={isActive ? 'Klik untuk menonaktifkan jadwal piket' : 'Klik untuk mengaktifkan kembali jadwal piket'}
-                          >
-                            {/* Track */}
-                            <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                              isActive ? 'bg-green-500' : 'bg-gray-300'
-                            }`}>
-                              {/* Knob */}
-                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                                isActive ? 'translate-x-4' : 'translate-x-1'
-                              }`} />
-                            </span>
-                            <span className={`text-[9px] font-bold uppercase ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
-                              {isActive ? 'On' : 'Off'}
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => handleEdit(jadwal)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(jadwal.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">Belum ada jadwal piket</p>
-                  </div>
-                )}
-              </div>
+              ))}
             </div>
-          )
-        })}
-      </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">
-              {editingJadwal ? 'Edit Jadwal Piket' : 'Tambah Jadwal Piket'}
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pilih Guru
-                </label>
-                <select
-                  value={formData.user_id}
-                  onChange={handleGuruChange}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Pilih Guru --</option>
-                  {dataGuru.map(guru => (
-                    <option key={guru.id} value={guru.id}>{guru.nama}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hari
-                </label>
-                <select
-                  value={formData.hari}
-                  onChange={handleHariChange}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  {hariList.map(hari => (
-                    <option key={hari} value={hari}>{hari}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Jam Datang
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.jam_piket}
-                    onChange={(e) => setFormData({ ...formData, jam_piket: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Jam Pulang
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.jam_pulang_piket}
-                    onChange={(e) => setFormData({ ...formData, jam_pulang_piket: e.target.value })}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Keterangan (Opsional)
-                </label>
-                <textarea
-                  value={formData.keterangan}
-                  onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
-                  rows="2"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Contoh: Piket pagi, Piket siang"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Status Jadwal Piket</p>
-                  <p className="text-xs text-gray-500">
-                    {formData.is_active == 1 ? 'Aktif — diterapkan saat presensi' : 'Nonaktif — data tersimpan, tidak diterapkan'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, is_active: formData.is_active == 1 ? 0 : 1 })}
-                  className="flex items-center gap-1.5"
-                >
-                  <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    formData.is_active == 1 ? 'bg-green-500' : 'bg-gray-300'
-                  }`}>
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                      formData.is_active == 1 ? 'translate-x-4' : 'translate-x-1'
-                    }`} />
-                  </span>
-                  <span className={`text-xs font-bold uppercase ${formData.is_active == 1 ? 'text-green-600' : 'text-gray-400'}`}>
-                    {formData.is_active == 1 ? 'On' : 'Off'}
-                  </span>
-                </button>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Simpan
-                </button>
-              </div>
-            </form>
-          </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <UserCheck className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">
+                {rotationEnabled
+                  ? 'Tidak ada guru yang berjaga piket Sabtu ini.'
+                  : 'Rotasi piket nonaktif — tidak ada jadwal piket.'}
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Notification */}
       {notification.show && (

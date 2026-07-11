@@ -273,7 +273,7 @@ function App() {
                   <Download className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-gray-800 text-sm">Pasang Geo-Presensi GQ</h4>
+                  <h4 className="font-bold text-gray-800 text-sm">Pasang Geo Presensi PKBM Tunas Ilmu</h4>
                   <p className="text-xs text-gray-500">Akses lebih cepat & mudah!</p>
                 </div>
               </div>

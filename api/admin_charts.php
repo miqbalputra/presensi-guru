@@ -1,6 +1,7 @@
 <?php
 require_once 'config.php';
 require_once 'workday_service.php';
+require_once 'attendance_service.php';
 
 requireAuth(['admin', 'kepala_sekolah']);
 
@@ -309,15 +310,20 @@ try {
         ");
         $statsStmt->execute($params);
 
-        // Map jam pulang piket per guru per hari (Indonesia) untuk menentukan
-        // "jam pulang normal" sebagai dasar deteksi lembur.
-        $HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        $piketStmt = $pdo->prepare("SELECT user_id, hari, jam_pulang_piket FROM jadwal_piket WHERE is_active = 1");
-        $piketStmt->execute();
-        $piketPulangByUser = [];
-        foreach ($piketStmt->fetchAll() as $p) {
-            $piketPulangByUser[(int)$p['user_id']][$p['hari']] = substr($p['jam_pulang_piket'], 0, 5);
-        }
+        // Jam pulang normal per (guru, tanggal) diambil dari rotasi piket
+        // dwi-pekanan (gp_get_piket), bukan tabel jadwal_piket per-hari lama.
+        // Di-cache per pasangan user|tanggal agar tidak query berulang.
+        $normalPulangCache = [];
+        $gp_normal_pulang = function ($userId, $tanggal) use (&$normalPulangCache, $pdo) {
+            $key = (int)$userId . '|' . $tanggal;
+            if (array_key_exists($key, $normalPulangCache)) {
+                return $normalPulangCache[$key];
+            }
+            $piket = gp_get_piket($pdo, (int)$userId, $tanggal);
+            $val = $piket ? substr($piket['jam_pulang_piket'], 0, 5) : '13:00';
+            $normalPulangCache[$key] = $val;
+            return $val;
+        };
 
         $byUser = [];
         $genderByUser = [];
@@ -378,9 +384,7 @@ try {
                 $jamPulangOK = $jp !== null && $jp !== '' && $jp !== '-' && $jp !== '00:00:00';
                 $diSekolah = $lokasi === 'sekolah' || $lokasi === null || $lokasi === '';
                 if ($jamPulangOK && $diSekolah) {
-                    $dayOfWeek = (int)date('w', strtotime($row['tanggal']));
-                    $hariId = $HARI_ID[$dayOfWeek];
-                    $normal = $piketPulangByUser[$userId][$hariId] ?? ($dayOfWeek === 5 ? '10:15' : '13:00');
+                    $normal = $gp_normal_pulang($userId, $row['tanggal']);
                     $normalMenit = timeToMinutesValue($normal);
                     $pulangMenit = timeToMinutesValue($jp);
                     if ($pulangMenit !== null && $pulangMenit > $normalMenit) {
@@ -552,12 +556,18 @@ try {
         $guruStmt->execute();
         $guruRows = $guruStmt->fetchAll();
 
-        $piketStmt = $pdo->prepare("SELECT user_id, hari FROM jadwal_piket WHERE is_active = 1");
-        $piketStmt->execute();
-        $piketMap = [];
-        foreach ($piketStmt->fetchAll() as $row) {
-            $piketMap[(int)$row['user_id'] . '|' . $row['hari']] = true;
-        }
+        // Status piket per (guru, tanggal) dari rotasi dwi-pekanan (gp_get_piket).
+        // Di-cache agar tidak query berulang per log.
+        $piketOnDateCache = [];
+        $gp_is_piket = function ($userId, $tanggal) use (&$piketOnDateCache, $pdo) {
+            $key = (int)$userId . '|' . $tanggal;
+            if (array_key_exists($key, $piketOnDateCache)) {
+                return $piketOnDateCache[$key];
+            }
+            $val = gp_get_piket($pdo, (int)$userId, $tanggal) !== null;
+            $piketOnDateCache[$key] = $val;
+            return $val;
+        };
 
         $checkIns = array_values(array_filter($logs, fn($log) => strpos($log['status'], 'hadir') === 0));
         $lateLogs = array_values(array_filter($checkIns, fn($log) => in_array($log['status'], ['hadir_terlambat', 'hadir_izin_terlambat'], true)));
@@ -587,7 +597,6 @@ try {
         $statsPerGuru = array_values($statsByGuru);
         usort($statsPerGuru, fn($a, $b) => (float)$b['persentase'] <=> (float)$a['persentase']);
 
-        $hariMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
         $latePiket = [];
         $earlyCheckouts = [];
         $izinSakit = [];
@@ -599,8 +608,7 @@ try {
             $log['jamPulang'] = $log['jam_pulang'];
 
             if (in_array($log['status'], ['hadir_terlambat', 'hadir_izin_terlambat'], true)) {
-                $hari = $hariMap[(int)date('w', strtotime($log['tanggal']))];
-                if (isset($piketMap[(int)$log['user_id'] . '|' . $hari])) {
+                if ($gp_is_piket((int)$log['user_id'], $log['tanggal'])) {
                     $latePiket[] = $log;
                 }
             }

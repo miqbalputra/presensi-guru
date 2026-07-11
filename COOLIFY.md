@@ -1,4 +1,4 @@
-# Deploy GeoPresensi di Coolify
+# Deploy Geo Presensi PKBM Tunas Ilmu di Coolify
 
 Repo ini sudah disiapkan untuk deploy sebagai Docker image berbasis **FrankenPHP classic mode**. Coolify cukup pull repo GitHub dan build dari `Dockerfile`.
 

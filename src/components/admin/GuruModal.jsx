@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
+import { guruAPI } from '../../services/api'
 
 function GuruModal({ guru, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -8,6 +9,7 @@ function GuruModal({ guru, onClose, onSave }) {
     tanggalLahir: '',
     jenisKelamin: 'Laki-laki',
     tipeGuru: 'full_time',
+    piketGroup: '',
     alamat: '',
     noHP: '',
     jabatan: [''],
@@ -16,6 +18,7 @@ function GuruModal({ guru, onClose, onSave }) {
     password: '',
     role: 'guru'
   })
+  const [tandaTangan, setTandaTangan] = useState(null)
 
   // Auto-fill username dan password jika tanggal lahir diisi (untuk guru baru)
   useEffect(() => {
@@ -39,7 +42,24 @@ function GuruModal({ guru, onClose, onSave }) {
     if (guru) {
       // Pastikan jabatan adalah array
       const jabatanArray = Array.isArray(guru.jabatan) ? guru.jabatan : [guru.jabatan]
-      setFormData({ ...guru, jabatan: jabatanArray })
+      // Normalisasi piketGroup (handle snake_case piket_group); default '' jika null/undefined
+      const piketGroup = guru.piketGroup ?? guru.piket_group ?? ''
+      setFormData({ ...guru, jabatan: jabatanArray, piketGroup })
+      // Ambil detail lengkap (termasuk tanda tangan) via getById
+      guruAPI.getById(guru.id)
+        .then((response) => {
+          const data = response.data
+          setTandaTangan(data.tandaTangan || null)
+          // Perbarui piketGroup dari sumber otoritatif bila ada
+          if (data.piketGroup !== undefined && data.piketGroup !== null) {
+            setFormData((prev) => ({ ...prev, piketGroup: data.piketGroup }))
+          }
+        })
+        .catch(() => {
+          setTandaTangan(null)
+        })
+    } else {
+      setTandaTangan(null)
     }
   }, [guru])
 
@@ -147,6 +167,19 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Grup Piket</label>
+            <select
+              value={formData.piketGroup}
+              onChange={(e) => setFormData({ ...formData, piketGroup: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tidak ada / Belum ditugaskan</option>
+              <option value="A">Grup A</option>
+              <option value="B">Grup B</option>
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Alamat</label>
             <textarea
               value={formData.alamat}
@@ -243,6 +276,23 @@ function GuruModal({ guru, onClose, onSave }) {
               required={!guru}
             />
           </div>
+
+          {guru && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tanda Tangan Digital (bukti)
+              </label>
+              <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                {tandaTangan ? (
+                  <img src={tandaTangan} alt="Tanda tangan" className="max-h-32 mx-auto" />
+                ) : (
+                  <p className="text-sm text-gray-500 italic text-center py-4">
+                    Belum ada tanda tangan.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button
