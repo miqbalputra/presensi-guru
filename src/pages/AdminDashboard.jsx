@@ -7,6 +7,7 @@ const DataGuru = lazy(() => import('../components/admin/DataGuru'))
 const ArsipGuru = lazy(() => import('../components/admin/ArsipGuru'))
 const EditPresensi = lazy(() => import('../components/admin/EditPresensi'))
 const DownloadLaporan = lazy(() => import('../components/admin/DownloadLaporan'))
+const LaporanPokjar = lazy(() => import('../components/admin/LaporanPokjar'))
 const LogAktivitas = lazy(() => import('../components/admin/LogAktivitas'))
 const HariLibur = lazy(() => import('../components/admin/HariLibur'))
 const Pengaturan = lazy(() => import('../components/admin/Pengaturan'))
@@ -84,6 +85,7 @@ function AdminDashboard({ user, onLogout }) {
               <Route path="/jadwal-piket" element={<JadwalPiket />} />
               <Route path="/edit-presensi" element={<EditPresensi user={user} />} />
               <Route path="/download-laporan" element={<DownloadLaporan />} />
+              <Route path="/laporan-pokjar" element={<LaporanPokjar />} />
               <Route path="/hari-libur" element={<HariLibur user={user} />} />
               <Route path="/log-aktivitas" element={<LogAktivitas />} />
               <Route path="/pengaturan" element={<Pengaturan />} />

@@ -10,6 +10,7 @@ function GuruModal({ guru, onClose, onSave }) {
     jenisKelamin: 'Laki-laki',
     tipeGuru: 'full_time',
     piketGroup: '',
+    pokjar: '',
     alamat: '',
     noHP: '',
     jabatan: [''],
@@ -44,7 +45,9 @@ function GuruModal({ guru, onClose, onSave }) {
       const jabatanArray = Array.isArray(guru.jabatan) ? guru.jabatan : [guru.jabatan]
       // Normalisasi piketGroup (handle snake_case piket_group); default '' jika null/undefined
       const piketGroup = guru.piketGroup ?? guru.piket_group ?? ''
-      setFormData({ ...guru, jabatan: jabatanArray, piketGroup })
+      // Normalisasi pokjar (handle snake_case); default '' jika null/undefined
+      const pokjar = guru.pokjar ?? ''
+      setFormData({ ...guru, jabatan: jabatanArray, piketGroup, pokjar })
       // Ambil detail lengkap (termasuk tanda tangan) via getById
       guruAPI.getById(guru.id)
         .then((response) => {
@@ -54,6 +57,8 @@ function GuruModal({ guru, onClose, onSave }) {
           if (data.piketGroup !== undefined && data.piketGroup !== null) {
             setFormData((prev) => ({ ...prev, piketGroup: data.piketGroup }))
           }
+          // Perbarui pokjar dari sumber otoritatif (data.pokjar null = bukan pokjar)
+          setFormData((prev) => ({ ...prev, pokjar: data.pokjar ?? '' }))
         })
         .catch(() => {
           setTandaTangan(null)
@@ -177,6 +182,25 @@ function GuruModal({ guru, onClose, onSave }) {
               <option value="A">Grup A</option>
               <option value="B">Grup B</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Pokjar (Sekolah Binaan)</label>
+            <select
+              value={formData.pokjar}
+              onChange={(e) => setFormData({ ...formData, pokjar: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tidak ada / Bukan Pokjar</option>
+              <option value="Lentera Qalbu">Pokjar Lentera Qalbu</option>
+              <option value="Umar bin Khattab">Pokjar Umar bin Khattab</option>
+              <option value="Nashirus Sunnah">Pokjar Nashirus Sunnah</option>
+            </select>
+            {formData.pokjar && (
+              <p className="mt-1 text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">
+                🏫 Guru Pokjar menggunakan presensi sederhana: cukup <strong>Hadir / Sakit / Izin</strong> (+ keterangan), tanpa terlambat & tanpa presensi pulang.
+              </p>
+            )}
           </div>
 
           <div>

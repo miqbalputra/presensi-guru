@@ -9,6 +9,7 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
     { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Rotasi Piket' },
     { path: '/admin/edit-presensi', icon: Edit, label: 'Edit Presensi' },
     { path: '/admin/download-laporan', icon: Download, label: 'Download Laporan' },
+    { path: '/admin/laporan-pokjar', icon: Download, label: 'Laporan Pokjar', isNew: true },
     { path: '/admin/hari-libur', icon: Calendar, label: 'Hari Libur' },
     { path: '/admin/override-weekend', icon: CalendarX, label: 'Override Weekend', isNew: true },
     { path: '/admin/hari-kerja-opsional', icon: CalendarPlus, label: 'Hari Kerja Opsional', isNew: true },

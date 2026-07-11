@@ -54,7 +54,7 @@ function gp_get_settings($pdo, $keys)
 function gp_get_guru($pdo, $userId)
 {
     $stmt = $pdo->prepare("
-        SELECT id, nama, jenis_kelamin, tipe_guru
+        SELECT id, nama, jenis_kelamin, tipe_guru, pokjar
         FROM users
         WHERE id = ? AND role = 'guru' AND archived_at IS NULL
         LIMIT 1
@@ -337,9 +337,15 @@ function gp_get_piket($pdo, $userId, $date)
         return null;
     }
 
-    $stmt = $pdo->prepare("SELECT piket_group FROM users WHERE id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT piket_group, pokjar FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([$userId]);
     $row = $stmt->fetch();
+
+    // Guru Pokjar tidak ikut rotasi piket (mode presensi sederhana).
+    if ($row && !empty($row['pokjar'])) {
+        return null;
+    }
+
     $group = $row ? $row['piket_group'] : null;
 
     // Guru belum diberi grup piket.
@@ -457,9 +463,16 @@ function gp_create_attendance($pdo, $options)
         $jamMasuk = $time;
         $jamHadir = $time;
 
-        if (($user['tipe_guru'] ?? '') === 'partime') {
+        $isPartime = ($user['tipe_guru'] ?? '') === 'partime';
+        $isPokjar = !empty($user['pokjar']);
+        if ($isPartime || $isPokjar) {
+            // Guru partime & guru Pokjar: tidak ada perhitungan terlambat.
+            // Guru Pokjar hanya mencatat kehadiran (Hadir/Sakit/Izin).
             $status = 'hadir';
-            $keterangan = $keterangan ?: 'Guru Partime';
+            // Default keterangan hanya untuk partime murni (bukan pokjar).
+            if ($isPartime && !$isPokjar) {
+                $keterangan = $keterangan ?: 'Guru Partime';
+            }
         } else {
             [$jamMasukTarget, $piketLabel] = gp_get_checkin_target($pdo, $user['id'], $date, $settings, $holiday, $isSpecialWorkday);
             $targetMinutes = gp_time_to_minutes($jamMasukTarget);
@@ -517,6 +530,17 @@ function gp_checkout_attendance($pdo, $options)
     $reason = trim($options['keterangan'] ?? '');
     $method = $options['method'] ?? 'manual';
 
+    // Ambil data guru lebih awal: guru Pokjar tidak menggunakan presensi pulang
+    // (mode sederhana: hanya Hadir/Sakit/Izin). Penolakan backend sebagai
+    // defense-in-depth meski tombol pulang disembunyikan di frontend.
+    $user = gp_get_guru($pdo, $record['user_id']);
+    if (!$user) {
+        sendResponse(false, 'Data guru tidak ditemukan');
+    }
+    if (!empty($user['pokjar'])) {
+        sendResponse(false, 'Guru Pokjar tidak menggunakan presensi pulang.');
+    }
+
     if (!in_array($record['status'], ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true)) {
         sendResponse(false, 'Presensi pulang hanya tersedia untuk status hadir.');
     }
@@ -530,11 +554,6 @@ function gp_checkout_attendance($pdo, $options)
     $nowMinutes = gp_time_to_minutes(date('H:i'));
     if ($nowMinutes < $minPulangMinutes && ($_SESSION['role'] ?? '') !== 'admin') {
         sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul ' . $minPulangFormatted . ' WIB');
-    }
-
-    $user = gp_get_guru($pdo, $record['user_id']);
-    if (!$user) {
-        sendResponse(false, 'Data guru tidak ditemukan');
     }
 
     [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null, $user['id'] ?? null);

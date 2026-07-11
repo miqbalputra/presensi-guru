@@ -151,7 +151,8 @@ function DataGuru() {
       'Tanggal Bertugas': guru.tanggalBertugas,
       'Lama Bertugas': calculateWorkDuration(guru.tanggalBertugas),
       'Username': guru.username,
-      'Password': guru.password
+      'Password': guru.password,
+      'Pokjar': guru.pokjar || '-'
     }))
 
     const ws = XLSX.utils.json_to_sheet(exportData)
@@ -196,6 +197,7 @@ function DataGuru() {
           tanggalLahir: tglLahir,
           noHP: row['Nomor HP'] || row['no hp'] || '',
           idGuru: row['ID Guru'] || row['id guru'] || `PKBM${String(dataGuru.length + index + 1).padStart(3, '0')}`,
+          pokjar: ['Lentera Qalbu', 'Umar bin Khattab', 'Nashirus Sunnah'].includes(row['Pokjar'] || row['pokjar'] || '') ? (row['Pokjar'] || row['pokjar']) : '',
           username: generatedUserPass,
           password: generatedUserPass,
           role: 'guru'
@@ -343,6 +345,7 @@ function DataGuru() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grup Piket</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pokjar</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanda Tangan</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
               </tr>
@@ -390,6 +393,17 @@ function DataGuru() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {guru.pokjar === 'Lentera Qalbu' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Lentera Qalbu</span>
+                    ) : guru.pokjar === 'Umar bin Khattab' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">Umar bin Khattab</span>
+                    ) : guru.pokjar === 'Nashirus Sunnah' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Nashirus Sunnah</span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {guru.punyaTandaTangan ? (
                       <span title="Punya tanda tangan">
                         <CheckCircle className="w-4 h-4 text-green-600" />
@@ -421,7 +435,7 @@ function DataGuru() {
                 )
               }) : (
                 <tr>
-                  <td colSpan="16" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="17" className="px-6 py-8 text-center text-gray-500">
                     Tidak ada data guru yang sesuai dengan filter
                   </td>
                 </tr>

@@ -18,6 +18,7 @@ function gp_map_guru(&$g, $includeSignature = false)
     $g['tanggalLahir'] = $g['tanggal_lahir'];
     $g['tipeGuru'] = $g['tipe_guru'];
     $g['piketGroup'] = $g['piket_group'] ?? null;
+    $g['pokjar'] = $g['pokjar'] ?? null;
     $g['punyaTandaTangan'] = !empty($g['tanda_tangan']);
     // Tanda tangan base64 hanya dikirim saat GET by-id (payload besar);
     // daftar guru cukup flag punyaTandaTangan.
@@ -25,6 +26,21 @@ function gp_map_guru(&$g, $includeSignature = false)
         $g['tandaTangan'] = $g['tanda_tangan'];
     }
     unset($g['tanda_tangan'], $g['password']); // Hapus field berat & password dari response
+}
+
+/**
+ * Validasi & normalisasi penugasan Pokjar.
+ * Nilai valid: '' (kosong/null), 'Lentera Qalbu', 'Umar bin Khattab', 'Nashirus Sunnah'.
+ * Catatan: berbeda dari piket_group, nilai pokjar multi-kata jadi TIDAK pakai strtoupper.
+ * Mengembalikan string pokjar atau null. Mengirim response error & exit bila invalid.
+ */
+function gp_normalize_pokjar($value)
+{
+    $pokjar = trim((string)($value ?? ''));
+    if ($pokjar !== '' && !in_array($pokjar, ['Lentera Qalbu', 'Umar bin Khattab', 'Nashirus Sunnah'], true)) {
+        sendResponse(false, 'Pokjar tidak valid. Pilih salah satu dari 3 Pokjar atau kosongkan.');
+    }
+    return $pokjar !== '' ? $pokjar : null;
 }
 
 // ARCHIVE / UNARCHIVE GURU - Hanya Admin (soft-archive, data presensi tetap utuh)
@@ -154,9 +170,12 @@ if ($method === 'POST') {
         }
         $piketGroup = $piketGroup !== '' ? $piketGroup : null;
 
+        // Validasi & normalisasi penugasan Pokjar (3 pilihan atau null)
+        $pokjar = gp_normalize_pokjar($data['pokjar'] ?? '');
+
         $stmt = $pdo->prepare("
-            INSERT INTO users (id_guru, username, password, role, nama, tanggal_lahir, jenis_kelamin, alamat, no_hp, jabatan, tanggal_bertugas, tipe_guru, piket_group)
-            VALUES (?, ?, ?, 'guru', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id_guru, username, password, role, nama, tanggal_lahir, jenis_kelamin, alamat, no_hp, jabatan, tanggal_bertugas, tipe_guru, piket_group, pokjar)
+            VALUES (?, ?, ?, 'guru', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         $stmt->execute([
@@ -171,7 +190,8 @@ if ($method === 'POST') {
             $jabatan,
             $data['tanggalBertugas'],
             $data['tipeGuru'] ?? 'full_time',
-            $piketGroup
+            $piketGroup,
+            $pokjar
         ]);
         
         sendResponse(true, 'Guru berhasil ditambahkan', ['id' => $pdo->lastInsertId()]);
@@ -205,6 +225,9 @@ if ($method === 'PUT') {
         }
         $piketGroup = $piketGroup !== '' ? $piketGroup : null;
 
+        // Validasi & normalisasi penugasan Pokjar (3 pilihan atau null)
+        $pokjar = gp_normalize_pokjar($data['pokjar'] ?? '');
+
         // Cek apakah id_guru atau username sudah digunakan oleh guru lain
         $stmt = $pdo->prepare("SELECT id FROM users WHERE (id_guru = ? OR username = ?) AND id != ?");
         $stmt->execute([$data['idGuru'], $data['username'], $data['id']]);
@@ -225,7 +248,7 @@ if ($method === 'PUT') {
                 UPDATE users SET
                     id_guru = ?, username = ?, password = ?, nama = ?,
                     tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?,
-                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?, piket_group = ?
+                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?, piket_group = ?, pokjar = ?
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -241,6 +264,7 @@ if ($method === 'PUT') {
                 $data['tanggalBertugas'],
                 $data['tipeGuru'] ?? 'full_time',
                 $piketGroup,
+                $pokjar,
                 $data['id']
             ]);
         } else {
@@ -249,7 +273,7 @@ if ($method === 'PUT') {
                 UPDATE users SET
                     id_guru = ?, username = ?, nama = ?,
                     tanggal_lahir = ?, jenis_kelamin = ?, alamat = ?, no_hp = ?,
-                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?, piket_group = ?
+                    jabatan = ?, tanggal_bertugas = ?, tipe_guru = ?, piket_group = ?, pokjar = ?
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -264,6 +288,7 @@ if ($method === 'PUT') {
                 $data['tanggalBertugas'],
                 $data['tipeGuru'] ?? 'full_time',
                 $piketGroup,
+                $pokjar,
                 $data['id']
             ]);
         }

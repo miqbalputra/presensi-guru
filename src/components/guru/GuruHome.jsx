@@ -58,6 +58,11 @@ function GuruHome({ user, onChangeTab }) {
   const [pulangLuarModal, setPulangLuarModal] = useState(false)
   const [pendingPulang, setPendingPulang] = useState(null) // { izinPulangAwal, keteranganCustom, location, currentTime }
 
+  // Guru Pokjar (sekolah binaan) memakai mode presensi sederhana:
+  // hanya Hadir / Sakit / Izin (+ keterangan), tanpa terlambat, tanpa presensi
+  // pulang, tanpa piket. Nilai pokjar dibawa dari auth (SELECT * users).
+  const isPokjar = !!(user && user.pokjar)
+
   useEffect(() => {
     loadInitialData()
     
@@ -495,6 +500,14 @@ function GuruHome({ user, onChangeTab }) {
     setLoading(true)
     setMessage({ type: '', text: '' })
 
+    // Guru Pokjar: cukup klik Hadir — tanpa geofence & tanpa dependency GPS.
+    // Validasi hanya tanggal (harus hari kerja/Sabtu), diperiksa di backend.
+    // Tidak ada pematokan jam masuk (bebas klik kapan saja dalam 24 jam Sabtu).
+    if (isPokjar) {
+      saveAttendance('hadir', '')
+      return
+    }
+
     // MODE TESTING dari settings (bukan hardcoded)
     const TESTING_MODE = settings.mode_testing == '1' // Gunakan == agar int(1) tetap true sebagai '1'
 
@@ -623,12 +636,14 @@ function GuruHome({ user, onChangeTab }) {
 
   // Fungsi untuk cek apakah tombol pulang bisa ditampilkan (sesuai setting jam_min_pulang)
   const canShowPulangButton = () => {
+    if (isPokjar) return false // Guru Pokjar tidak ada presensi pulang.
     const now = new Date()
     const currentTimeInMinutes = (now.getHours() * 60) + now.getMinutes()
     return currentTimeInMinutes >= getPulangThresholdMinutes()
   }
 
   const handlePulang = async (izinPulangAwal = false, keteranganCustom = '') => {
+    if (isPokjar) return // Guru Pokjar tidak ada presensi pulang.
     if (!todayAttendance || (todayAttendance.status !== 'hadir' && todayAttendance.status !== 'hadir_terlambat' && todayAttendance.status !== 'hadir_izin_terlambat')) return
 
     // Cek apakah sudah presensi pulang (cek kedua field untuk compatibility)
@@ -695,6 +710,7 @@ function GuruHome({ user, onChangeTab }) {
 
   // Submit presensi pulang ke server dengan penanda lokasi (sekolah/luar).
   const submitPulang = async (izinPulangAwal, keteranganCustom, location, currentTime, lokasiPulang) => {
+    if (isPokjar) return // Guru Pokjar tidak ada presensi pulang.
     setLoading(true)
     try {
       const updatedData = {
@@ -993,7 +1009,7 @@ function GuruHome({ user, onChangeTab }) {
                       </span>
                     </div>
                     <div className="space-y-0">
-                      {todayAttendance.jamHadir && (
+                      {!isPokjar && todayAttendance.jamHadir && (
                         <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
                           <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Jam Masuk</span>
                           <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{todayAttendance.jamHadir}</span>
@@ -1017,12 +1033,14 @@ function GuruHome({ user, onChangeTab }) {
                           <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">{todayAttendance.keterangan}</span>
                         </div>
                       )}
-                      <div className="flex justify-between items-center py-2">
-                        <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Jam Pulang</span>
-                        <span className={`text-xs font-semibold ${(todayAttendance.jamPulang || todayAttendance.jam_pulang) ? "text-slate-700 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"}`}>
-                          {todayAttendance.jamPulang || todayAttendance.jam_pulang || 'Belum tercatat'}
-                        </span>
-                      </div>
+                      {!isPokjar && (
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Jam Pulang</span>
+                          <span className={`text-xs font-semibold ${(todayAttendance.jamPulang || todayAttendance.jam_pulang) ? "text-slate-700 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"}`}>
+                            {todayAttendance.jamPulang || todayAttendance.jam_pulang || 'Belum tercatat'}
+                          </span>
+                        </div>
+                      )}
                       {todayAttendance.keterangan && !isHadirTerlambat && (
                         <div className="flex justify-between items-center py-2 border-t border-slate-100 dark:border-slate-800">
                           <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Keterangan</span>
@@ -1040,7 +1058,7 @@ function GuruHome({ user, onChangeTab }) {
                   </div>
                 </div>
 
-                {!isIzinSakit && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && !todayAttendance.jamPulang && !todayAttendance.jam_pulang && (
+                {!isPokjar && !isIzinSakit && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && !todayAttendance.jamPulang && !todayAttendance.jam_pulang && (
                   <>
                     {canShowPulangButton() ? (
                       <button
@@ -1075,27 +1093,33 @@ function GuruHome({ user, onChangeTab }) {
       {(() => {
         const sudahPulang = todayAttendance && (todayAttendance.jam_pulang || todayAttendance.jamPulang)
         const isIzinSakit = todayAttendance && (todayAttendance.status === 'izin' || todayAttendance.status === 'sakit')
-        if (isHoliday || sudahPulang || isIzinSakit) return null
+        // Guru Pokjar: sekali catat (hadir/izin/sakit) selesai — tidak ada langkah
+        // pulang, jadi sembunyikan semua tombol aksi setelah ada catatan presensi.
+        if (isHoliday || sudahPulang || isIzinSakit || (isPokjar && todayAttendance)) return null
         return (
         <div className="space-y-3 mb-6">
-          <button
-            onClick={() => setShowQRScanner(true)}
-            disabled={loading}
-            className={`w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-sm transition-all hover:opacity-90 active:scale-[0.99] disabled:bg-slate-300 disabled:text-slate-500 ${
-              !todayAttendance ? 'bg-indigo-600 text-white' : 'bg-violet-600 text-white'
-            }`}
-          >
-            <QrCode className="w-6 h-6" />
-            <span>{!todayAttendance ? 'SCAN PRESENSI MASUK' : settings.qr_enabled == '1' ? 'SCAN PRESENSI PULANG' : 'PRESENSI PULANG'}</span>
-          </button>
+          {!isPokjar && (
+            <button
+              onClick={() => setShowQRScanner(true)}
+              disabled={loading}
+              className={`w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-3 shadow-sm transition-all hover:opacity-90 active:scale-[0.99] disabled:bg-slate-300 disabled:text-slate-500 ${
+                !todayAttendance ? 'bg-indigo-600 text-white' : 'bg-violet-600 text-white'
+              }`}
+            >
+              <QrCode className="w-6 h-6" />
+              <span>{!todayAttendance ? 'SCAN PRESENSI MASUK' : settings.qr_enabled == '1' ? 'SCAN PRESENSI PULANG' : 'PRESENSI PULANG'}</span>
+            </button>
+          )}
 
-          {settings.button_enabled == '1' && (
+          {(settings.button_enabled == '1' || isPokjar) && (
             <>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-slate-200" />
-                <span className="text-slate-400 text-xs font-medium">atau presensi manual</span>
-                <div className="flex-1 h-px bg-slate-200" />
-              </div>
+              {!isPokjar && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-slate-400 text-xs font-medium">atau presensi manual</span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+              )}
               <button
                 onClick={handleHadir}
                 disabled={loading}

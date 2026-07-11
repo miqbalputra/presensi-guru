@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `tanggal_lahir` date DEFAULT NULL,
   `tipe_guru` enum('full_time','partime') DEFAULT 'full_time',
   `piket_group` enum('A','B') DEFAULT NULL COMMENT 'grup rotasi piket Sabtu (A/B)',
+  `pokjar` enum('Lentera Qalbu','Umar bin Khattab','Nashirus Sunnah') DEFAULT NULL COMMENT 'penugasan Pokjar binaan; non-null = mode presensi sederhana (Hadir/Sakit/Izin, tanpa terlambat/pulang/piket)',
   `tanda_tangan` longtext DEFAULT NULL COMMENT 'base64 PNG tanda tangan guru (per akun)',
   `archived_at` timestamp NULL DEFAULT NULL,
   `archive_reason` varchar(255) DEFAULT NULL,
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `id_guru` (`id_guru`),
   KEY `idx_users_archived_at` (`archived_at`),
   KEY `idx_users_piket_group` (`piket_group`),
+  KEY `idx_users_pokjar` (`pokjar`),
   KEY `idx_users_role_nama` (`role`,`nama`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -238,12 +240,12 @@ CREATE TABLE IF NOT EXISTS `webhook_logs` (
 -- Akun default. Password SEMUA akun di bawah = "admin123" (bcrypt).
 -- GANTI PASSWORD SEGERA setelah login pertama.
 -- ---------------------------------------------------------------------
-INSERT INTO `users` (`id`, `id_guru`, `username`, `email`, `password`, `role`, `nama`, `jenis_kelamin`, `tipe_guru`, `piket_group`, `tanggal_bertugas`) VALUES
-(1, NULL, 'admin',  NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'admin',           'Administrator',     NULL,        'full_time', NULL, NULL),
-(2, NULL, 'kepsek', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'kepala_sekolah',  'Kepala Sekolah',    NULL,        'full_time', NULL, NULL),
-(3, 'PKBM001', 'guru1', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'guru', 'Budi Santoso',     'Laki-laki', 'full_time', 'A', '2024-07-01'),
-(4, 'PKBM002', 'guru2', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'guru', 'Siti Nurhaliza',   'Perempuan', 'full_time', 'B', '2024-07-01'),
-(5, 'PKBM003', 'guru3', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'guru', 'Ahmad Fauzi',      'Laki-laki', 'full_time', 'A', '2024-07-01');
+INSERT INTO `users` (`id`, `id_guru`, `username`, `email`, `password`, `role`, `nama`, `jenis_kelamin`, `tipe_guru`, `piket_group`, `pokjar`, `tanggal_bertugas`) VALUES
+(1, NULL, 'admin',  NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'admin',           'Administrator',     NULL,        'full_time', NULL, NULL, NULL),
+(2, NULL, 'kepsek', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'kepala_sekolah',  'Kepala Sekolah',    NULL,        'full_time', NULL, NULL, NULL),
+(3, 'PKBM001', 'guru1', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'guru', 'Budi Santoso',     'Laki-laki', 'full_time', 'A', NULL, '2024-07-01'),
+(4, 'PKBM002', 'guru2', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'guru', 'Siti Nurhaliza',   'Perempuan', 'full_time', 'B', NULL, '2024-07-01'),
+(5, 'PKBM003', 'guru3', NULL, '$2y$12$G2VobgYznXL/9Bs9DodoS.1uOUwh0ySb/eiNDAiHpQhcrj/S99HBq', 'guru', 'Ahmad Fauzi',      'Laki-laki', 'full_time', 'A', 'Lentera Qalbu', '2024-07-01');
 
 -- ---------------------------------------------------------------------
 -- Settings default PKBM Tunas Ilmu.

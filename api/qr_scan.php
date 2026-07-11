@@ -72,7 +72,7 @@ if ($method === 'POST') {
         } else {
             // Fallback: ambil dari database pakai user_id
             $stmtUser = $pdo->prepare("
-                SELECT id, nama, jenis_kelamin, tipe_guru
+                SELECT id, nama, jenis_kelamin, tipe_guru, pokjar
                 FROM users
                 WHERE id = ?
                 LIMIT 1
