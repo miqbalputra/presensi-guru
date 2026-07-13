@@ -418,7 +418,7 @@ function gp_checkout_attendance($pdo, $options)
     }
 
     $minPulangFormatted = '12:30';
-    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted);
+    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted, $date);
     $nowMinutes = gp_time_to_minutes(date('H:i'));
     if ($nowMinutes < $minPulangMinutes && ($_SESSION['role'] ?? '') !== 'admin') {
         sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul ' . $minPulangFormatted . ' WIB');
@@ -465,11 +465,12 @@ function gp_checkout_attendance($pdo, $options)
     $piket = gp_get_piket($pdo, $record['user_id'], $date);
 
     if (!$isSpecialWorkday && $piket && !empty($piket['jam_pulang_piket'])) {
-        $targetMinutes = gp_time_to_minutes($piket['jam_pulang_piket']);
+        // Target pulang piket bisa ditimpa override per-tanggal (pengaturan_harian).
+        [$targetMinutes, $targetFormatted] = gp_get_piket_pulang_target($pdo, $piket, $date);
         $actualMinutes = gp_time_to_minutes($time);
 
-        if ($actualMinutes < $targetMinutes && !$izinPulangAwal) {
-            sendResponse(false, 'PIKET_RESTRICTION|' . substr($piket['jam_pulang_piket'], 0, 5));
+        if ($targetMinutes !== null && $actualMinutes < $targetMinutes && !$izinPulangAwal) {
+            sendResponse(false, 'PIKET_RESTRICTION|' . $targetFormatted);
         }
     }
 
@@ -507,14 +508,85 @@ function gp_time_to_minutes($time)
 }
 
 /**
- * Ambil batas minimal jam presensi pulang (menit sejak 00:00) dari settings.
- * Default 12:30 = 750 menit. Dipakai oleh tombol pulang & QR scan pulang.
+ * Ambil baris override jam pulang per-tanggal (pengaturan_harian).
+ * Return associative array atau null bila tidak ada baris untuk tanggal tsb.
  */
-function gp_get_min_pulang_minutes($pdo, &$formatted = null)
+function gp_get_harian_override($pdo, $date)
 {
-    $settings = gp_get_settings($pdo, ['jam_min_pulang']);
-    $value = $settings['jam_min_pulang'] ?? '12:30';
+    if (empty($date)) {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM pengaturan_harian WHERE tanggal = ? LIMIT 1");
+        $stmt->execute([$date]);
+        return $stmt->fetch() ?: null;
+    } catch (PDOException $e) {
+        // Tabel pengaturan_harian mungkin belum di-migrate di lingkungan ini.
+        // Fallback aman: anggap tidak ada override (perilaku lama).
+        return null;
+    }
+}
+
+/**
+ * Ambil batas minimal jam presensi pulang (menit sejak 00:00).
+ * Default 12:30 = 750 menit. Dipakai oleh tombol pulang & QR scan pulang.
+ *
+ * Jika $date diberikan dan ada override aktif (pengaturan_harian.jam_pulang_khusus
+ * dengan jam_pulang_khusus_aktif = 1), nilai override menimpa jam_min_pulang global
+ * untuk tanggal tersebut (kasus sekolah pulang lebih awal).
+ */
+function gp_get_min_pulang_minutes($pdo, &$formatted = null, $date = null)
+{
+    if ($date === null) {
+        $date = date('Y-m-d');
+    }
+
+    $override = gp_get_harian_override($pdo, $date);
+    $overrideTime = null;
+    if ($override
+        && (int)$override['jam_pulang_khusus_aktif'] === 1
+        && !empty($override['jam_pulang_khusus'])
+        && $override['jam_pulang_khusus'] !== '00:00:00') {
+        $overrideTime = $override['jam_pulang_khusus'];
+    }
+
+    if ($overrideTime !== null) {
+        $value = substr($overrideTime, 0, 5);
+    } else {
+        $settings = gp_get_settings($pdo, ['jam_min_pulang']);
+        $value = $settings['jam_min_pulang'] ?? '12:30';
+    }
+
     $formatted = substr($value, 0, 5);
     return gp_time_to_minutes($formatted);
+}
+
+/**
+ * Ambil target jam pulang piket efektif (menit) untuk tanggal tertentu.
+ * Jika override aktif (pengaturan_harian.jam_pulang_piket_khusus dengan
+ * jam_pulang_piket_khusus_aktif = 1), menimpa jadwal_piket.jam_pulang_piket.
+ * Return [minutes, formattedHHMM] atau [null, null] bila tidak ada target.
+ */
+function gp_get_piket_pulang_target($pdo, $piket, $date, &$formatted = null)
+{
+    $override = gp_get_harian_override($pdo, $date);
+    $target = null;
+
+    if ($override
+        && (int)$override['jam_pulang_piket_khusus_aktif'] === 1
+        && !empty($override['jam_pulang_piket_khusus'])
+        && $override['jam_pulang_piket_khusus'] !== '00:00:00') {
+        $target = $override['jam_pulang_piket_khusus'];
+    } elseif ($piket && !empty($piket['jam_pulang_piket'])) {
+        $target = $piket['jam_pulang_piket'];
+    }
+
+    if ($target === null) {
+        $formatted = null;
+        return [null, null];
+    }
+
+    $formatted = substr($target, 0, 5);
+    return [gp_time_to_minutes($formatted), $formatted];
 }
 ?>

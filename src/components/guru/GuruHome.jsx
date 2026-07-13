@@ -47,6 +47,9 @@ function GuruHome({ user, onChangeTab }) {
   const [showPiketModal, setShowPiketModal] = useState(false)
   const [piketCheckoutTime, setPiketCheckoutTime] = useState('')
   const [pendingQRData, setPendingQRData] = useState(null)
+  // Jam minimal pulang efektif hari ini (dari guru_home, mengikuti override
+  // per-tanggal pengaturan_harian). Null = pakai settings.jam_min_pulang.
+  const [pulangThreshold, setPulangThreshold] = useState('')
   const [keteranganPiket, setKeteranganPiket] = useState('')
   const [piketStep, setPiketStep] = useState(1) // 1: Info, 2: Input Alasan
   const [locationStatus, setLocationStatus] = useState({ state: 'idle', location: null, message: '' })
@@ -271,6 +274,10 @@ function GuruHome({ user, onChangeTab }) {
 
     if (data.settings) {
       setSettings(prev => ({ ...prev, ...data.settings }))
+    }
+
+    if (data.pulangThreshold) {
+      setPulangThreshold(data.pulangThreshold)
     }
 
     if (data.holiday) {
@@ -612,14 +619,19 @@ function GuruHome({ user, onChangeTab }) {
     }
   }
 
-  // Batas minimal jam presensi pulang (menit sejak 00:00). Default 12:30 = 750.
+  // Batas minimal jam presensi pulang efektif hari ini. Mengikuti override
+  // per-tanggal (pengaturan_harian) bila aktif (pulangThreshold dari guru_home);
+  // jika tidak ada, pakai settings.jam_min_pulang (default 12:30).
+  const effectivePulangThreshold = () => (pulangThreshold || settings.jam_min_pulang || '12:30').substring(0, 5)
+
+  // Batas minimal jam presensi pulang (menit sejak 00:00).
   const getPulangThresholdMinutes = () => {
-    const val = (settings.jam_min_pulang || '12:30').trim()
+    const val = effectivePulangThreshold().trim()
     const [h, m] = val.split(':')
     return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0)
   }
 
-  const formatPulangThreshold = () => (settings.jam_min_pulang || '12:30').substring(0, 5)
+  const formatPulangThreshold = () => effectivePulangThreshold()
 
   // Fungsi untuk cek apakah tombol pulang bisa ditampilkan (sesuai setting jam_min_pulang)
   const canShowPulangButton = () => {

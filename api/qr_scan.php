@@ -102,8 +102,11 @@ if ($method === 'POST') {
 
         if ($existing) {
             $isPulangFlag = isset($data['is_pulang']) && ($data['is_pulang'] === true || $data['is_pulang'] === 1 || $data['is_pulang'] === '1');
-            $minPulangSetting = $settings['jam_min_pulang'] ?? '12:30';
-            $minPulangFormatted = substr($minPulangSetting, 0, 5);
+            // gp_get_min_pulang_minutes otomatis memakai override per-tanggal
+            // (pengaturan_harian) bila aktif, sehingga QR auto-switch ke pulang
+            // di jam override (mis. hari pulang lebih awal).
+            $minPulangFormatted = '12:30';
+            gp_get_min_pulang_minutes($pdo, $minPulangFormatted, $today);
             $currentMinutes = (intval(date('H')) * 60) + intval(date('i'));
             $isPulangRequest = $isPulangFlag || ($currentMinutes >= gp_time_to_minutes($minPulangFormatted));
 

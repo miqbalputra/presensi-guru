@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck } from 'lucide-react'
-import { settingsAPI } from '../../services/api'
+import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Trash2 } from 'lucide-react'
+import { settingsAPI, pengaturanHarianAPI } from '../../services/api'
 
 function Pengaturan() {
   const [settings, setSettings] = useState({
@@ -29,9 +29,95 @@ function Pengaturan() {
   const [notification, setNotification] = useState({ show: false, message: '', type: '' })
   const [showPanduan, setShowPanduan] = useState(false)
 
+  // Override jam pulang per-tanggal (pengaturan harian khusus)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const [harianForm, setHarianForm] = useState({
+    tanggal: todayStr,
+    jam_pulang_khusus: '',
+    jam_pulang_khusus_aktif: false,
+    jam_pulang_piket_khusus: '',
+    jam_pulang_piket_khusus_aktif: false,
+    keterangan: '',
+  })
+  const [harianList, setHarianList] = useState([])
+  const [savingHarian, setSavingHarian] = useState(false)
+
   useEffect(() => {
     loadSettings()
+    loadHarian()
   }, [])
+
+  const loadHarian = async () => {
+    try {
+      const response = await pengaturanHarianAPI.getAll()
+      setHarianList(response.data || [])
+    } catch (error) {
+      console.error('Failed to load pengaturan harian:', error)
+    }
+  }
+
+  const handleHarianChange = (key, value) => {
+    setHarianForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const handleHarianToggle = (key) => {
+    setHarianForm(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const handleHarianSave = async () => {
+    if (!harianForm.tanggal) {
+      showNotification('Tanggal wajib diisi', 'error')
+      return
+    }
+    if (harianForm.jam_pulang_khusus_aktif && !harianForm.jam_pulang_khusus) {
+      showNotification('Jam pulang semua guru harus diisi saat diaktifkan', 'error')
+      return
+    }
+    if (harianForm.jam_pulang_piket_khusus_aktif && !harianForm.jam_pulang_piket_khusus) {
+      showNotification('Jam pulang khusus piket harus diisi saat diaktifkan', 'error')
+      return
+    }
+    try {
+      setSavingHarian(true)
+      await pengaturanHarianAPI.upsert({
+        tanggal: harianForm.tanggal,
+        jam_pulang_khusus: harianForm.jam_pulang_khusus || '',
+        jam_pulang_khusus_aktif: harianForm.jam_pulang_khusus_aktif ? 1 : 0,
+        jam_pulang_piket_khusus: harianForm.jam_pulang_piket_khusus || '',
+        jam_pulang_piket_khusus_aktif: harianForm.jam_pulang_piket_khusus_aktif ? 1 : 0,
+        keterangan: harianForm.keterangan || '',
+      })
+      showNotification('Pengaturan harian berhasil disimpan!', 'success')
+      await loadHarian()
+    } catch (error) {
+      showNotification('Gagal menyimpan pengaturan harian: ' + error.message, 'error')
+    } finally {
+      setSavingHarian(false)
+    }
+  }
+
+  const handleHarianDelete = async (tanggal) => {
+    if (!window.confirm(`Hapus pengaturan harian untuk tanggal ${tanggal}?`)) return
+    try {
+      await pengaturanHarianAPI.delete(tanggal)
+      showNotification('Pengaturan harian dihapus', 'success')
+      await loadHarian()
+    } catch (error) {
+      showNotification('Gagal menghapus: ' + error.message, 'error')
+    }
+  }
+
+  const handleHarianEdit = (row) => {
+    setHarianForm({
+      tanggal: row.tanggal,
+      jam_pulang_khusus: row.jam_pulang_khusus || '',
+      jam_pulang_khusus_aktif: !!row.jam_pulang_khusus_aktif,
+      jam_pulang_piket_khusus: row.jam_pulang_piket_khusus || '',
+      jam_pulang_piket_khusus_aktif: !!row.jam_pulang_piket_khusus_aktif,
+      keterangan: row.keterangan || '',
+    })
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+  }
 
   const loadSettings = async () => {
     try {
@@ -258,6 +344,150 @@ function Pengaturan() {
             </div>
             <p className="text-xs text-gray-500 mt-2">
               Contoh: 12:30 berarti tombol PRESENSI PULANG baru aktif pukul 12:30 WIB. Ubah sesuai kebijakan sekolah.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Pengaturan Pulang Harian Khusus (per-tanggal) */}
+      <div className="bg-white rounded-lg shadow p-6 border-l-4 border-amber-500">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-amber-100 rounded-lg">
+            <CalendarCheck className="w-6 h-6 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Pengaturan Pulang Harian Khusus</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Override jam minimal presensi pulang <strong>hanya untuk tanggal tertentu</strong>
+              (mis. hari sekolah pulang lebih awal). Kedua field punya toggle on/off masing-masing.
+              Saat <strong>OFF</strong> atau jam dikosongkan, kembali ke pengaturan global / jadwal piket.
+            </p>
+
+            <div className="space-y-4">
+              {/* Tanggal */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Tanggal</label>
+                <input
+                  type="date"
+                  value={harianForm.tanggal}
+                  onChange={(e) => handleHarianChange('tanggal', e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              {/* Semua guru */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-800">Jam Pulang — Semua Guru</span>
+                    <p className="text-xs text-gray-500">Menimpa "Jam Minimal Presensi Pulang" di atas untuk tanggal ini.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleHarianToggle('jam_pulang_khusus_aktif')}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${harianForm.jam_pulang_khusus_aktif ? 'bg-amber-500' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${harianForm.jam_pulang_khusus_aktif ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                <input
+                  type="time"
+                  value={harianForm.jam_pulang_khusus}
+                  onChange={(e) => handleHarianChange('jam_pulang_khusus', e.target.value)}
+                  disabled={!harianForm.jam_pulang_khusus_aktif}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:text-gray-400"
+                />
+              </div>
+
+              {/* Khusus piket */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-800">Jam Pulang — Khusus Guru Piket</span>
+                    <p className="text-xs text-gray-500">Menimpa jam pulang piket (jadwal piket) untuk tanggal ini.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleHarianToggle('jam_pulang_piket_khusus_aktif')}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${harianForm.jam_pulang_piket_khusus_aktif ? 'bg-amber-500' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${harianForm.jam_pulang_piket_khusus_aktif ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                <input
+                  type="time"
+                  value={harianForm.jam_pulang_piket_khusus}
+                  onChange={(e) => handleHarianChange('jam_pulang_piket_khusus', e.target.value)}
+                  disabled={!harianForm.jam_pulang_piket_khusus_aktif}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:text-gray-400"
+                />
+              </div>
+
+              {/* Keterangan */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan (opsional)</label>
+                <input
+                  type="text"
+                  value={harianForm.keterangan}
+                  onChange={(e) => handleHarianChange('keterangan', e.target.value)}
+                  placeholder="Mis. Pulang awal karena acara sekolah"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <button
+                onClick={handleHarianSave}
+                disabled={savingHarian}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-400"
+              >
+                <Save className="w-4 h-4" />
+                Simpan Pengaturan Harian
+              </button>
+            </div>
+
+            {/* Daftar override tersimpan */}
+            {harianList.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Override Tersimpan</h4>
+                <div className="space-y-2">
+                  {harianList.map((row) => (
+                    <div key={row.tanggal} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <div className="text-sm">
+                        <div className="font-semibold text-gray-800">{row.tanggal}</div>
+                        <div className="text-xs text-gray-600">
+                          Semua guru: <span className={row.jam_pulang_khusus_aktif ? 'text-amber-600 font-semibold' : 'text-gray-400'}>
+                            {row.jam_pulang_khusus_aktif ? (row.jam_pulang_khusus || '—') : 'OFF'}
+                          </span>
+                          {' • '}
+                          Piket: <span className={row.jam_pulang_piket_khusus_aktif ? 'text-amber-600 font-semibold' : 'text-gray-400'}>
+                            {row.jam_pulang_piket_khusus_aktif ? (row.jam_pulang_piket_khusus || '—') : 'OFF'}
+                          </span>
+                        </div>
+                        {row.keterangan && <div className="text-xs text-gray-500 italic">{row.keterangan}</div>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleHarianEdit(row)}
+                          className="px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-lg"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleHarianDelete(row.tanggal)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                          title="Hapus"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 mt-3">
+              Kasus jarang. Setelah tanggal berlalu, hapus baris agar tidak menumpuk. Field yang OFF / kosong diabaikan.
             </p>
           </div>
         </div>

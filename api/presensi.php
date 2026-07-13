@@ -271,9 +271,11 @@ if ($method === 'PUT') {
             } else {
                 // Sudah waktunya pulang
                 if ($isGuru && !empty($data['jamPulang'])) {
-                    // Validasi guru: batas minimal jam pulang dari setting (default 12:30)
+                    // Validasi guru: batas minimal jam pulang dari setting (default 12:30).
+                    // gp_get_min_pulang_minutes otomatis memakai override per-tanggal
+                    // (pengaturan_harian) bila ada & aktif untuk tanggal record ini.
                     $minPulangFormatted = '12:30';
-                    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted);
+                    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted, $rec['tanggal']);
                     if (((intval(date('H')) * 60) + intval(date('i'))) < $minPulangMinutes) {
                         sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul ' . $minPulangFormatted . ' WIB');
                     }
@@ -285,10 +287,10 @@ if ($method === 'PUT') {
 
                     if (!$isSpecialWorkday && $piketRow && !empty($piketRow['jam_pulang_piket'])) {
                         $nowMin    = (intval(date('H')) * 60) + intval(date('i'));
-                        list($pH, $pM) = explode(':', $piketRow['jam_pulang_piket']);
-                        $piketMin  = (intval($pH) * 60) + intval($pM);
-                        if ($nowMin < $piketMin && empty($data['izin_pulang_awal'])) {
-                            sendResponse(false, "PIKET_RESTRICTION|" . substr($piketRow['jam_pulang_piket'], 0, 5));
+                        // Target pulang piket bisa ditimpa override per-tanggal.
+                        [$piketMin, $piketFormatted] = gp_get_piket_pulang_target($pdo, $piketRow, $rec['tanggal']);
+                        if ($piketMin !== null && $nowMin < $piketMin && empty($data['izin_pulang_awal'])) {
+                            sendResponse(false, "PIKET_RESTRICTION|" . $piketFormatted);
                         }
                         if (!empty($data['izin_pulang_awal'])) {
                             $ket = $data['keterangan'] ?? '';

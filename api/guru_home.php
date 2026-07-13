@@ -79,11 +79,25 @@ try {
     $piketStmt->execute([$userId, $hari]);
     $myPiket = $piketStmt->fetch();
 
+    // Hitung jam pulang efektif untuk hari ini (mengikuti override per-tanggal
+    // pengaturan_harian bila aktif) agar tombol PRESENSI PULANG muncul tepat waktu.
+    require_once 'attendance_service.php';
+    $pulangThreshold = '12:30';
+    gp_get_min_pulang_minutes($pdo, $pulangThreshold, $today);
+
+    $piketPulangTarget = null;
+    if ($myPiket && !empty($myPiket['jam_pulang_piket'])) {
+        [$piketMin, $piketFmt] = gp_get_piket_pulang_target($pdo, $myPiket, $today);
+        $piketPulangTarget = $piketFmt;
+    }
+
     sendResponse(true, 'Data dashboard guru berhasil diambil', [
         'today' => $today,
         'settings' => $settings,
         'holiday' => $holidayData,
         'attendance' => $attendance ?: null,
+        'pulangThreshold' => $pulangThreshold,
+        'piketPulangTarget' => $piketPulangTarget,
         'piket' => [
             'hari' => $hari,
             'mine' => $myPiket,

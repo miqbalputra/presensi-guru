@@ -284,6 +284,28 @@ export const settingsAPI = {
   },
 }
 
+// Pengaturan Harian API (override jam pulang per-tanggal)
+export const pengaturanHarianAPI = {
+  getAll: async () => {
+    return fetchAPI('/pengaturan_harian.php', {
+      method: 'GET',
+    })
+  },
+
+  upsert: async (payload) => {
+    return fetchAPI('/pengaturan_harian.php', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  delete: async (tanggal) => {
+    return fetchAPI(`/pengaturan_harian.php?tanggal=${encodeURIComponent(tanggal)}`, {
+      method: 'DELETE',
+    })
+  },
+}
+
 // Jadwal Piket API
 export const jadwalPiketAPI = {
   getAll: async (filters = {}) => {
@@ -591,6 +613,7 @@ export default {
   activityAPI,
   holidaysAPI,
   settingsAPI,
+  pengaturanHarianAPI,
   jadwalPiketAPI,
   qrScanAPI,
   qrGenerateAPI,
