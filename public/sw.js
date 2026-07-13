@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geo-presensi-v13';
+const CACHE_NAME = 'geo-presensi-v14';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
