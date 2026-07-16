@@ -253,6 +253,20 @@ function gpw_get_workday_dates($pdo, $start, $end, $gender = null, $userId = nul
 
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
     $workdayDays = gpw_get_workday_days($pdo);
+
+    // Guru tidak wajib presensi sebelum akunnya dibuat. Ambil created_at user
+    // (jika ada) agar hari kerja sebelum akun ada tidak dihitung (menghindari
+    // alfa retroaktif bagi guru yang baru di-import).
+    $createdAtDate = null;
+    if ($userId !== null && $userId !== false) {
+        $cs = $pdo->prepare("SELECT created_at FROM users WHERE id = ? LIMIT 1");
+        $cs->execute([$userId]);
+        $cu = $cs->fetch();
+        if (!empty($cu['created_at'])) {
+            $createdAtDate = substr($cu['created_at'], 0, 10);
+        }
+    }
+
     $workdays = [];
     foreach (gpw_build_date_range($start, $end) as $date) {
         $holiday = $holidays[$date] ?? null;
@@ -265,6 +279,11 @@ function gpw_get_workday_dates($pdo, $start, $end, $gender = null, $userId = nul
         } else {
             $isSpecialWorkday = gpw_is_special_workday($holiday);
             $isWorkday = $isSpecialWorkday || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $workdayDays));
+        }
+
+        // Lewati hari kerja sebelum akun guru dibuat.
+        if ($isWorkday && $createdAtDate !== null && $date < $createdAtDate) {
+            $isWorkday = false;
         }
 
         if ($isWorkday) {

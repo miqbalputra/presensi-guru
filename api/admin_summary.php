@@ -20,12 +20,14 @@ function buildDateRange($start, $end)
     return $dates;
 }
 
-function getWorkdayDates($pdo, $start, $end, $gender = null)
+function getWorkdayDates($pdo, $start, $end, $gender = null, $userId = null)
 {
     // gpw_get_workday_dates() mengembalikan ['workdays' => [...], 'optional_workdays' => [...]].
     // Di sini kita hanya butuh daftar tanggal hari kerja (flat) agar bisa dipakai
     // untuk count(), array_flip(), dan in_array($today, ..., true).
-    $result = gpw_get_workday_dates($pdo, $start, $end, $gender);
+    // $userId diteruskan agar hari kerja sebelum akun guru dibuat (created_at)
+    // tidak dihitung sebagai alfa retroaktif.
+    $result = gpw_get_workday_dates($pdo, $start, $end, $gender, $userId);
     return $result['workdays'] ?? [];
 }
 
@@ -58,7 +60,7 @@ try {
     $workdayMapByUser = [];
     $totalExpected = 0;
     foreach ($guruRows as $guru) {
-        $userWorkdays = getWorkdayDates($pdo, $startDate, $endDate, $guru['jenis_kelamin']);
+        $userWorkdays = getWorkdayDates($pdo, $startDate, $endDate, $guru['jenis_kelamin'], (int)$guru['id']);
         $workdayMapByUser[(int)$guru['id']] = array_flip($userWorkdays);
         $totalExpected += count($userWorkdays);
     }
@@ -129,7 +131,7 @@ try {
     ");
     $missingStmt->execute([$today]);
     $missingGuru = array_values(array_filter($missingStmt->fetchAll(), function ($guru) use ($pdo, $today) {
-        return in_array($today, getWorkdayDates($pdo, $today, $today, $guru['jenis_kelamin']), true);
+        return in_array($today, getWorkdayDates($pdo, $today, $today, $guru['jenis_kelamin'], (int)$guru['id']), true);
     }));
 
     foreach ($missingGuru as &$guru) {

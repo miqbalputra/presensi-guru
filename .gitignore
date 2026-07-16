@@ -83,6 +83,11 @@ UPLOAD_ME/
 staging/
 temp_zip_content/
 
+# Data import guru (PII: nama/alamat/No HP/tgl lahir/password) — JANGAN commit
+/data_guru_pkbm.xlsx
+/tools/import_guru_pkbm.sql
+/tools/*.tsv
+
 # Runtime writable folders
 sessions/
 logs/

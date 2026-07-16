@@ -66,11 +66,30 @@ function hermes_get_workday_dates($pdo, $start, $end, $gender = null, $userId = 
 
     $workdays = [];
     $excludedDates = [];
+
+    // Guru tidak wajib presensi sebelum akunnya dibuat. Ambil created_at user
+    // (jika ada) agar Sabtu sebelum akun ada tidak dihitung sebagai hari kerja
+    // (menghindari alfa retroaktif bagi guru yang baru di-import).
+    $createdAtDate = null;
+    if ($userId !== null && $userId !== false) {
+        $cs = $pdo->prepare("SELECT created_at FROM users WHERE id = ? LIMIT 1");
+        $cs->execute([$userId]);
+        $cu = $cs->fetch();
+        if (!empty($cu['created_at'])) {
+            $createdAtDate = substr($cu['created_at'], 0, 10);
+        }
+    }
+
     foreach (hermes_build_date_range($start, $end) as $date) {
         $holiday = $holidays[$date] ?? null;
         $dateStatus = gpw_get_date_status($pdo, $date, $gender, $userId);
 
-        if ($dateStatus['isWorkday']) {
+        $isWorkday = $dateStatus['isWorkday'];
+        if ($isWorkday && $createdAtDate !== null && $date < $createdAtDate) {
+            $isWorkday = false;
+        }
+
+        if ($isWorkday) {
             $workdays[] = $date;
         } else {
             $excludedDates[] = [

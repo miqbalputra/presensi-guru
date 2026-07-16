@@ -286,6 +286,10 @@ function GuruHome({ user, onChangeTab }) {
           setHolidayInfo({ type: 'weekend', message: `Hari ${dayName} adalah hari libur` })
         } else if (holidayFound) {
           setHolidayInfo({ type: 'holiday', message: `Hari Libur: ${holidayName}` })
+        } else {
+          // Hari kerja biasa (Senin–Jumat) yang bukan hari kerja PKBM (hanya Sabtu).
+          // Tanpa cabang ini, isHoliday=true tapi holidayInfo=null → Home blank.
+          setHolidayInfo({ type: 'weekend', message: `Hari ${dayName} bukan hari kerja. Tidak perlu presensi.` })
         }
       } else {
         setIsHoliday(false)
@@ -453,6 +457,9 @@ function GuruHome({ user, onChangeTab }) {
           } else if (isHoliday) {
             console.log('🎉 Holiday detected:', holidayName)
             setHolidayInfo({ type: 'holiday', message: `Hari Libur: ${holidayName}` })
+          } else {
+            // Hari kerja biasa (Senin–Jumat) yang bukan hari kerja PKBM (hanya Sabtu).
+            setHolidayInfo({ type: 'weekend', message: `Hari ${dayName} bukan hari kerja. Tidak perlu presensi.` })
           }
         } else {
           console.log('✅ Workday - Setting isHoliday to FALSE')
