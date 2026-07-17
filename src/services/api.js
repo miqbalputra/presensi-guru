@@ -406,6 +406,26 @@ export const guruProfileAPI = {
   },
 }
 
+// Admin Account Self-Service API - admin melihat & ubah username/password sendiri
+export const adminProfileAPI = {
+  getAccount: async () => {
+    return fetchAPI('/admin_profile.php', {
+      method: 'GET',
+      timeoutMs: 8000,
+    })
+  },
+
+  // Ubah username dan/atau password admin.
+  // passwordLama wajib; usernameBaru & passwordBaru opsional (minimal satu diisi).
+  changeCredentials: async ({ passwordLama, usernameBaru, passwordBaru, konfirmasiBaru }) => {
+    return fetchAPI('/admin_profile.php?action=change_credentials', {
+      method: 'POST',
+      body: JSON.stringify({ passwordLama, usernameBaru, passwordBaru, konfirmasiBaru }),
+      timeoutMs: 8000,
+    })
+  },
+}
+
 // Guru Home API - compact initial payload for faster guru dashboard load
 export const guruHomeAPI = {
   getInitialData: async () => {

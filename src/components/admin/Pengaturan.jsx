@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Users } from 'lucide-react'
-import { settingsAPI } from '../../services/api'
+import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Users, KeyRound, Lock, User, Eye, EyeOff, Loader2, ShieldCheck, CheckCircle2 } from 'lucide-react'
+import { settingsAPI, adminProfileAPI } from '../../services/api'
 
 function Pengaturan() {
   const [settings, setSettings] = useState({
@@ -36,6 +36,14 @@ function Pengaturan() {
   const [notification, setNotification] = useState({ show: false, message: '', type: '' })
   const [showPanduan, setShowPanduan] = useState(false)
 
+  // --- State Akun Admin (ubah username & password) ---
+  const [account, setAccount] = useState({ username: '', nama: '', email: '' })
+  const [acctForm, setAcctForm] = useState({ passwordLama: '', usernameBaru: '', passwordBaru: '', konfirmasiBaru: '' })
+  const [acctErrors, setAcctErrors] = useState({})
+  const [acctSaving, setAcctSaving] = useState(false)
+  const [acctMessage, setAcctMessage] = useState({ type: '', text: '' })
+  const [showAcctPw, setShowAcctPw] = useState({ lama: false, baru: false, konfirmasi: false })
+
   useEffect(() => {
     loadSettings()
   }, [])
@@ -45,6 +53,17 @@ function Pengaturan() {
       setLoading(true)
       const response = await settingsAPI.getAll()
       setSettings(response.data)
+
+      // Muat juga info akun admin yang sedang login (untuk form ubah kredensial).
+      try {
+        const acctRes = await adminProfileAPI.getAccount()
+        const acct = acctRes.data || {}
+        setAccount({ username: acct.username || '', nama: acct.nama || '', email: acct.email || '' })
+        setAcctForm(prev => ({ ...prev, usernameBaru: acct.username || '' }))
+      } catch (acctErr) {
+        // Tidak fatal — form akun tetap tampil, hanya username awal kosong.
+        console.error('Failed to load admin account:', acctErr)
+      }
     } catch (error) {
       console.error('Failed to load settings:', error)
       showNotification('Gagal memuat pengaturan: ' + error.message, 'error')
@@ -101,6 +120,89 @@ function Pengaturan() {
     handleSave(key, newValue)
   }
 
+  // --- Handler Akun Admin ---
+  const handleAcctChange = (field) => (e) => {
+    setAcctForm(prev => ({ ...prev, [field]: e.target.value }))
+    setAcctErrors(prev => ({ ...prev, [field]: '' }))
+    setAcctMessage({ type: '', text: '' })
+  }
+
+  const toggleAcctPw = (field) => () => {
+    setShowAcctPw(prev => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  const hasAcctChanges = () => {
+    return (
+      acctForm.usernameBaru.trim() !== account.username ||
+      !!acctForm.passwordLama ||
+      !!acctForm.passwordBaru ||
+      !!acctForm.konfirmasiBaru
+    )
+  }
+
+  const validateAcct = () => {
+    const errs = {}
+    if (!acctForm.passwordLama) errs.passwordLama = 'Password saat ini harus diisi.'
+
+    const uname = acctForm.usernameBaru.trim()
+    if (uname && uname !== account.username) {
+      if (uname.length < 3) errs.usernameBaru = 'Username minimal 3 karakter.'
+      else if (uname.length > 50) errs.usernameBaru = 'Username maksimal 50 karakter.'
+      else if (!/^[A-Za-z0-9._-]+$/.test(uname)) errs.usernameBaru = 'Hanya huruf, angka, titik, underscore, dan tanda hubung.'
+    }
+
+    if (acctForm.passwordBaru || acctForm.konfirmasiBaru) {
+      if (!acctForm.passwordBaru) {
+        errs.passwordBaru = 'Password baru harus diisi.'
+      } else if (acctForm.passwordBaru.length < 6) {
+        errs.passwordBaru = 'Password baru minimal 6 karakter.'
+      }
+      if (!acctForm.konfirmasiBaru) {
+        errs.konfirmasiBaru = 'Konfirmasi password harus diisi.'
+      } else if (acctForm.passwordBaru !== acctForm.konfirmasiBaru) {
+        errs.konfirmasiBaru = 'Konfirmasi password tidak cocok.'
+      } else if (acctForm.passwordBaru === acctForm.passwordLama) {
+        errs.passwordBaru = 'Password baru tidak boleh sama dengan password saat ini.'
+      }
+    }
+
+    // Minimal ada satu perubahan (username atau password).
+    if (uname === account.username && !acctForm.passwordBaru) {
+      errs.general = 'Tidak ada perubahan. Ubah username atau isi password baru.'
+    }
+
+    setAcctErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const handleSaveAccount = async (e) => {
+    e.preventDefault()
+    setAcctMessage({ type: '', text: '' })
+    if (!validateAcct()) return
+
+    setAcctSaving(true)
+    try {
+      const res = await adminProfileAPI.changeCredentials({
+        passwordLama: acctForm.passwordLama,
+        usernameBaru: acctForm.usernameBaru.trim(),
+        passwordBaru: acctForm.passwordBaru,
+        konfirmasiBaru: acctForm.konfirmasiBaru,
+      })
+      const data = res.data || {}
+      if (data.username) {
+        setAccount(prev => ({ ...prev, username: data.username }))
+        setAcctForm(prev => ({ ...prev, usernameBaru: data.username }))
+      }
+      // Kosongkan field password setelah sukses.
+      setAcctForm(prev => ({ ...prev, passwordLama: '', passwordBaru: '', konfirmasiBaru: '' }))
+      setAcctMessage({ type: 'success', text: res.message || 'Akun berhasil diperbarui.' })
+    } catch (err) {
+      setAcctMessage({ type: 'error', text: 'Gagal memperbarui akun: ' + err.message })
+    } finally {
+      setAcctSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -114,6 +216,156 @@ function Pengaturan() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Pengaturan Sistem</h1>
       </div>
+
+      {/* Akun Admin - Ubah Username & Password */}
+      <form onSubmit={handleSaveAccount} className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500 space-y-5">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-indigo-500" /> Keamanan Akun Admin
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Ubah username dan password admin Anda. Setiap perubahan wajib mengonfirmasi password saat ini.
+          </p>
+        </div>
+
+        {/* Info akun saat ini */}
+        <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center font-bold shrink-0">
+            {(account.nama || account.username || 'A').charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-800 truncate">{account.nama || 'Admin'}</p>
+            <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
+              <User className="w-3 h-3" /> Username saat ini: <span className="font-semibold text-gray-700">{account.username || '-'}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Pesan */}
+        {acctMessage.text && (
+          <div className={`flex items-start gap-2 p-3 rounded-lg text-sm font-medium ${
+            acctMessage.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+          }`}>
+            {acctMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : null}
+            <span className="whitespace-pre-line">{acctMessage.text}</span>
+          </div>
+        )}
+        {acctErrors.general && !acctMessage.text && (
+          <div className="flex items-start gap-2 p-3 rounded-lg text-sm font-medium bg-rose-50 text-rose-700 border border-rose-200">
+            <span>{acctErrors.general}</span>
+          </div>
+        )}
+
+        {/* Password saat ini */}
+        <div>
+          <label htmlFor="acctPasswordLama" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+            <Lock className="w-4 h-4 text-indigo-500" /> Password Saat Ini
+          </label>
+          <div className="relative">
+            <input
+              id="acctPasswordLama"
+              type={showAcctPw.lama ? 'text' : 'password'}
+              value={acctForm.passwordLama}
+              onChange={handleAcctChange('passwordLama')}
+              autoComplete="current-password"
+              placeholder="Wajib diisi untuk konfirmasi"
+              className={`w-full px-4 py-2.5 pr-11 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors ${
+                acctErrors.passwordLama ? 'border-rose-400' : 'border-gray-300'
+              }`}
+            />
+            <button type="button" onClick={toggleAcctPw('lama')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {showAcctPw.lama ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          {acctErrors.passwordLama && <p className="text-xs text-rose-500 mt-1">{acctErrors.passwordLama}</p>}
+        </div>
+
+        {/* Username baru */}
+        <div>
+          <label htmlFor="acctUsernameBaru" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+            <User className="w-4 h-4 text-indigo-500" /> Username Baru
+          </label>
+          <input
+            id="acctUsernameBaru"
+            type="text"
+            value={acctForm.usernameBaru}
+            onChange={handleAcctChange('usernameBaru')}
+            autoComplete="username"
+            placeholder="Minimal 3 karakter (huruf, angka, . _ -)"
+            className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors ${
+              acctErrors.usernameBaru ? 'border-rose-400' : 'border-gray-300'
+            }`}
+          />
+          {acctErrors.usernameBaru && <p className="text-xs text-rose-500 mt-1">{acctErrors.usernameBaru}</p>}
+          <p className="text-xs text-gray-400 mt-1">ⓘ Kosongkan jika tidak ingin mengubah username. Isi jika sama dengan username saat ini = tidak ada perubahan.</p>
+        </div>
+
+        {/* Password baru */}
+        <div>
+          <label htmlFor="acctPasswordBaru" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+            <KeyRound className="w-4 h-4 text-indigo-500" /> Password Baru
+          </label>
+          <div className="relative">
+            <input
+              id="acctPasswordBaru"
+              type={showAcctPw.baru ? 'text' : 'password'}
+              value={acctForm.passwordBaru}
+              onChange={handleAcctChange('passwordBaru')}
+              autoComplete="new-password"
+              placeholder="Minimal 6 karakter (opsional)"
+              className={`w-full px-4 py-2.5 pr-11 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors ${
+                acctErrors.passwordBaru ? 'border-rose-400' : 'border-gray-300'
+              }`}
+            />
+            <button type="button" onClick={toggleAcctPw('baru')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {showAcctPw.baru ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          {acctErrors.passwordBaru && <p className="text-xs text-rose-500 mt-1">{acctErrors.passwordBaru}</p>}
+        </div>
+
+        {/* Konfirmasi password baru */}
+        <div>
+          <label htmlFor="acctKonfirmasiBaru" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+            <CheckCircle2 className="w-4 h-4 text-indigo-500" /> Ulangi Password Baru
+          </label>
+          <div className="relative">
+            <input
+              id="acctKonfirmasiBaru"
+              type={showAcctPw.konfirmasi ? 'text' : 'password'}
+              value={acctForm.konfirmasiBaru}
+              onChange={handleAcctChange('konfirmasiBaru')}
+              autoComplete="new-password"
+              placeholder="Ketik ulang password baru"
+              className={`w-full px-4 py-2.5 pr-11 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-colors ${
+                acctErrors.konfirmasiBaru ? 'border-rose-400' : 'border-gray-300'
+              }`}
+            />
+            <button type="button" onClick={toggleAcctPw('konfirmasi')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {showAcctPw.konfirmasi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          {acctErrors.konfirmasiBaru && <p className="text-xs text-rose-500 mt-1">{acctErrors.konfirmasiBaru}</p>}
+        </div>
+
+        {/* Tombol simpan */}
+        <button
+          type="submit"
+          disabled={acctSaving || !hasAcctChanges()}
+          className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+        >
+          {acctSaving ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
+          ) : (
+            <><Save className="w-4 h-4" /> Simpan Perubahan Akun</>
+          )}
+        </button>
+        {!hasAcctChanges() && !acctSaving && (
+          <p className="text-center text-xs text-gray-400">Belum ada perubahan yang perlu disimpan.</p>
+        )}
+      </form>
 
       {/* Hari Kerja Aktif */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
