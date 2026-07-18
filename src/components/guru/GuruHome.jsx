@@ -171,6 +171,13 @@ function GuruHome({ user, onChangeTab }) {
   ])
 
   const warmUpLocation = async () => {
+    // Guru Pokjar: mode presensi sederhana tanpa GPS — jangan minta izin /
+    // aktifkan GPS sama sekali. Mereka bisa presensi dari mana saja.
+    if (isPokjar) {
+      setLocationStatus({ state: 'ready', location: null, message: 'Mode Pokjar — tanpa GPS' })
+      return
+    }
+
     if (settings.mode_testing == '1') {
       setLocationStatus({ state: 'ready', location: null, message: 'Mode testing aktif' })
       return

@@ -135,6 +135,14 @@ function gp_enforce_attendance_location($settings, $user, $latitude, $longitude,
         return;
     }
 
+    // Guru Pokjar: mode presensi sederhana tanpa aturan GPS — boleh presensi
+    // dari mana saja. Di frontend tombol QR tidak ditampilkan untuk Pokjar,
+    // pengecualian ini berlaku sebagai defense-in-depth bila endpoint QR
+    // dipanggil dengan sesi Pokjar.
+    if (!empty($user['pokjar'])) {
+        return;
+    }
+
     if (!validateCoordinates($latitude, $longitude)) {
         sendResponse(false, 'Koordinat GPS tidak valid');
     }
