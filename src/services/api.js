@@ -426,6 +426,28 @@ export const adminProfileAPI = {
   },
 }
 
+// Kelola Akun Kepala Sekolah API - admin membuat/melihat/mengubah akun Kepala Sekolah
+export const kepalaSekolahAPI = {
+  // Ambil akun Kepala Sekolah saat ini (atau null bila belum ada).
+  getAccount: async () => {
+    return fetchAPI('/kepala_sekolah.php', {
+      method: 'GET',
+      timeoutMs: 8000,
+    })
+  },
+
+  // Buat (bila belum ada) atau perbarui akun Kepala Sekolah.
+  // passwordLama = password Admin saat ini (wajib untuk konfirmasi).
+  // Saat membuat akun baru, passwordBaru wajib diisi.
+  save: async ({ passwordLama, username, nama, email, passwordBaru, konfirmasiBaru }) => {
+    return fetchAPI('/kepala_sekolah.php?action=save', {
+      method: 'POST',
+      body: JSON.stringify({ passwordLama, username, nama, email, passwordBaru, konfirmasiBaru }),
+      timeoutMs: 8000,
+    })
+  },
+}
+
 // Guru Home API - compact initial payload for faster guru dashboard load
 export const guruHomeAPI = {
   getInitialData: async () => {
@@ -603,4 +625,5 @@ export default {
   teacherWorkdaysAPI,
   teachersWorkdaysAPI,
   optionalWorkdaysAPI,
+  kepalaSekolahAPI,
 }

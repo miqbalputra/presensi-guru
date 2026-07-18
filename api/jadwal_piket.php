@@ -7,7 +7,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // Penulisan (POST/PUT/PATCH/DELETE) hanya admin; baca (GET) admin+guru.
 if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'])) {
-    requireAuth(['admin']);
+    requireAuth(['admin', 'kepala_sekolah']);
 } else {
     requireAuth(['admin', 'guru']);
 }

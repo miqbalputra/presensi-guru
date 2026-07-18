@@ -17,7 +17,8 @@ const DEFAULT_SETTINGS = {
 }
 
 function LokasiGeofence({ user }) {
-  const isReadOnly = user?.role === 'kepala_sekolah'
+  // Kepala Sekolah memiliki hak akses yang sama dengan Admin → tidak ada mode read-only.
+  const isReadOnly = false
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [savingKey, setSavingKey] = useState(null) // track which group is saving

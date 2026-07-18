@@ -88,7 +88,7 @@ function AdminDashboard({ user, onLogout }) {
               <Route path="/laporan-pokjar" element={<LaporanPokjar />} />
               <Route path="/hari-libur" element={<HariLibur user={user} />} />
               <Route path="/log-aktivitas" element={<LogAktivitas />} />
-              <Route path="/pengaturan" element={<Pengaturan />} />
+              <Route path="/pengaturan" element={<Pengaturan user={user} />} />
               <Route path="/qr-code" element={<QRCodeGenerator />} />
               <Route path="/manual-entry" element={<ManualEntry />} />
               <Route path="/lokasi-geofence" element={<LokasiGeofence user={user} />} />

@@ -45,7 +45,7 @@ function gp_normalize_pokjar($value)
 
 // ARCHIVE / UNARCHIVE GURU - Hanya Admin (soft-archive, data presensi tetap utuh)
 if ($method === 'POST' && isset($_GET['action']) && in_array($_GET['action'], ['archive', 'unarchive'], true)) {
-    requireAuth(['admin']);
+    requireAuth(['admin', 'kepala_sekolah']);
     $action = $_GET['action'];
     $data = getRequestData();
     $id = isset($data['id']) ? validateInt($data['id'], 1) : null;
@@ -137,7 +137,7 @@ if ($method === 'GET' && isset($_GET['id'])) {
 
 // CREATE GURU - Hanya Admin
 if ($method === 'POST') {
-    requireAuth(['admin']);
+    requireAuth(['admin', 'kepala_sekolah']);
     $data = getRequestData();
     
     try {
@@ -207,7 +207,7 @@ if ($method === 'POST') {
 
 // UPDATE GURU - Hanya Admin
 if ($method === 'PUT') {
-    requireAuth(['admin']);
+    requireAuth(['admin', 'kepala_sekolah']);
     $data = getRequestData();
     
     try {
@@ -310,7 +310,7 @@ if ($method === 'PUT') {
 
 // DELETE GURU - Hanya Admin
 if ($method === 'DELETE') {
-    requireAuth(['admin']);
+    requireAuth(['admin', 'kepala_sekolah']);
     $id = $_GET['id'] ?? null;
     
     if (!$id) {

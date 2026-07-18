@@ -6,7 +6,7 @@
 require_once 'config.php';
 
 // Hanya admin yang bisa mengakses
-requireAuth(['admin']);
+requireAuth(['admin', 'kepala_sekolah']);
 
 $method = $_SERVER['REQUEST_METHOD'];
 

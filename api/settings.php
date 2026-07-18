@@ -8,7 +8,7 @@ if ($method === 'GET' && !isset($_GET['id'])) {
     // Public endpoint untuk get settings
 } else if (in_array($method, ['POST', 'PUT'])) {
     // Write operations - hanya admin
-    requireAuth(['admin']);
+    requireAuth(['admin', 'kepala_sekolah']);
 } else {
     // Read operations - semua role
     requireAuth(['admin', 'guru']);

@@ -4,7 +4,8 @@ import { formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dat
 import { guruAPI, presensiAPI } from '../../services/api'
 
 function EditPresensi({ user }) {
-  const isReadOnly = user?.role === 'kepala_sekolah'
+  // Kepala Sekolah memiliki hak akses yang sama dengan Admin → tidak ada mode read-only.
+  const isReadOnly = false
   const [dataGuru, setDataGuru] = useState([])
   const [attendanceLogs, setAttendanceLogs] = useState([])
   const [formData, setFormData] = useState({

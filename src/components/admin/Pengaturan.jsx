@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Users, KeyRound, Lock, User, Eye, EyeOff, Loader2, ShieldCheck, CheckCircle2 } from 'lucide-react'
-import { settingsAPI, adminProfileAPI } from '../../services/api'
+import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Users, KeyRound, Lock, User, Eye, EyeOff, Loader2, ShieldCheck, CheckCircle2, UserCog } from 'lucide-react'
+import { settingsAPI, adminProfileAPI, kepalaSekolahAPI } from '../../services/api'
 
-function Pengaturan() {
+function Pengaturan({ user }) {
   const [settings, setSettings] = useState({
     jam_masuk_normal: '07:20',
     toleransi_terlambat: '15',
@@ -44,6 +44,18 @@ function Pengaturan() {
   const [acctMessage, setAcctMessage] = useState({ type: '', text: '' })
   const [showAcctPw, setShowAcctPw] = useState({ lama: false, baru: false, konfirmasi: false })
 
+  // --- State Akun Kepala Sekolah (dikelola Admin) ---
+  const [kepsek, setKepsek] = useState(null)            // akun KS saat ini atau null
+  const [kepsekLoading, setKepsekLoading] = useState(true)
+  const [kepsekForm, setKepsekForm] = useState({
+    adminPassword: '', username: '', nama: '', email: '',
+    passwordBaru: '', konfirmasiBaru: ''
+  })
+  const [kepsekErrors, setKepsekErrors] = useState({})
+  const [kepsekSaving, setKepsekSaving] = useState(false)
+  const [kepsekMessage, setKepsekMessage] = useState({ type: '', text: '' })
+  const [showKepsekPw, setShowKepsekPw] = useState({ admin: false, baru: false, konfirmasi: false })
+
   useEffect(() => {
     loadSettings()
   }, [])
@@ -63,6 +75,24 @@ function Pengaturan() {
       } catch (acctErr) {
         // Tidak fatal — form akun tetap tampil, hanya username awal kosong.
         console.error('Failed to load admin account:', acctErr)
+      }
+
+      // Muat akun Kepala Sekolah (hanya untuk Admin).
+      if (user?.role === 'admin') {
+        try {
+          const ksRes = await kepalaSekolahAPI.getAccount()
+          const ks = ksRes.data || null
+          setKepsek(ks)
+          if (ks) {
+            setKepsekForm(prev => ({ ...prev, username: ks.username || '', nama: ks.nama || '', email: ks.email || '' }))
+          }
+        } catch (ksErr) {
+          console.error('Failed to load kepala sekolah account:', ksErr)
+        } finally {
+          setKepsekLoading(false)
+        }
+      } else {
+        setKepsekLoading(false)
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
@@ -200,6 +230,87 @@ function Pengaturan() {
       setAcctMessage({ type: 'error', text: 'Gagal memperbarui akun: ' + err.message })
     } finally {
       setAcctSaving(false)
+    }
+  }
+
+  // --- Handler Akun Kepala Sekolah ---
+  const handleKepsekChange = (field) => (e) => {
+    setKepsekForm(prev => ({ ...prev, [field]: e.target.value }))
+    setKepsekErrors(prev => ({ ...prev, [field]: '' }))
+    setKepsekMessage({ type: '', text: '' })
+  }
+
+  const toggleKepsekPw = (field) => () => {
+    setShowKepsekPw(prev => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  const isKepsekCreate = !kepsek
+
+  const validateKepsek = () => {
+    const errs = {}
+    if (!kepsekForm.adminPassword) errs.adminPassword = 'Password Admin saat ini harus diisi untuk konfirmasi.'
+
+    const uname = kepsekForm.username.trim()
+    if (!uname) errs.username = 'Username wajib diisi.'
+    else if (uname.length < 3) errs.username = 'Username minimal 3 karakter.'
+    else if (uname.length > 50) errs.username = 'Username maksimal 50 karakter.'
+    else if (!/^[A-Za-z0-9._-]+$/.test(uname)) errs.username = 'Hanya huruf, angka, titik, underscore, dan tanda hubung.'
+
+    if (!kepsekForm.nama.trim()) errs.nama = 'Nama wajib diisi.'
+
+    if (kepsekForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(kepsekForm.email)) {
+      errs.email = 'Format email tidak valid.'
+    }
+
+    // Saat membuat akun baru, password wajib. Saat update, password opsional.
+    if (isKepsekCreate || kepsekForm.passwordBaru || kepsekForm.konfirmasiBaru) {
+      if (!kepsekForm.passwordBaru) {
+        errs.passwordBaru = isKepsekCreate ? 'Password awal wajib diisi.' : 'Password baru harus diisi.'
+      } else if (kepsekForm.passwordBaru.length < 6) {
+        errs.passwordBaru = 'Password minimal 6 karakter.'
+      }
+      if (!kepsekForm.konfirmasiBaru) {
+        errs.konfirmasiBaru = 'Konfirmasi password harus diisi.'
+      } else if (kepsekForm.passwordBaru !== kepsekForm.konfirmasiBaru) {
+        errs.konfirmasiBaru = 'Konfirmasi password tidak cocok.'
+      }
+    }
+
+    setKepsekErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const handleSaveKepsek = async (e) => {
+    e.preventDefault()
+    setKepsekMessage({ type: '', text: '' })
+    if (!validateKepsek()) return
+
+    setKepsekSaving(true)
+    try {
+      const res = await kepalaSekolahAPI.save({
+        passwordLama: kepsekForm.adminPassword,
+        username: kepsekForm.username.trim(),
+        nama: kepsekForm.nama.trim(),
+        email: kepsekForm.email.trim(),
+        passwordBaru: kepsekForm.passwordBaru,
+        konfirmasiBaru: kepsekForm.konfirmasiBaru,
+      })
+      const ks = res.data || null
+      setKepsek(ks)
+      if (ks) {
+        setKepsekForm(prev => ({
+          ...prev,
+          username: ks.username || '',
+          nama: ks.nama || '',
+          email: ks.email || '',
+          adminPassword: '', passwordBaru: '', konfirmasiBaru: ''
+        }))
+      }
+      setKepsekMessage({ type: 'success', text: res.message || 'Akun Kepala Sekolah berhasil disimpan.' })
+    } catch (err) {
+      setKepsekMessage({ type: 'error', text: 'Gagal menyimpan akun Kepala Sekolah: ' + err.message })
+    } finally {
+      setKepsekSaving(false)
     }
   }
 
@@ -366,6 +477,205 @@ function Pengaturan() {
           <p className="text-center text-xs text-gray-400">Belum ada perubahan yang perlu disimpan.</p>
         )}
       </form>
+
+      {/* Akun Kepala Sekolah - dikelola Admin */}
+      {user?.role === 'admin' && (
+        <form onSubmit={handleSaveKepsek} className="bg-white rounded-lg shadow p-6 border-l-4 border-sky-500 space-y-5">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <UserCog className="w-5 h-5 text-sky-500" /> Akun Kepala Sekolah
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Buat atau perbarui akun Kepala Sekolah. Hak aksesnya sama dengan Admin. Setiap penyimpanan wajib
+              mengonfirmasi password Admin saat ini.
+            </p>
+          </div>
+
+          {/* Status akun */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${kepsek ? 'bg-emerald-50' : 'bg-amber-50'}`}>
+            <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center font-bold shrink-0 ${
+              kepsek ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-amber-500 to-orange-600'
+            }`}>
+              {(kepsek?.nama || kepsek?.username || 'K').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              {kepsekLoading ? (
+                <p className="text-sm text-gray-500">Memuat data akun…</p>
+              ) : kepsek ? (
+                <>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{kepsek.nama || 'Kepala Sekolah'}</p>
+                  <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
+                    <User className="w-3 h-3" /> Username: <span className="font-semibold text-gray-700">{kepsek.username || '-'}</span>
+                    {kepsek.email ? <span className="truncate">· {kepsek.email}</span> : null}
+                  </p>
+                  <p className="text-xs text-emerald-600 font-medium mt-0.5">✓ Akun sudah ada — perbarui data/password di bawah.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-gray-800">Belum ada akun Kepala Sekolah</p>
+                  <p className="text-xs text-amber-600 font-medium">Isi formulir di bawah untuk membuat akun baru.</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Pesan */}
+          {kepsekMessage.text && (
+            <div className={`flex items-start gap-2 p-3 rounded-lg text-sm font-medium ${
+              kepsekMessage.type === 'success'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}>
+              {kepsekMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : null}
+              <span className="whitespace-pre-line">{kepsekMessage.text}</span>
+            </div>
+          )}
+
+          {/* Password Admin (konfirmasi) */}
+          <div>
+            <label htmlFor="kepsekAdminPw" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+              <Lock className="w-4 h-4 text-sky-500" /> Password Admin Saat Ini
+            </label>
+            <div className="relative">
+              <input
+                id="kepsekAdminPw"
+                type={showKepsekPw.admin ? 'text' : 'password'}
+                value={kepsekForm.adminPassword}
+                onChange={handleKepsekChange('adminPassword')}
+                autoComplete="current-password"
+                placeholder="Wajib diisi untuk konfirmasi"
+                className={`w-full px-4 py-2.5 pr-11 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition-colors ${
+                  kepsekErrors.adminPassword ? 'border-rose-400' : 'border-gray-300'
+                }`}
+              />
+              <button type="button" onClick={toggleKepsekPw('admin')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showKepsekPw.admin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {kepsekErrors.adminPassword && <p className="text-xs text-rose-500 mt-1">{kepsekErrors.adminPassword}</p>}
+          </div>
+
+          {/* Nama */}
+          <div>
+            <label htmlFor="kepsekNama" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+              <User className="w-4 h-4 text-sky-500" /> Nama Kepala Sekolah
+            </label>
+            <input
+              id="kepsekNama"
+              type="text"
+              value={kepsekForm.nama}
+              onChange={handleKepsekChange('nama')}
+              placeholder="Contoh: Drs. Ahmad Yusuf, M.Pd."
+              className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition-colors ${
+                kepsekErrors.nama ? 'border-rose-400' : 'border-gray-300'
+              }`}
+            />
+            {kepsekErrors.nama && <p className="text-xs text-rose-500 mt-1">{kepsekErrors.nama}</p>}
+          </div>
+
+          {/* Username */}
+          <div>
+            <label htmlFor="kepsekUsername" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+              <User className="w-4 h-4 text-sky-500" /> Username
+            </label>
+            <input
+              id="kepsekUsername"
+              type="text"
+              value={kepsekForm.username}
+              onChange={handleKepsekChange('username')}
+              autoComplete="username"
+              placeholder="Minimal 3 karakter (huruf, angka, . _ -)"
+              className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition-colors ${
+                kepsekErrors.username ? 'border-rose-400' : 'border-gray-300'
+              }`}
+            />
+            {kepsekErrors.username && <p className="text-xs text-rose-500 mt-1">{kepsekErrors.username}</p>}
+          </div>
+
+          {/* Email (opsional) */}
+          <div>
+            <label htmlFor="kepsekEmail" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+              <User className="w-4 h-4 text-sky-500" /> Email <span className="text-gray-400 font-normal">(opsional)</span>
+            </label>
+            <input
+              id="kepsekEmail"
+              type="email"
+              value={kepsekForm.email}
+              onChange={handleKepsekChange('email')}
+              autoComplete="email"
+              placeholder="kepsek@sekolah.sch.id"
+              className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition-colors ${
+                kepsekErrors.email ? 'border-rose-400' : 'border-gray-300'
+              }`}
+            />
+            {kepsekErrors.email && <p className="text-xs text-rose-500 mt-1">{kepsekErrors.email}</p>}
+          </div>
+
+          {/* Password baru */}
+          <div>
+            <label htmlFor="kepsekPwBaru" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+              <KeyRound className="w-4 h-4 text-sky-500" /> {isKepsekCreate ? 'Password Awal' : 'Password Baru'} <span className="text-gray-400 font-normal">{isKepsekCreate ? '' : '(opsional)'}</span>
+            </label>
+            <div className="relative">
+              <input
+                id="kepsekPwBaru"
+                type={showKepsekPw.baru ? 'text' : 'password'}
+                value={kepsekForm.passwordBaru}
+                onChange={handleKepsekChange('passwordBaru')}
+                autoComplete="new-password"
+                placeholder={isKepsekCreate ? 'Minimal 6 karakter' : 'Kosongkan jika tidak ingin mengubah password'}
+                className={`w-full px-4 py-2.5 pr-11 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition-colors ${
+                  kepsekErrors.passwordBaru ? 'border-rose-400' : 'border-gray-300'
+                }`}
+              />
+              <button type="button" onClick={toggleKepsekPw('baru')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showKepsekPw.baru ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {kepsekErrors.passwordBaru && <p className="text-xs text-rose-500 mt-1">{kepsekErrors.passwordBaru}</p>}
+          </div>
+
+          {/* Konfirmasi password */}
+          <div>
+            <label htmlFor="kepsekKonfirmasi" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-1.5">
+              <CheckCircle2 className="w-4 h-4 text-sky-500" /> Ulangi Password
+            </label>
+            <div className="relative">
+              <input
+                id="kepsekKonfirmasi"
+                type={showKepsekPw.konfirmasi ? 'text' : 'password'}
+                value={kepsekForm.konfirmasiBaru}
+                onChange={handleKepsekChange('konfirmasiBaru')}
+                autoComplete="new-password"
+                placeholder="Ketik ulang password"
+                className={`w-full px-4 py-2.5 pr-11 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm transition-colors ${
+                  kepsekErrors.konfirmasiBaru ? 'border-rose-400' : 'border-gray-300'
+                }`}
+              />
+              <button type="button" onClick={toggleKepsekPw('konfirmasi')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showKepsekPw.konfirmasi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {kepsekErrors.konfirmasiBaru && <p className="text-xs text-rose-500 mt-1">{kepsekErrors.konfirmasiBaru}</p>}
+          </div>
+
+          {/* Tombol simpan */}
+          <button
+            type="submit"
+            disabled={kepsekSaving}
+            className="w-full bg-sky-600 text-white py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-sm hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {kepsekSaving ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
+            ) : (
+              <><Save className="w-4 h-4" /> {isKepsekCreate ? 'Buat Akun Kepala Sekolah' : 'Simpan Perubahan Akun'}</>
+            )}
+          </button>
+          <p className="text-center text-xs text-gray-400">
+            ⓘ Kepala Sekolah bisa login dengan username & password ini, dan memiliki hak akses yang sama dengan Admin.
+          </p>
+        </form>
+      )}
 
       {/* Hari Kerja Aktif */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">

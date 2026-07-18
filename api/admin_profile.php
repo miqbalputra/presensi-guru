@@ -14,8 +14,9 @@ require_once 'config.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Hanya admin yang login boleh mengakses endpoint ini.
-requireAuth(['admin']);
+// Admin & Kepala Sekolah yang login boleh mengakses endpoint ini
+// (Kepala Sekolah memiliki hak akses yang sama dengan Admin).
+requireAuth(['admin', 'kepala_sekolah']);
 
 /** @var int $currentUserId diambil dari session */
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);
@@ -32,14 +33,14 @@ if ($method === 'GET') {
         $stmt = $pdo->prepare("
             SELECT id, username, nama, email, role
             FROM users
-            WHERE id = ? AND role = 'admin'
+            WHERE id = ? AND role IN ('admin', 'kepala_sekolah')
             LIMIT 1
         ");
         $stmt->execute([$currentUserId]);
         $admin = $stmt->fetch();
 
         if (!$admin) {
-            sendResponse(false, 'Data admin tidak ditemukan.');
+            sendResponse(false, 'Data akun tidak ditemukan.');
         }
 
         $account = [
@@ -84,7 +85,7 @@ if ($method === 'POST') {
 
     try {
         // Ambil data admin saat ini (termasuk hash password) untuk verifikasi.
-        $stmt = $pdo->prepare("SELECT id, username, password FROM users WHERE id = ? AND role = 'admin' LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id, username, password FROM users WHERE id = ? AND role IN ('admin', 'kepala_sekolah') LIMIT 1");
         $stmt->execute([$currentUserId]);
         $row = $stmt->fetch();
 
@@ -159,7 +160,7 @@ if ($method === 'POST') {
         }
 
         $params[] = $currentUserId;
-        $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = ? AND role = 'admin'";
+        $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = ? AND role IN ('admin', 'kepala_sekolah')";
         $update = $pdo->prepare($sql);
         $update->execute($params);
 
