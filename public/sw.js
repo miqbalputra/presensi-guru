@@ -1,13 +1,12 @@
-const CACHE_NAME = 'geo-presensi-v16';
+const CACHE_NAME = 'geo-presensi-v17';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'
 ];
 
-// Install: Cache aset dasar dan paksa aktif segera
+// Cache hanya aset statis kecil. HTML shell tidak di-precache agar PWA tidak
+// dapat membuka bundle lama setelah aplikasi dideploy ulang.
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(

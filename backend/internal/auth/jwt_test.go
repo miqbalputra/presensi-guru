@@ -105,3 +105,37 @@ func TestRequireActiveUserCallsProtectedHandlerOnce(t *testing.T) {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
 	}
 }
+
+func TestRequireActiveUserAcceptsShortLivedLegacyPWACookie(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:auth-legacy-cookie-test?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		t.Fatalf("migrate user: %v", err)
+	}
+	if err := db.Create(&models.User{ID: 77, Username: "guru", Role: "guru", Nama: "Guru", TipeGuru: "full_time"}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	cfg := config.Config{JWTSecret: "test-secret-that-is-long-enough-for-the-test", JWTIssuer: "test", JWTAudience: "web", JWTAccessTTL: time.Minute}
+	manager := NewJWTManager(cfg)
+	token, _, err := manager.IssueAccess(models.User{ID: 77, Role: "guru"})
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+
+	app := fiber.New()
+	app.Get("/protected", RequireActiveUser(db, manager), func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	request.AddCookie(&http.Cookie{Name: "gp_legacy_access", Value: token})
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+}

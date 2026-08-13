@@ -102,6 +102,7 @@ func main() {
 		return c.JSON(fiber.Map{"success": true, "message": "Konfigurasi login", "data": fiber.Map{"googleClientId": cfg.GoogleClientID, "turnstileSiteKey": cfg.TurnstileSiteKey}})
 	})
 	authHandler.RegisterRoutes(api)
+	authHandler.RegisterLegacyRoutes(app)
 	compatHandler.RegisterCoreRoutes(app)
 	compatHandler.RegisterAttendanceRoutes(app)
 	compatHandler.RegisterIntegrationRoutes(app)

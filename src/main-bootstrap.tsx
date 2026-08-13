@@ -70,6 +70,9 @@ window.addEventListener('error', (event) => {
 
 // Registrasi Service Worker untuk PWA — update otomatis tanpa reload manual.
 if ('serviceWorker' in navigator) {
+  // Query versi membuat request worker unik per build sehingga CDN/browser
+  // tidak dapat mempertahankan sw.js lama pada PWA yang sedang dibuka.
+  const SERVICE_WORKER_URL = '/sw.js?build=pwa-v17'
   let refreshing = false
   let hadController = Boolean(navigator.serviceWorker.controller)
 
@@ -85,8 +88,8 @@ if ('serviceWorker' in navigator) {
     }
   }
 
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+  const registerServiceWorker = () => {
+    navigator.serviceWorker.register(SERVICE_WORKER_URL, { updateViaCache: 'none' })
       .then(registration => {
         console.log('SW registered:', registration)
 
@@ -121,7 +124,11 @@ if ('serviceWorker' in navigator) {
       .catch(registrationError => {
         console.log('SW registration failed:', registrationError)
       })
-  })
+  }
+
+  // Jangan menunggu event load. Di PWA Android ini mempercepat sinkronisasi
+  // worker sebelum pengguna sempat mengirim formulir login.
+  registerServiceWorker()
 
   // Saat worker baru mengambil alih tab yang sedang terbuka, refresh otomatis.
   navigator.serviceWorker.addEventListener('controllerchange', () => {

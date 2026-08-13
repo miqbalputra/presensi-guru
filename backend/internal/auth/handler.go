@@ -52,32 +52,92 @@ func (h *Handler) RegisterRoutes(api fiber.Router) {
 	auth.Get("/me", RequireActiveUser(h.db, h.jwt), h.me)
 }
 
+// RegisterLegacyRoutes keeps installed PWA versions from before the Go-stack
+// migration usable while their service worker replaces the old asset bundle.
+// It is intentionally limited to the previous auth.php contract.
+func (h *Handler) RegisterLegacyRoutes(app fiber.Router) {
+	app.All("/api/auth.php", limiter.New(limiter.Config{Max: 10, Expiration: 5 * time.Minute, KeyGenerator: func(c *fiber.Ctx) string { return c.IP() }}), h.legacyAuth)
+}
+
 func (h *Handler) login(c *fiber.Ctx) error {
+	user, err := h.authenticatePassword(c)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return nil
+	}
+	return h.createSession(c, *user, "login_success")
+}
+
+func (h *Handler) authenticatePassword(c *fiber.Ctx) (*models.User, error) {
 	var input loginRequest
 	if err := c.BodyParser(&input); err != nil || strings.TrimSpace(input.Username) == "" || input.Password == "" {
-		return httpx.Error(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Username dan password harus diisi")
+		return nil, httpx.Error(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Username dan password harus diisi")
 	}
 	if err := h.verifyTurnstile(input.TurnstileToken, c.IP()); err != nil {
 		h.recordEvent(c, "login_turnstile_failed", nil, map[string]any{"username": input.Username})
-		return httpx.Error(c, fiber.StatusForbidden, "TURNSTILE_FAILED", err.Error())
+		return nil, httpx.Error(c, fiber.StatusForbidden, "TURNSTILE_FAILED", err.Error())
 	}
 
 	var user models.User
 	if err := h.db.Where("username = ?", strings.TrimSpace(input.Username)).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			h.recordEvent(c, "login_failed", nil, map[string]any{"username": input.Username})
-			return httpx.Error(c, fiber.StatusUnauthorized, "INVALID_CREDENTIALS", "Username atau password salah")
+			return nil, httpx.Error(c, fiber.StatusUnauthorized, "INVALID_CREDENTIALS", "Username atau password salah")
 		}
-		return err
+		return nil, err
 	}
 	if user.ArchivedAt != nil {
-		return httpx.Error(c, fiber.StatusForbidden, "ACCOUNT_ARCHIVED", "Akun sudah diarsipkan")
+		return nil, httpx.Error(c, fiber.StatusForbidden, "ACCOUNT_ARCHIVED", "Akun sudah diarsipkan")
 	}
 	if err := ComparePassword(user.Password, input.Password); err != nil {
 		h.recordEvent(c, "login_failed", &user.ID, map[string]any{"username": user.Username})
-		return httpx.Error(c, fiber.StatusUnauthorized, "INVALID_CREDENTIALS", "Username atau password salah")
+		return nil, httpx.Error(c, fiber.StatusUnauthorized, "INVALID_CREDENTIALS", "Username atau password salah")
 	}
-	return h.createSession(c, user, "login_success")
+	return &user, nil
+}
+
+func (h *Handler) legacyAuth(c *fiber.Ctx) error {
+	switch c.Query("action") {
+	case "login":
+		if c.Method() != fiber.MethodPost {
+			return httpx.Error(c, fiber.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Gunakan POST untuk login")
+		}
+		user, err := h.authenticatePassword(c)
+		if err != nil {
+			return err
+		}
+		if user == nil {
+			return nil
+		}
+		access, expiresAt, err := h.startSession(c, *user, "legacy_login_success")
+		if err != nil {
+			return err
+		}
+		h.setLegacyAccessCookie(c, access, time.Until(expiresAt))
+		return httpx.Success(c, "Login berhasil", user.Public())
+	case "logout":
+		if c.Method() != fiber.MethodPost {
+			return httpx.Error(c, fiber.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Gunakan POST untuk logout")
+		}
+		return h.logout(c)
+	case "check":
+		if c.Method() != fiber.MethodGet {
+			return httpx.Error(c, fiber.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Gunakan GET untuk cek sesi")
+		}
+		claims, err := parseBearerClaims(c, h.jwt)
+		if err != nil {
+			return fiber.ErrUnauthorized
+		}
+		var user models.User
+		if err := h.db.Select("id", "username", "role", "archived_at").Where("id = ?", claims.UserID).First(&user).Error; err != nil || user.ArchivedAt != nil || user.Role != claims.Role {
+			return fiber.ErrUnauthorized
+		}
+		return httpx.Success(c, "Session aktif", fiber.Map{"user_id": user.ID, "username": user.Username, "role": user.Role})
+	default:
+		return httpx.Error(c, fiber.StatusNotFound, "NOT_FOUND", "Endpoint lama tidak dikenali")
+	}
 }
 
 func (h *Handler) googleLogin(c *fiber.Ctx) error {
@@ -188,25 +248,34 @@ func (h *Handler) logout(c *fiber.Ctx) error {
 		_ = h.db.Model(&models.RefreshToken{}).Where("token_hash = ? AND revoked_at IS NULL", HashRefreshToken(raw)).Updates(map[string]any{"revoked_at": now}).Error
 	}
 	h.clearRefreshCookie(c)
+	h.clearLegacyAccessCookie(c)
 	return httpx.Success(c, "Logout berhasil", nil)
 }
 
 func (h *Handler) createSession(c *fiber.Ctx, user models.User, event string) error {
-	access, expiresAt, err := h.jwt.IssueAccess(user)
+	access, expiresAt, err := h.startSession(c, user, event)
 	if err != nil {
 		return err
+	}
+	return httpx.Success(c, "Login berhasil", fiber.Map{"accessToken": access, "tokenType": "Bearer", "expiresAt": expiresAt, "user": user.Public()})
+}
+
+func (h *Handler) startSession(c *fiber.Ctx, user models.User, event string) (string, time.Time, error) {
+	access, expiresAt, err := h.jwt.IssueAccess(user)
+	if err != nil {
+		return "", time.Time{}, err
 	}
 	refresh, err := randomToken(48)
 	if err != nil {
-		return err
+		return "", time.Time{}, err
 	}
 	stored := models.RefreshToken{ID: uuid.NewString(), UserID: user.ID, TokenHash: HashRefreshToken(refresh), ExpiresAt: time.Now().UTC().Add(h.cfg.JWTRefreshTTL), UserAgent: truncate(c.Get(fiber.HeaderUserAgent), 255), IPAddress: truncate(c.IP(), 45)}
 	if err := h.db.Create(&stored).Error; err != nil {
-		return err
+		return "", time.Time{}, err
 	}
 	h.setRefreshCookie(c, refresh, h.cfg.JWTRefreshTTL)
 	h.recordEvent(c, event, &user.ID, nil)
-	return httpx.Success(c, "Login berhasil", fiber.Map{"accessToken": access, "tokenType": "Bearer", "expiresAt": expiresAt, "user": user.Public()})
+	return access, expiresAt, nil
 }
 
 func (h *Handler) setRefreshCookie(c *fiber.Ctx, value string, ttl time.Duration) {
@@ -216,6 +285,20 @@ func (h *Handler) setRefreshCookie(c *fiber.Ctx, value string, ttl time.Duration
 
 func (h *Handler) clearRefreshCookie(c *fiber.Ctx) {
 	c.Cookie(&fiber.Cookie{Name: "gp_refresh", Value: "", Path: "/", Domain: h.cfg.CookieDomain, MaxAge: -1, HTTPOnly: true, Secure: h.cfg.CookieSecure, SameSite: "Lax"})
+}
+
+// Only legacy auth.php clients receive this short-lived access cookie. Modern
+// clients keep using the Authorization header plus the HttpOnly refresh token.
+func (h *Handler) setLegacyAccessCookie(c *fiber.Ctx, value string, ttl time.Duration) {
+	maxAge := int(ttl.Seconds())
+	if maxAge < 1 {
+		maxAge = 1
+	}
+	c.Cookie(&fiber.Cookie{Name: "gp_legacy_access", Value: value, Path: "/api", Domain: h.cfg.CookieDomain, MaxAge: maxAge, HTTPOnly: true, Secure: h.cfg.CookieSecure, SameSite: "Lax"})
+}
+
+func (h *Handler) clearLegacyAccessCookie(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{Name: "gp_legacy_access", Value: "", Path: "/api", Domain: h.cfg.CookieDomain, MaxAge: -1, HTTPOnly: true, Secure: h.cfg.CookieSecure, SameSite: "Lax"})
 }
 
 func (h *Handler) verifyTurnstile(token, ip string) error {

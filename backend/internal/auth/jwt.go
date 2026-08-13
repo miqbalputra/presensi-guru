@@ -124,11 +124,18 @@ func RequireActiveUser(db *gorm.DB, manager *JWTManager) fiber.Handler {
 }
 
 func parseBearerClaims(c *fiber.Ctx, manager *JWTManager) (*Claims, error) {
-	header := c.Get(fiber.HeaderAuthorization)
-	if !strings.HasPrefix(strings.ToLower(header), "bearer ") {
-		return nil, fiber.ErrUnauthorized
+	header := strings.TrimSpace(c.Get(fiber.HeaderAuthorization))
+	if header != "" {
+		if !strings.HasPrefix(strings.ToLower(header), "bearer ") {
+			return nil, fiber.ErrUnauthorized
+		}
+
+		return manager.ParseAccess(strings.TrimSpace(header[7:]))
 	}
-	return manager.ParseAccess(strings.TrimSpace(header[7:]))
+
+	// Short-lived compatibility cookie for installed pre-migration PWAs. It is
+	// HttpOnly, Secure in production, SameSite=Lax, and scoped to /api.
+	return manager.ParseAccess(c.Cookies("gp_legacy_access"))
 }
 
 func RequireRoles(roles ...string) fiber.Handler {

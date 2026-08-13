@@ -10,6 +10,7 @@ const backend = read('backend/cmd/server/main.go')
 
 const requirements = [
   ['versioned service-worker cache', /CACHE_NAME\s*=\s*['"]geo-presensi-v\d+['"]/],
+  ['cache-busted service-worker registration', /\/sw\.js\?build=pwa-v\d+/],
   ['fresh navigation fetch', /fetch\(event\.request,\s*\{\s*cache:\s*['"]no-store['"]/],
   ['waiting worker activation message', /type:\s*['"]SKIP_WAITING['"]/],
   ['automatic update check', /registration\.update\(\)/],
