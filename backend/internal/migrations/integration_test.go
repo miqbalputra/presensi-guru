@@ -44,10 +44,10 @@ func TestMySQLMigrationsAreIdempotentAndLegacyCompatible(t *testing.T) {
 	// Simulate a legacy dump whose schema predates the Go-only columns while
 	// retaining the migration ledger. The compatibility pass must restore them
 	// without requiring a destructive migration reset.
-	if err := db.Exec("ALTER TABLE users DROP COLUMN email, DROP COLUMN google_id, DROP COLUMN tanggal_lahir, DROP COLUMN archived_at, DROP COLUMN archive_reason, DROP COLUMN tipe_guru").Error; err != nil {
+	if err := db.Exec("ALTER TABLE users DROP INDEX idx_users_email, DROP INDEX idx_users_google_id, DROP INDEX idx_users_archived_at, DROP INDEX idx_users_role_archived_id, DROP COLUMN email, DROP COLUMN google_id, DROP COLUMN tanggal_lahir, DROP COLUMN archived_at, DROP COLUMN archive_reason, DROP COLUMN tipe_guru").Error; err != nil {
 		t.Fatalf("simulate legacy users schema: %v", err)
 	}
-	if err := db.Exec("ALTER TABLE attendance_logs DROP COLUMN metode, DROP COLUMN lokasi_pulang, DROP COLUMN qr_nonce").Error; err != nil {
+	if err := db.Exec("ALTER TABLE attendance_logs DROP INDEX idx_attendance_qr_nonce, DROP COLUMN metode, DROP COLUMN lokasi_pulang, DROP COLUMN qr_nonce").Error; err != nil {
 		t.Fatalf("simulate legacy attendance schema: %v", err)
 	}
 	if err := migrations.Run(db); err != nil {
