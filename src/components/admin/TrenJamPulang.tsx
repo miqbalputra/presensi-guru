@@ -1,10 +1,22 @@
 import { useState, useEffect } from 'react'
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, Line
+  Legend, Line
 } from 'recharts'
 import { LogOut, Clock, Calendar, Info, Users, GitCompare, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { adminChartsAPI } from '../../services/api'
+import { Card } from '../ui/card'
+import { ChartContainer, ChartTooltip, type ChartConfig } from '../ui/chart'
+import { Skeleton } from '../ui/skeleton'
+
+const checkoutChartConfig = {
+  normal: { label: 'Normal', color: 'var(--chart-2)' },
+  early: { label: 'Pulang Awal', color: 'var(--chart-3)' },
+  forgotten: { label: 'Lupa Pulang', color: 'var(--chart-4)' },
+  avgMinutes: { label: 'Rata-rata Pulang', color: 'var(--chart-1)' },
+  'Lupa Pulang A': { label: 'Lupa Pulang (A)', color: 'var(--chart-1)' },
+  'Lupa Pulang B': { label: 'Lupa Pulang (B)', color: 'var(--chart-5)' },
+} satisfies ChartConfig
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -125,14 +137,14 @@ function TrenJamPulang() {
   const deltaLabel = delta > 0 ? `Lupa Checkout Naik ${Math.abs(delta).toFixed(1)}%` : delta < 0 ? `Lupa Checkout Turun ${Math.abs(delta).toFixed(1)}%` : 'Stagnan'
 
   if (loading) return (
-    <div className="academy-panel col-span-full animate-pulse p-6">
-      <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"/>
-      <div className="h-72 bg-gray-100 rounded"/>
-    </div>
+    <Card className="col-span-full p-6">
+      <Skeleton className="mb-4 h-6 w-1/3" />
+      <Skeleton className="h-72 w-full" />
+    </Card>
   )
 
   return (
-    <div className="academy-panel col-span-full p-6">
+    <Card className="col-span-full gap-0 p-6">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
@@ -217,8 +229,7 @@ function TrenJamPulang() {
             </div>
           </div>
 
-          <div className="h-80 mb-8">
-            <ResponsiveContainer width="100%" height="100%">
+          <ChartContainer config={checkoutChartConfig} className="mb-8 h-80">
               <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gNormal" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
@@ -228,15 +239,14 @@ function TrenJamPulang() {
                 <XAxis dataKey="tanggal" tickFormatter={formatLabel} style={{ fontSize: 10 }} stroke="#9ca3af"/>
                 <YAxis yAxisId="left" allowDecimals={false} style={{ fontSize: 10 }} stroke="#9ca3af" label={{ value: 'Jumlah', angle: -90, position: 'insideLeft', style: { fontSize: 10 } }}/>
                 <YAxis yAxisId="right" orientation="right" domain={[0, 1440]} tickFormatter={minutesToTime} style={{ fontSize: 10 }} stroke="#6366f1" label={{ value: 'Jam Pulang', angle: 90, position: 'insideRight', style: { fontSize: 10 } }}/>
-                <Tooltip content={<CustomTooltip/>}/>
+                <ChartTooltip content={<CustomTooltip/>}/>
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }}/>
                 <Area yAxisId="left" type="monotone" dataKey="normal" name="Normal" stroke="#10b981" fill="url(#gNormal)" dot={{ r: 3 }}/>
                 <Area yAxisId="left" type="monotone" dataKey="early" name="Izin Awal" stroke="#f59e0b" fill="url(#gEarly)" dot={{ r: 3 }}/>
                 <Bar yAxisId="left" dataKey="forgotten" name="Lupa Pulang" fill="#f43f5e" radius={[4,4,0,0]} opacity={0.7}/>
                 <Line yAxisId="right" type="monotone" dataKey="avgMinutes" name="Waktu Rata-rata" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }}/>
               </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+          </ChartContainer>
         </>
       )}
 
@@ -263,19 +273,17 @@ function TrenJamPulang() {
             </div>
           </div>
 
-          <div className="h-64 mb-6">
-            <ResponsiveContainer width="100%" height="100%">
+          <ChartContainer config={checkoutChartConfig} className="mb-6 h-64">
               <ComposedChart data={compareData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
                 <XAxis dataKey="day" style={{ fontSize: 10 }} stroke="#9ca3af"/>
                 <YAxis tickFormatter={v => `${v}%`} style={{ fontSize: 10 }} stroke="#9ca3af"/>
-                <Tooltip content={<CompareTooltip/>}/>
+                <ChartTooltip content={<CompareTooltip/>}/>
                 <Legend wrapperStyle={{ fontSize: 11 }}/>
                 <Bar dataKey="Lupa Pulang A" name="Lupa Pulang (A)" fill="#3b82f6" radius={[3,3,0,0]}/>
                 <Bar dataKey="Lupa Pulang B" name="Lupa Pulang (B)" fill="#a855f7" radius={[3,3,0,0]}/>
               </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+          </ChartContainer>
         </>
       )}
 
@@ -309,7 +317,7 @@ function TrenJamPulang() {
           )}
         </div>
       </div>
-    </div>
+    </Card>
   )
 }
 

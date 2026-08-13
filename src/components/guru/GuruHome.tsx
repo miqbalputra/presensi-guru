@@ -3,6 +3,9 @@ import { CheckCircle, FileText, AlertCircle, Clock, History, Users, LogOut, MapP
 import { formatFullDate, formatDate, formatDateForInput } from '../../utils/dateUtils'
 import { calculateDistance, getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
 import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI, locationTrackingAPI } from '../../services/api'
+import { Card } from '../ui/card'
+import { Badge } from '../ui/badge'
+import { Progress } from '../ui/progress'
 
 const getRecentStatusLabel = (status = '') => {
   const labels = {
@@ -938,7 +941,7 @@ function GuruHome({ user, onChangeTab }) {
   return (
     <div className="space-y-5 pb-2">
       {/* Welcome / Hero Card */}
-      <section className="guru-surface p-5 sm:p-6" aria-labelledby="guru-overview-title">
+      <Card className="gap-0 p-5 sm:p-6" aria-labelledby="guru-overview-title">
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3.5">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-2xl font-black text-white dark:bg-slate-800">
@@ -1065,7 +1068,7 @@ function GuruHome({ user, onChangeTab }) {
             </span>
           )}
         </div>
-      </section>
+      </Card>
 
       {/* Holiday Message */}
       {isHoliday && holidayInfo && (
@@ -1110,7 +1113,7 @@ function GuruHome({ user, onChangeTab }) {
             }
             return (
               <>
-                <div className="guru-surface">
+                <Card className="p-0">
                   <div className="p-5 sm:p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2.5">
@@ -1124,9 +1127,9 @@ function GuruHome({ user, onChangeTab }) {
                           </span>
                         </div>
                       </div>
-                      <span className={`rounded-full px-3 py-1 text-[10px] font-black tracking-wider ${badgeBg} ${badgeText}`}>
+                      <Badge className={`rounded-full px-3 py-1 text-[10px] font-black tracking-wider ${badgeBg} ${badgeText}`}>
                         {badgeLabel}
-                      </span>
+                      </Badge>
                     </div>
                     <div className="space-y-0">
                       {todayAttendance.jamHadir && (
@@ -1179,7 +1182,7 @@ function GuruHome({ user, onChangeTab }) {
                       </div>
                     )}
                   </div>
-                </div>
+                </Card>
 
                 {!isIzinSakit && (status === 'hadir' || isHadirTerlambat || isIzinTerlambat) && !todayAttendance.jamPulang && !todayAttendance.jam_pulang && (
                   <>
@@ -1229,7 +1232,7 @@ function GuruHome({ user, onChangeTab }) {
         const isCheckout = Boolean(todayAttendance)
         const checkoutReady = !isCheckout || canShowPulangButton()
         return (
-        <section className="guru-surface mb-2 space-y-5 p-5 sm:p-6" aria-labelledby="attendance-action-title">
+        <Card className="mb-2 gap-0 space-y-5 p-5 sm:p-6" aria-labelledby="attendance-action-title">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Aksi presensi</p>
@@ -1291,11 +1294,11 @@ function GuruHome({ user, onChangeTab }) {
               SAKIT
             </button>
           </div>
-        </section>
+        </Card>
         )
       })()}
 
-      <section className="guru-surface p-5 sm:p-6" aria-labelledby="monthly-pulse-title">
+      <Card className="gap-0 p-5 sm:p-6" aria-labelledby="monthly-pulse-title">
         <div className="relative flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Kinerja kehadiran</p>
@@ -1335,9 +1338,7 @@ function GuruHome({ user, onChangeTab }) {
             </div>
             <p className="text-2xl font-black tracking-tight text-indigo-600 dark:text-indigo-300">{monthlyStats.percentage}%</p>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-label="Persentase kehadiran bulan ini" aria-valuemin={0} aria-valuemax={100} aria-valuenow={monthlyStats.percentage}>
-            <div className="h-full rounded-full bg-indigo-600 transition-[width] duration-500 motion-reduce:transition-none dark:bg-indigo-400" style={{ width: `${Math.min(100, Math.max(0, monthlyStats.percentage))}%` }} />
-          </div>
+          <Progress className="mt-3" value={monthlyStats.percentage} aria-label="Persentase kehadiran bulan ini" />
         </div>
 
         <div className="relative mt-4 grid gap-2 sm:grid-cols-2">
@@ -1374,7 +1375,7 @@ function GuruHome({ user, onChangeTab }) {
             </div>
           </div>
         )}
-      </section>
+      </Card>
 
       {/* Message */}
       {message.text && (

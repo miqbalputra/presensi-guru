@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react'
-import { RadialBarChart, RadialBar, ResponsiveContainer, PolarAngleAxis } from 'recharts'
+import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts'
 import { Activity, UserCheck, FileText, UserX, Users } from 'lucide-react'
 import { adminChartsAPI } from '../../services/api'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
+import { ChartContainer, type ChartConfig } from '../ui/chart'
+import { Progress } from '../ui/progress'
+import { Skeleton } from '../ui/skeleton'
+
+const chartConfig = {
+  value: { label: 'Sudah Absen', color: 'var(--chart-2)' },
+} satisfies ChartConfig
 
 function PersentaseKehadiran() {
   const [stats, setStats] = useState({
@@ -71,31 +79,30 @@ function PersentaseKehadiran() {
 
   if (loading) {
     return (
-      <div className="academy-panel p-6">
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-2/3 mb-4"></div>
-          <div className="h-64 bg-gray-100 rounded"></div>
-        </div>
-      </div>
+      <Card className="p-6">
+        <Skeleton className="mb-4 h-6 w-2/3" />
+        <Skeleton className="h-64 w-full" />
+      </Card>
     )
   }
 
   return (
-    <div className="academy-panel p-6">
+    <Card className="p-0">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-emerald-100 rounded-lg">
-          <Activity className="w-5 h-5 text-emerald-600" />
+      <CardHeader className="flex-row items-center gap-3 p-6">
+        <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+          <Activity className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-gray-800">Persentase Kehadiran Hari Ini</h2>
-          <p className="text-sm text-gray-500">Progress Presensi Real-time</p>
+          <CardTitle className="text-lg">Persentase Kehadiran Hari Ini</CardTitle>
+          <CardDescription>Progress presensi real-time</CardDescription>
         </div>
-      </div>
+      </CardHeader>
 
       {/* Radial Progress Chart */}
-      <div className="relative">
-        <ResponsiveContainer width="100%" height={280}>
+      <CardContent className="px-6">
+        <div className="relative">
+          <ChartContainer config={chartConfig} className="min-h-[280px]">
           <RadialBarChart
             cx="50%"
             cy="50%"
@@ -113,13 +120,13 @@ function PersentaseKehadiran() {
               tick={false}
             />
             <RadialBar
-              background={{ fill: '#e5e7eb' }}
+              background={{ fill: 'var(--muted)' }}
               dataKey="value"
               cornerRadius={10}
-              fill="#10b981"
+              fill="var(--color-value)"
             />
           </RadialBarChart>
-        </ResponsiveContainer>
+          </ChartContainer>
 
         {/* Center Text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -133,10 +140,10 @@ function PersentaseKehadiran() {
             {total > 0 ? `${checkedIn} dari ${total} guru` : 'Belum ada data guru'}
           </div>
         </div>
-      </div>
+        </div>
 
       {/* Legend/Detail Stats */}
-      <div className="mt-6 pt-6 border-t border-gray-200">
+      <div className="mt-6 border-t border-border pt-6">
         <div className="grid grid-cols-2 gap-4">
           {/* Hadir */}
           <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg">
@@ -190,40 +197,14 @@ function PersentaseKehadiran() {
           <span>Progress Hari Ini</span>
           <span className="font-semibold">{safePercentage}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-          <div className="flex h-full">
-            {/* Hadir */}
-            {stats.hadir > 0 && (
-              <div
-                className="bg-emerald-500 transition-all duration-500"
-                style={{ width: `${total > 0 ? (Number(stats.hadir || 0) / total) * 100 : 0}%` }}
-                title={`Hadir: ${stats.hadir}`}
-              />
-            )}
-            {/* Izin */}
-            {stats.izin > 0 && (
-              <div
-                className="bg-yellow-500 transition-all duration-500"
-                style={{ width: `${total > 0 ? (Number(stats.izin || 0) / total) * 100 : 0}%` }}
-                title={`Izin: ${stats.izin}`}
-              />
-            )}
-            {/* Sakit */}
-            {stats.sakit > 0 && (
-              <div
-                className="bg-red-500 transition-all duration-500"
-                style={{ width: `${total > 0 ? (Number(stats.sakit || 0) / total) * 100 : 0}%` }}
-                title={`Sakit: ${stats.sakit}`}
-              />
-            )}
-          </div>
-        </div>
+        <Progress value={safePercentage} className="bg-slate-200 [&>div]:bg-emerald-500" />
         <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
           <span>0%</span>
           <span>100%</span>
         </div>
       </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 

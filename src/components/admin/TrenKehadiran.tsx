@@ -1,34 +1,15 @@
 import { useState, useEffect } from 'react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { TrendingUp } from 'lucide-react'
 import { adminChartsAPI } from '../../services/api'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '../ui/chart'
+import { Skeleton } from '../ui/skeleton'
 
-// Custom Tooltip
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
-        <p className="font-semibold text-gray-800 mb-2">{label}</p>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-            <span className="text-sm text-gray-600">Hadir:</span>
-            <span className="font-semibold text-emerald-700">{payload[0].value} orang</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-            <span className="text-sm text-gray-600">Tidak Hadir:</span>
-            <span className="font-semibold text-rose-700">{payload[1].value} orang</span>
-          </div>
-        </div>
-        <div className="mt-2 pt-2 border-t border-gray-200">
-          <span className="text-xs text-gray-500">Total: {payload[0].value + payload[1].value} guru</span>
-        </div>
-      </div>
-    )
-  }
-  return null
-}
+const chartConfig = {
+  hadir: { label: 'Hadir', color: 'var(--chart-2)' },
+  tidakHadir: { label: 'Tidak Hadir', color: 'var(--chart-4)' },
+} satisfies ChartConfig
 
 function TrenKehadiran() {
   const [chartData, setChartData] = useState([])
@@ -71,26 +52,24 @@ function TrenKehadiran() {
 
   if (loading) {
     return (
-      <div className="academy-panel p-6">
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-64 bg-gray-100 rounded"></div>
-        </div>
-      </div>
+      <Card className="p-6">
+        <Skeleton className="mb-4 h-6 w-1/3" />
+        <Skeleton className="h-64 w-full" />
+      </Card>
     )
   }
 
   return (
-    <div className="academy-panel p-6">
+    <Card className="p-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <CardHeader className="flex-row items-center justify-between p-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
+          <div className="rounded-lg bg-blue-100 p-2 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
             <TrendingUp className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-800">Tren Kehadiran</h2>
-            <p className="text-sm text-gray-500">7 Hari Terakhir</p>
+            <CardTitle className="text-lg">Tren Kehadiran</CardTitle>
+            <CardDescription>7 Hari Terakhir</CardDescription>
           </div>
         </div>
         
@@ -105,11 +84,11 @@ function TrenKehadiran() {
             <p className="text-lg font-bold text-rose-600">{stats.avgTidakHadir}</p>
           </div>
         </div>
-      </div>
+      </CardHeader>
 
       {/* Chart */}
-      <div className="w-full h-80">
-        <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="px-6">
+        <ChartContainer config={chartConfig} className="min-h-[320px]">
           <AreaChart
             data={chartData}
             margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
@@ -117,13 +96,13 @@ function TrenKehadiran() {
             <defs>
               {/* Gradient untuk Hadir */}
               <linearGradient id="colorHadir" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                <stop offset="5%" stopColor="var(--color-hadir)" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="var(--color-hadir)" stopOpacity={0}/>
               </linearGradient>
               {/* Gradient untuk Tidak Hadir */}
               <linearGradient id="colorTidakHadir" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                <stop offset="5%" stopColor="var(--color-tidakHadir)" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="var(--color-tidakHadir)" stopOpacity={0}/>
               </linearGradient>
             </defs>
             
@@ -142,13 +121,13 @@ function TrenKehadiran() {
               label={{ value: 'Jumlah Guru', angle: -90, position: 'insideLeft', style: { fontSize: '12px', fill: '#6b7280' } }}
             />
             
-            <Tooltip content={<CustomTooltip />} />
+            <ChartTooltip content={<ChartTooltipContent />} />
             
             {/* Area Hadir */}
             <Area 
               type="monotone" 
               dataKey="hadir" 
-              stroke="#10b981" 
+              stroke="var(--color-hadir)"
               strokeWidth={2}
               fill="url(#colorHadir)" 
               name="Hadir"
@@ -158,14 +137,13 @@ function TrenKehadiran() {
             <Area 
               type="monotone" 
               dataKey="tidakHadir" 
-              stroke="#f43f5e" 
+              stroke="var(--color-tidakHadir)"
               strokeWidth={2}
               fill="url(#colorTidakHadir)" 
               name="Tidak Hadir"
             />
           </AreaChart>
-        </ResponsiveContainer>
-      </div>
+        </ChartContainer>
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-gray-200">
@@ -178,7 +156,8 @@ function TrenKehadiran() {
           <span className="text-sm text-gray-600">Tidak Hadir (Izin/Sakit)</span>
         </div>
       </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 

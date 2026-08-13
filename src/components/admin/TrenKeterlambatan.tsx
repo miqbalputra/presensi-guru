@@ -1,10 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine, Line
+  Legend, ReferenceLine, Line
 } from 'recharts'
 import { TrendingUp, TrendingDown, Minus, GitCompare, BarChart2, Calendar, Clock } from 'lucide-react'
 import { presensiAPI } from '../../services/api'
+import { Card } from '../ui/card'
+import { ChartContainer, ChartTooltip, type ChartConfig } from '../ui/chart'
+import { Skeleton } from '../ui/skeleton'
+
+const latenessChartConfig = {
+  hadir: { label: 'Hadir', color: 'var(--chart-2)' },
+  terlambat: { label: 'Terlambat', color: 'var(--chart-3)' },
+  tidakHadir: { label: 'Absen', color: 'var(--chart-4)' },
+  avgMinutes: { label: 'Avg Masuk', color: 'var(--chart-1)' },
+  'Terlambat A': { label: 'Terlambat (A)', color: 'var(--chart-1)' },
+  'Terlambat B': { label: 'Terlambat (B)', color: 'var(--chart-5)' },
+} satisfies ChartConfig
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -217,14 +229,14 @@ function TrenKeterlambatan() {
 
   // ─── Skeleton ────────────────────────────────────────────────────────────
   if (loading) return (
-    <div className="academy-panel col-span-full animate-pulse p-6">
-      <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"/>
-      <div className="h-72 bg-gray-100 rounded"/>
-    </div>
+    <Card className="col-span-full gap-0 p-6">
+      <Skeleton className="mb-4 h-6 w-1/3" />
+      <Skeleton className="h-72 w-full" />
+    </Card>
   )
 
   return (
-    <div className="academy-panel col-span-full p-6">
+    <Card className="col-span-full p-6">
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -332,8 +344,7 @@ function TrenKeterlambatan() {
               <p className="text-sm">Tidak ada data presensi pada periode ini</p>
             </div>
           ) : (
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
+          <ChartContainer config={latenessChartConfig} className="h-80">
               <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gHadir" x1="0" y1="0" x2="0" y2="1">
@@ -353,7 +364,7 @@ function TrenKeterlambatan() {
                 <XAxis dataKey="tanggal" tickFormatter={formatLabel} style={{ fontSize: 10 }} stroke="#9ca3af"/>
                 <YAxis yAxisId="left" allowDecimals={false} style={{ fontSize: 10 }} stroke="#9ca3af"/>
                 <YAxis yAxisId="right" orientation="right" domain={[0, 720]} tickFormatter={minutesToTime} style={{ fontSize: 10 }} stroke="#6366f1"/>
-                <Tooltip content={<CustomTooltip/>}/>
+                <ChartTooltip content={<CustomTooltip/>}/>
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }}/>
                 <Area yAxisId="left" type="monotone" dataKey="hadir" name="Hadir"
                   stroke="#10b981" strokeWidth={2} fill="url(#gHadir)" dot={{ r: 3, fill: '#10b981' }}/>
@@ -363,8 +374,7 @@ function TrenKeterlambatan() {
                   stroke="#f43f5e" strokeWidth={2} fill="url(#gTidak)" dot={{ r: 3, fill: '#f43f5e' }}/>
                 <Line yAxisId="right" type="monotone" dataKey="avgMinutes" name="Avg Masuk" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }}/>
               </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+          </ChartContainer>
           )}
         </>
       )}
@@ -415,22 +425,20 @@ function TrenKeterlambatan() {
 
           {/* Comparison bar chart — % terlambat per hari */}
           <p className="text-xs text-gray-500 mb-2 text-center">Persentase Terlambat per Hari (%)</p>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <ChartContainer config={latenessChartConfig} className="h-64">
               <ComposedChart data={compareData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
                 <XAxis dataKey="day" style={{ fontSize: 10 }} stroke="#9ca3af"/>
                 <YAxis tickFormatter={v => `${v}%`} domain={[0, 'auto']} style={{ fontSize: 10 }} stroke="#9ca3af"/>
-                <Tooltip content={<CompareTooltip/>}/>
+                <ChartTooltip content={<CompareTooltip/>}/>
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }}/>
                 <Bar dataKey="Terlambat A" fill="#3b82f6" radius={[3,3,0,0]} opacity={0.85}/>
                 <Bar dataKey="Terlambat B" fill="#a855f7" radius={[3,3,0,0]} opacity={0.85}/>
               </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+          </ChartContainer>
         </>
       )}
-    </div>
+    </Card>
   )
 }
 
