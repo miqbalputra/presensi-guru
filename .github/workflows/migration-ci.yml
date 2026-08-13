@@ -96,16 +96,39 @@ jobs:
           ALLOW_PRIVATE_WEBHOOK_TARGETS=false
           EOF
           trap 'docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml logs app || true; docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml down -v || true' EXIT
+          set +e
           docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml up -d --build
+          compose_status=$?
+          if [ "$compose_status" -ne 0 ]; then
+            docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml ps || true
+            logs=$(docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml logs --no-color --tail=100 2>&1 || true)
+            printf '%s\n' "$logs"
+            detail=$(printf '%s' "$logs" | tail -n 12 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error title=Migration staging containers failed::$detail"
+            exit "$compose_status"
+          fi
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8080/health/ready >/dev/null; then
               break
             fi
             if [ "$attempt" = "30" ]; then
               echo "migration staging readiness timeout"
+              docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml ps || true
+              logs=$(docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml logs --no-color --tail=100 2>&1 || true)
+              printf '%s\n' "$logs"
+              detail=$(printf '%s' "$logs" | tail -n 12 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+              echo "::error title=Migration staging readiness failed::$detail"
               exit 1
             fi
             sleep 2
           done
           STAGING_URL=http://127.0.0.1:8080 npm run verify:staging
+          smoke_status=$?
+          if [ "$smoke_status" -ne 0 ]; then
+            logs=$(docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml logs --no-color --tail=100 2>&1 || true)
+            printf '%s\n' "$logs"
+            detail=$(printf '%s' "$logs" | tail -n 12 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error title=Migration staging smoke check failed::$detail"
+            exit "$smoke_status"
+          fi
           LOAD_URL=http://127.0.0.1:8080 LOAD_DURATION_SECONDS=10 LOAD_CONCURRENCY=20 npm run test:load:staging
