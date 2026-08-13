@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Edit2, Archive, Download, Upload } from 'lucide-react'
 import { createWorkbook, addJsonSheet, downloadWorkbook, readWorkbookRows } from '../../utils/excelExport'
-import { calculateWorkDuration, formatDate } from '../../utils/dateUtils'
+import { calculateWorkDuration, formatDate, formatDisplayDate } from '../../utils/dateUtils'
 import GuruModal from './GuruModal'
 import { guruAPI } from '../../services/api'
 
@@ -359,7 +359,7 @@ function DataGuru() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{guru.idGuru || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{guru.nama}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.tanggalLahir || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDisplayDate(guru.tanggalLahir)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{calculateAge(guru.tanggalLahir)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.jenisKelamin}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{guru.alamat}</td>
@@ -367,7 +367,7 @@ function DataGuru() {
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.tanggalBertugas}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDisplayDate(guru.tanggalBertugas)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {calculateWorkDuration(guru.tanggalBertugas)}
                   </td>

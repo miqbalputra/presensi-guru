@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Archive, RotateCcw, Trash2, Eye, X, Search } from 'lucide-react'
 import { guruAPI, presensiAPI } from '../../services/api'
+import { formatDisplayDate } from '../../utils/dateUtils'
 
 function ArsipGuru() {
   const [arsip, setArsip] = useState([])
@@ -202,7 +203,7 @@ function ArsipGuru() {
                       {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {guru.tanggalBertugas || '-'}
+                      {formatDisplayDate(guru.tanggalBertugas)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {formatTanggalArsip(guru.archivedAt)}

@@ -18,6 +18,27 @@ export const formatDate = (date) => {
   return `${day}-${month}-${year}`
 }
 
+// Format tanggal untuk tampilan manusia tanpa mengubah nilai tanggal sumber.
+// Tanggal dari API kadang berupa ISO timestamp lengkap, sementara input Excel
+// bisa berupa yyyy-mm-dd. Keduanya ditampilkan konsisten dalam bahasa Indonesia.
+export const formatDisplayDate = (date) => {
+  if (!date) return '-'
+
+  const raw = String(date).trim()
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const parsed = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(raw)
+
+  if (Number.isNaN(parsed.getTime())) return raw
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(parsed)
+}
+
 // Format tanggal untuk input date (yyyy-mm-dd)
 export const formatDateForInput = (date) => {
   const d = new Date(date)

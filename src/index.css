@@ -192,6 +192,59 @@ textarea {
   color: #94a3b8;
 }
 
+.dark .academy-dashboard .text-gray-400,
+.dark .academy-dashboard .text-slate-400,
+.dark .academy-dashboard .text-slate-500 {
+  color: #94a3b8;
+}
+
+.dark .academy-dashboard .text-gray-700,
+.dark .academy-dashboard .text-slate-600,
+.dark .academy-dashboard .text-slate-700 {
+  color: #cbd5e1;
+}
+
+.dark .academy-dashboard .text-slate-800,
+.dark .academy-dashboard .text-slate-900 {
+  color: #f1f5f9;
+}
+
+.dark .academy-dashboard .bg-gray-50,
+.dark .academy-dashboard .bg-gray-100,
+.dark .academy-dashboard .bg-slate-50 {
+  background: #111827;
+}
+
+.dark .academy-dashboard .bg-gray-200,
+.dark .academy-dashboard .bg-slate-200 {
+  background: #1e293b;
+}
+
+.dark .academy-dashboard .border-gray-100,
+.dark .academy-dashboard .border-gray-200,
+.dark .academy-dashboard .border-gray-300,
+.dark .academy-dashboard .border-slate-200 {
+  border-color: #334155;
+}
+
+.dark .academy-dashboard .divide-gray-100 > :not(:last-child),
+.dark .academy-dashboard .divide-gray-200 > :not(:last-child) {
+  border-color: #1e293b;
+}
+
+.dark .academy-dashboard main input:not([type='checkbox']):not([type='radio']),
+.dark .academy-dashboard main select,
+.dark .academy-dashboard main textarea {
+  border-color: #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.dark .academy-dashboard main input::placeholder,
+.dark .academy-dashboard main textarea::placeholder {
+  color: #64748b;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .academy-control,
   .academy-panel,

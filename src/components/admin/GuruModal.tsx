@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
+import { formatDateForInput } from '../../utils/dateUtils'
 
 function GuruModal({ guru, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -39,7 +40,12 @@ function GuruModal({ guru, onClose, onSave }) {
     if (guru) {
       // Pastikan jabatan adalah array
       const jabatanArray = Array.isArray(guru.jabatan) ? guru.jabatan : [guru.jabatan]
-      setFormData({ ...guru, jabatan: jabatanArray })
+      setFormData({
+        ...guru,
+        tanggalLahir: guru.tanggalLahir ? formatDateForInput(guru.tanggalLahir) : '',
+        tanggalBertugas: guru.tanggalBertugas ? formatDateForInput(guru.tanggalBertugas) : '',
+        jabatan: jabatanArray,
+      })
     }
   }, [guru])
 
