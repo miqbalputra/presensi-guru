@@ -6,7 +6,7 @@ Gunakan image migrasi Go/MySQL melalui `Dockerfile.migration`. Dokumentasi stagi
 
 1. Buat service MySQL 8.4 terpisah.
 2. Buat application dari repository ini.
-3. Set Dockerfile ke `Dockerfile.migration` dan port internal `8080`.
+3. Gunakan build pack Dockerfile. Root `Dockerfile` sekarang menjadi image migrasi Go/MySQL; `Dockerfile.migration` tetap tersedia sebagai path eksplisit yang setara. Set port internal ke `8080`.
 4. Gunakan domain HTTPS staging terlebih dahulu.
 5. Isi secret melalui Coolify Environment/Secret, bukan file yang di-commit.
 
@@ -52,4 +52,4 @@ Jalankan UAT, security gate, backup/restore drill, dan reconciliation sesuai run
 
 ## Legacy rollback
 
-`Dockerfile`, `api/`, dan dump PHP lama hanya dipertahankan sementara sebagai fallback/komparasi. Jangan memilih image legacy untuk cutover migrasi tanpa persetujuan rollback.
+`Dockerfile.legacy`, `api/`, dan dump PHP lama hanya dipertahankan sementara sebagai fallback/komparasi. Jangan memilih image legacy untuk cutover migrasi tanpa persetujuan rollback.
