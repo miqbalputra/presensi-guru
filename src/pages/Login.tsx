@@ -379,7 +379,7 @@ function Login({ onLogin }) {
         'Dark Mode & Light Mode — toggle tema di seluruh halaman (login, guru, admin)',
         'Redesain total UI halaman Guru: welcome card, info pills, holiday card, floating bottom nav',
         'Redesain halaman Login dengan gaya konsisten TimeZen-style (rounded card, indigo accent)',
-        'Service Worker v6 — update agresif, auto recovery dari error chunk, cache bersih tiap deploy',
+        'Service Worker v16 — update otomatis saat PWA dibuka, auto recovery dari error chunk, dan cache shell yang aman saat deploy',
         'Bulk holiday range creation — admin bisa tambah banyak hari libur sekaligus',
         'Perbaikan Statistik Guru — data hadir/alfa kini akurat dengan perhitungan hari kerja + optional',
         'Perbaikan libur sekolah — diperlakukan sebagai libur total, hanya is_workday=1 yang hari kerja',

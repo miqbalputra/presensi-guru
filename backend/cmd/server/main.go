@@ -120,6 +120,17 @@ func main() {
 		c.Set("Cache-Control", "public, max-age=31536000, immutable")
 		return c.Next()
 	})
+	app.Use(func(c *fiber.Ctx) error {
+		// HTML shell, manifest, and service worker must not be held by the
+		// browser/CDN between deployments. Hashed assets remain immutable above.
+		switch c.Path() {
+		case "/", "/index.html", "/sw.js", "/manifest.json":
+			c.Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+			c.Set("Pragma", "no-cache")
+			c.Set("Expires", "0")
+		}
+		return c.Next()
+	})
 	app.Static("/", cfg.StaticDir, fiber.Static{Browse: false})
 	app.Use(func(c *fiber.Ctx) error {
 		if strings.HasPrefix(c.Path(), "/api") || strings.HasPrefix(c.Path(), "/health") || c.Path() == "/version" {

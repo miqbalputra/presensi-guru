@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geo-presensi-v15';
+const CACHE_NAME = 'geo-presensi-v16';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -15,6 +15,14 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
+});
+
+// Allow the page to activate a waiting worker immediately when a browser
+// does not honor skipWaiting during an existing PWA session.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Activate: Bersihkan SEMUA cache lama (agresif) dan ambil alih semua tab
@@ -61,7 +69,7 @@ self.addEventListener('fetch', (event) => {
   // Navigasi halaman: network-first, update cache jika berhasil
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-store' })
         .then((response) => {
           if (response.ok) {
             const clone = response.clone();
@@ -72,6 +80,23 @@ self.addEventListener('fetch', (event) => {
         .catch(() => {
           return caches.match('/index.html');
         })
+    );
+    return;
+  }
+
+  // Shell PWA harus selalu mengambil versi terbaru. Ini mencegah browser
+  // HTTP cache mengembalikan index.html lama saat aplikasi dibuka dari ikon.
+  if (url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match('/index.html'))
     );
     return;
   }

@@ -30,7 +30,10 @@
 
 	@assets path /assets/* /icon-192.png /icon-512.png
 	header @assets Cache-Control "public, max-age=31536000, immutable"
-	header /sw.js Cache-Control "no-cache, no-store, must-revalidate"
+	@pwaShell path / /index.html /sw.js
+	header @pwaShell Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate"
+	header @pwaShell Pragma "no-cache"
+	header @pwaShell Expires "0"
 	header /manifest.json Cache-Control "public, max-age=3600"
 
 	# Static assets: serve directly, 404 if missing (NO html fallback)

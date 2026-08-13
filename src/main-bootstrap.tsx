@@ -68,44 +68,68 @@ window.addEventListener('error', (event) => {
   }
 }, true)
 
-// Registrasi Service Worker untuk PWA — lebih agresif agar update cepat
+// Registrasi Service Worker untuk PWA — update otomatis tanpa reload manual.
 if ('serviceWorker' in navigator) {
+  let refreshing = false
+  let hadController = Boolean(navigator.serviceWorker.controller)
+
+  const reloadAfterWorkerUpdate = () => {
+    if (refreshing) return
+    refreshing = true
+    window.location.reload()
+  }
+
+  const activateWaitingWorker = (registration: ServiceWorkerRegistration) => {
+    if (registration.waiting) {
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    }
+  }
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then(registration => {
         console.log('SW registered:', registration)
 
-        // Cek update saat halaman load dan setiap 60 detik
-        registration.update()
-        setInterval(() => {
-          console.log('SW: checking for update...')
-          registration.update()
-        }, 60_000)
-
-        // Saat update ditemukan, tunggu sampai installed lalu reload
-        registration.onupdatefound = () => {
+        // Pasang listener sebelum update() agar tidak kehilangan event updatefound.
+        registration.addEventListener('updatefound', () => {
           const installingWorker = registration.installing
           if (!installingWorker) return
-          installingWorker.onstatechange = () => {
+
+          installingWorker.addEventListener('statechange', () => {
             if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('SW: new version installed, reloading...')
-              window.location.reload()
+              installingWorker.postMessage({ type: 'SKIP_WAITING' })
             }
-          }
+          })
+        })
+
+        activateWaitingWorker(registration)
+
+        const checkForUpdate = () => {
+          registration.update().catch((error) => {
+            console.debug('SW update check skipped:', error)
+          })
         }
+
+        // Cek saat launch, saat PWA kembali terlihat, dan berkala ketika tetap terbuka.
+        checkForUpdate()
+        window.addEventListener('pageshow', checkForUpdate)
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') checkForUpdate()
+        })
+        window.setInterval(checkForUpdate, 60_000)
       })
       .catch(registrationError => {
         console.log('SW registration failed:', registrationError)
       })
   })
 
-  // Jaga-jaga: reload sekali saat controller berganti
-  let refreshing = false
+  // Saat worker baru mengambil alih tab yang sedang terbuka, refresh otomatis.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) {
-      window.location.reload()
-      refreshing = true
+    if (!hadController) {
+      hadController = true
+      return
     }
+    reloadAfterWorkerUpdate()
   })
 }
 
