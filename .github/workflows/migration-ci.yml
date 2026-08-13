@@ -52,7 +52,17 @@ jobs:
           MYSQL_INTEGRATION: '0'
       - name: Run MySQL migration integration test
         working-directory: backend
-        run: go test ./internal/migrations -run TestMySQLMigrationsAreIdempotentAndLegacyCompatible -count=1 -v
+        shell: bash
+        run: |
+          set +e
+          output=$(go test ./internal/migrations -run TestMySQLMigrationsAreIdempotentAndLegacyCompatible -count=1 -v 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            detail=$(printf '%s' "$output" | tail -n 12 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error title=MySQL migration integration failed::$detail"
+            exit "$status"
+          fi
         env:
           MYSQL_INTEGRATION: '1'
           DB_HOST: 127.0.0.1
