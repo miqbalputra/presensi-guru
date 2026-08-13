@@ -71,7 +71,7 @@ function PersentaseKehadiran() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="academy-panel p-6">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 rounded w-2/3 mb-4"></div>
           <div className="h-64 bg-gray-100 rounded"></div>
@@ -81,7 +81,7 @@ function PersentaseKehadiran() {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm">
+    <div className="academy-panel p-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-emerald-100 rounded-lg">

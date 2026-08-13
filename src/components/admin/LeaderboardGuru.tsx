@@ -113,7 +113,7 @@ function LeaderboardGuru() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="academy-panel p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="h-32 bg-gray-200 rounded"></div>
@@ -124,13 +124,13 @@ function LeaderboardGuru() {
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl shadow-lg">
+    <div className="academy-panel overflow-hidden">
       <div className="p-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg shadow-lg">
-              <Trophy className="w-6 h-6 text-white" />
+            <div className="rounded-lg bg-blue-50 p-3 text-blue-700">
+              <Trophy className="h-5 w-5" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-800">🏆 Leaderboard Guru</h2>
@@ -141,7 +141,7 @@ function LeaderboardGuru() {
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+              className="academy-input px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <option value="week">7 Hari Terakhir</option>
               <option value="month">30 Hari Terakhir</option>
@@ -150,14 +150,14 @@ function LeaderboardGuru() {
             </select>
 
             {period === 'custom' && (
-              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                 <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 <input
                   type="date"
                   value={customStart}
                   max={customEnd}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+                  className="academy-input px-1 text-sm"
                 />
                 <span className="text-gray-400 text-xs">s/d</span>
                 <input
@@ -166,7 +166,7 @@ function LeaderboardGuru() {
                   min={customStart}
                   max={todayStr}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+                  className="academy-input px-1 text-sm"
                 />
               </div>
             )}
@@ -179,7 +179,7 @@ function LeaderboardGuru() {
             <div className="grid grid-cols-3 gap-4 items-end">
               {/* Rank 2 */}
               <div className="text-center">
-                <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg p-4 shadow-md border-2 border-gray-300 transform hover:scale-105 transition-transform">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="text-4xl mb-2">🥈</div>
                   <div className="w-16 h-16 bg-gray-300 rounded-full mx-auto mb-2 flex items-center justify-center">
                     <span className="text-2xl font-bold text-gray-700">2</span>
@@ -196,10 +196,10 @@ function LeaderboardGuru() {
 
               {/* Rank 1 */}
               <div className="text-center">
-                <div className="bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-lg p-4 shadow-xl border-4 border-yellow-400 transform hover:scale-105 transition-transform">
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                   <div className="text-5xl mb-2">🏆</div>
-                  <div className="w-20 h-20 bg-yellow-400 rounded-full mx-auto mb-2 flex items-center justify-center shadow-lg">
-                    <span className="text-3xl font-bold text-yellow-900">1</span>
+                  <div className="mx-auto mb-2 flex h-20 w-20 items-center justify-center rounded-full bg-blue-600">
+                    <span className="text-3xl font-bold text-white">1</span>
                   </div>
                   <p className="font-bold text-gray-800 truncate">{leaderboardData[0].nama}</p>
                   <p className="text-sm text-gray-700 mb-2 font-semibold">{leaderboardData[0].skor}% Skor</p>
@@ -213,7 +213,7 @@ function LeaderboardGuru() {
 
               {/* Rank 3 */}
               <div className="text-center">
-                <div className="bg-gradient-to-br from-orange-100 to-orange-200 rounded-lg p-4 shadow-md border-2 border-orange-300 transform hover:scale-105 transition-transform">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="text-4xl mb-2">🥉</div>
                   <div className="w-16 h-16 bg-orange-300 rounded-full mx-auto mb-2 flex items-center justify-center">
                     <span className="text-2xl font-bold text-orange-800">3</span>
@@ -232,10 +232,10 @@ function LeaderboardGuru() {
         )}
 
         {/* Full Leaderboard Table */}
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           <div className="overflow-auto max-h-[600px]">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-blue-500 to-purple-500 text-white sticky top-0 z-10">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase">Rank</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase">Nama Guru</th>
@@ -399,7 +399,7 @@ function LeaderboardGuru() {
         </div>
 
         {/* Legend */}
-        <div className="mt-4 p-4 bg-white rounded-lg border-2 border-blue-100">
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold text-gray-700 mb-2">📊 Cara Perhitungan Skor:</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
             <div>• <strong>Skor = (Kehadiran × 50%) + (Tepat Waktu × 25%) + (Kelengkapan Pulang × 25%)</strong></div>
@@ -413,7 +413,7 @@ function LeaderboardGuru() {
             <div>• ✓ Skor ≥75% = Good</div>
             <div>• <strong>Juara</strong>: Selalu hadir + Selalu tepat waktu</div>
           </div>
-          <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-800">
+          <div className="mt-3 rounded border border-blue-100 bg-blue-50 p-2 text-xs text-blue-800">
             <strong>💡 Tips Jadi Juara:</strong> Hadir setiap hari + Tidak pernah terlambat + Tidak pernah lupa presensi pulang = Skor 100%
           </div>
         </div>

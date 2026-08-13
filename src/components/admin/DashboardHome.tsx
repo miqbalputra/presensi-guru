@@ -58,7 +58,7 @@ function getJamPulang(log) {
 function StatCard({ stat, loading }) {
   if (loading) {
     return (
-      <Card className="rounded-2xl border-slate-100 p-5 animate-pulse">
+      <Card className="academy-panel animate-pulse p-5">
         <div className="flex items-center justify-between">
           <div className="space-y-2 flex-1">
             <div className="h-3 w-24 bg-slate-200 rounded" />
@@ -70,14 +70,14 @@ function StatCard({ stat, loading }) {
     )
   }
   return (
-    <Card className="rounded-2xl border-slate-200/70 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <Card className="academy-panel p-5 transition-colors hover:border-slate-300">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{stat.label}</p>
           <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900">{stat.value}</p>
         </div>
-        <div className={`${stat.color} rounded-2xl p-3 shadow-sm`}>
-          <stat.icon className="w-6 h-6 text-white" />
+        <div className={`${stat.color} rounded-lg p-3`}>
+          <stat.icon className="h-5 w-5" />
         </div>
       </div>
     </Card>
@@ -148,11 +148,11 @@ function DashboardHome() {
   const labels = getStatsLabel()
 
   const stats = [
-    { label: 'Total Guru', value: totalGuru, icon: Users, color: 'bg-blue-500' },
-    { label: labels.hadir, value: hadirCount, icon: UserCheck, color: 'bg-green-500' },
-    { label: labels.izin, value: izinCount, icon: FileText, color: 'bg-yellow-500' },
-    { label: labels.sakit, value: sakitCount, icon: UserX, color: 'bg-red-500' },
-    { label: labels.alfa, value: alfaCount, icon: AlertCircle, color: 'bg-gray-600' },
+    { label: 'Total Guru', value: totalGuru, icon: Users, color: 'bg-blue-50 text-blue-700' },
+    { label: labels.hadir, value: hadirCount, icon: UserCheck, color: 'bg-emerald-50 text-emerald-700' },
+    { label: labels.izin, value: izinCount, icon: FileText, color: 'bg-amber-50 text-amber-700' },
+    { label: labels.sakit, value: sakitCount, icon: UserX, color: 'bg-rose-50 text-rose-700' },
+    { label: labels.alfa, value: alfaCount, icon: AlertCircle, color: 'bg-slate-100 text-slate-700' },
   ]
 
   const tableTitle = {
@@ -165,12 +165,12 @@ function DashboardHome() {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-white to-blue-50/70 p-5 shadow-sm sm:p-6">
+      <section className="academy-panel overflow-hidden p-5 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]" />
-              Pusat kendali presensi
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+              Ringkasan operasional
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Dashboard presensi</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">Pantau kehadiran guru, tindak lanjuti presensi yang belum tercatat, dan lihat tren operasional sekolah.</p>
@@ -309,7 +309,7 @@ function DashboardHome() {
       )}
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Tren Kehadiran - Modern Area Chart */}
         <TrenKehadiran />
 
@@ -332,8 +332,8 @@ function DashboardHome() {
       <LeaderboardGuru />
 
       {/* Realtime Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-5 border-b border-slate-100">
+      <div className="academy-panel overflow-hidden">
+        <div className="academy-panel-header p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-800">{tableTitle}</h2>

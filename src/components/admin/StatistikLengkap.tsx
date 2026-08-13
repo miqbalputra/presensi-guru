@@ -97,7 +97,7 @@ function StatistikLengkap() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl shadow p-8 animate-pulse">
+      <div className="academy-panel animate-pulse p-8">
         <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="h-32 bg-gray-100 rounded-xl"></div>
@@ -111,7 +111,7 @@ function StatistikLengkap() {
   return (
     <div className="space-y-6">
       {/* Header & Filter */}
-      <div className="bg-white rounded-2xl shadow p-6">
+      <div className="academy-panel p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-100 rounded-xl">
@@ -148,7 +148,7 @@ function StatistikLengkap() {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-2xl shadow border-l-4 border-amber-500">
+        <div className="academy-panel border-l-4 border-amber-500 p-6">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Terlambat</p>
@@ -161,7 +161,7 @@ function StatistikLengkap() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow border-l-4 border-red-500">
+        <div className="academy-panel border-l-4 border-red-500 p-6">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Terlambat Piket</p>
@@ -174,7 +174,7 @@ function StatistikLengkap() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow border-l-4 border-orange-500">
+        <div className="academy-panel border-l-4 border-orange-500 p-6">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pulang Awal Piket</p>
@@ -187,7 +187,7 @@ function StatistikLengkap() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow border-l-4 border-slate-500">
+        <div className="academy-panel border-l-4 border-slate-500 p-6">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Lupa Pulang</p>
@@ -203,7 +203,7 @@ function StatistikLengkap() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 1. Keterlambatan per Guru */}
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <div className="academy-panel overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-amber-500" />
@@ -247,7 +247,7 @@ function StatistikLengkap() {
         </div>
 
         {/* 2. Detail Terlambat Piket */}
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <div className="academy-panel overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-red-500" />
             <h3 className="font-bold text-gray-800">Terlambat Saat Jadwal Piket</h3>
@@ -284,7 +284,7 @@ function StatistikLengkap() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 3. Pulang Awal Piket + Alasan */}
-        <div className="bg-white rounded-2xl shadow overflow-hidden lg:col-span-2">
+        <div className="academy-panel overflow-hidden lg:col-span-2">
           <div className="p-6 border-b border-gray-100 flex items-center gap-2">
             <LogOut className="w-5 h-5 text-orange-500" />
             <h3 className="font-bold text-gray-800">Riwayat Pulang Awal Piket</h3>
@@ -321,7 +321,7 @@ function StatistikLengkap() {
         </div>
 
         {/* 4. Lupa Presensi Pulang */}
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <div className="academy-panel overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center gap-2">
             <UserX className="w-5 h-5 text-slate-500" />
             <h3 className="font-bold text-gray-800">Lupa Checkout</h3>
@@ -355,7 +355,7 @@ function StatistikLengkap() {
       </div>
 
       {/* 5. Alasan Izin & Sakit */}
-      <div className="bg-white rounded-2xl shadow overflow-hidden">
+      <div className="academy-panel overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex items-center gap-2">
           <FileText className="w-5 h-5 text-blue-500" />
           <h3 className="font-bold text-gray-800">Alasan Izin & Sakit</h3>

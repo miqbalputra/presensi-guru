@@ -125,14 +125,14 @@ function TrenJamPulang() {
   const deltaLabel = delta > 0 ? `Lupa Checkout Naik ${Math.abs(delta).toFixed(1)}%` : delta < 0 ? `Lupa Checkout Turun ${Math.abs(delta).toFixed(1)}%` : 'Stagnan'
 
   if (loading) return (
-    <div className="bg-white rounded-2xl shadow p-6 col-span-full animate-pulse">
+    <div className="academy-panel col-span-full animate-pulse p-6">
       <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"/>
       <div className="h-72 bg-gray-100 rounded"/>
     </div>
   )
 
   return (
-    <div className="bg-white rounded-2xl shadow p-6 col-span-full">
+    <div className="academy-panel col-span-full p-6">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
