@@ -6,6 +6,7 @@ import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPike
 import { Card } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Progress } from '../ui/progress'
+import { Button } from '../ui/button'
 
 const getRecentStatusLabel = (status = '') => {
   const labels = {
@@ -938,6 +939,44 @@ function GuruHome({ user, onChangeTab }) {
     )
   }
 
+  const scheduleInfo = (() => {
+    const today = new Date()
+    const isMonday = today.getDay() === 1
+    const isApel = settings.apel_senin_enabled == '1'
+    const piketTime = jadwalPiketHariIni?.jam_piket?.substring(0, 5)
+
+    if (isMonday && isApel) {
+      return { label: isPiketToday ? 'Apel & Piket' : 'Apel Senin', time: isPiketToday ? piketTime : '07:00' }
+    }
+
+    if (isPiketToday) {
+      return { label: 'Jadwal piket', time: piketTime }
+    }
+
+    return { label: 'Jam masuk normal', time: settings.jam_masuk_normal }
+  })()
+
+  const isTestingMode = settings.mode_testing == '1'
+  const isGpsReady = isTestingMode || locationStatus.state === 'ready'
+  const gpsLabel = isTestingMode
+    ? 'Mode testing aktif'
+    : locationStatus.state === 'ready'
+      ? 'Lokasi siap digunakan'
+      : locationStatus.state === 'loading'
+        ? 'Sedang mencari lokasi...'
+        : locationStatus.state === 'error'
+          ? 'Lokasi perlu diperbarui'
+          : 'Siapkan lokasi sebelum hadir'
+  const trackingLabel = trackingStatus.state === 'ready'
+    ? 'Aktif'
+    : trackingStatus.state === 'loading'
+      ? 'Mengirim lokasi'
+      : trackingStatus.state === 'error'
+        ? 'Perlu perhatian'
+        : todayAttendance
+          ? 'Menunggu data'
+          : 'Aktif setelah hadir'
+
   return (
     <div className="space-y-5 pb-2">
       {/* Welcome / Hero Card */}
@@ -977,48 +1016,46 @@ function GuruHome({ user, onChangeTab }) {
             </div>
           </div>
         </div>
-        <div className="relative mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700">
+        <div className="relative mt-5 grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-4 dark:border-slate-800 sm:grid-cols-4">
+          <span className="flex min-h-[62px] flex-col items-start justify-between gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-            {(() => {
-              const today = new Date()
-              const isMonday = today.getDay() === 1
-              const isApel = settings.apel_senin_enabled == '1'
-              if (isMonday) {
-                if (isApel) {
-                  return isPiketToday ? `Apel & Piket ${jadwalPiketHariIni?.jam_piket?.substring(0, 5)}` : 'Apel Senin 07:00'
-                } else {
-                  return isPiketToday ? 'Piket Senin 07:00' : `Masuk ${settings.jam_masuk_normal}`
-                }
-              }
-              return `Masuk ${isPiketToday ? jadwalPiketHariIni?.jam_piket?.substring(0, 5) : settings.jam_masuk_normal}`
-            })()} WIB
+            <span className="font-bold text-slate-800 dark:text-slate-100">{scheduleInfo.label}</span>
+            <span>{scheduleInfo.time || '--:--'} WIB</span>
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700">
+          <span className="flex min-h-[62px] flex-col items-start justify-between gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-            Toleransi {settings.toleransi_terlambat} mnt
+            <span className="font-bold text-slate-800 dark:text-slate-100">Toleransi</span>
+            <span>{settings.toleransi_terlambat} menit</span>
           </span>
           {settings.mode_testing == '1' && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-600 ring-1 ring-inset ring-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/20">
+            <span className="col-span-2 flex min-h-[62px] flex-col items-start justify-between gap-2 rounded-2xl border border-orange-200 bg-orange-50/80 px-3 py-2.5 text-xs font-medium text-orange-600 shadow-sm dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300 sm:col-span-1">
               <span className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Mode Testing
             </span>
           )}
           {settings.mode_testing != '1' && (
-            <button
+            <Button
               type="button"
               onClick={warmUpLocation}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition-all hover:scale-[1.02] active:scale-[0.98] ${
+              variant={isGpsReady ? 'secondary' : 'outline'}
+              className={`col-span-2 flex min-h-[62px] items-center justify-between rounded-2xl px-3 py-2.5 text-left text-xs font-medium transition-all hover:scale-[1.01] active:scale-[0.99] sm:col-span-1 ${
                 locationStatus.state === 'ready'
-                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20 dark:hover:bg-emerald-500/15'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/15'
                   : locationStatus.state === 'loading'
-                    ? 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/20'
+                    ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300'
                     : locationStatus.state === 'error'
-                      ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20 dark:hover:bg-rose-500/15'
-                      : 'bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
+                      ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/15'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800'
               }`}
               title={locationStatus.message || 'Ketuk untuk menyiapkan GPS'}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${
+              <span className="flex min-w-0 items-center gap-2">
+                <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-[0.12em] opacity-60">GPS sekolah</span>
+                  <span className="mt-0.5 block truncate font-bold">{gpsLabel}</span>
+                </span>
+              </span>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${
                 locationStatus.state === 'ready'
                   ? 'bg-emerald-500'
                   : locationStatus.state === 'loading'
@@ -1026,26 +1063,19 @@ function GuruHome({ user, onChangeTab }) {
                     : locationStatus.state === 'error'
                       ? 'bg-rose-500'
                       : 'bg-slate-400'
-              }`} />
-              {locationStatus.state === 'ready'
-                ? 'GPS Siap'
-                : locationStatus.state === 'loading'
-                  ? 'Mengecek GPS...'
-                  : locationStatus.state === 'error'
-                    ? 'GPS Bermasalah'
-                    : 'Siapkan GPS'}
-            </button>
+              }`} aria-hidden="true" />
+            </Button>
           )}
           {settings.location_tracking_enabled == '1' && (
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
+              className={`col-span-2 flex min-h-[62px] items-center justify-between rounded-2xl border px-3 py-2.5 text-xs font-medium sm:col-span-1 ${
                 trackingStatus.state === 'ready'
-                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
                   : trackingStatus.state === 'loading'
-                    ? 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-500/20'
+                    ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300'
                     : trackingStatus.state === 'error'
-                      ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20'
-                      : 'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700'
+                      ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300'
               }`}
               title={trackingStatus.message}
             >
@@ -1058,11 +1088,14 @@ function GuruHome({ user, onChangeTab }) {
                       ? 'bg-amber-500'
                       : 'bg-slate-400'
               }`} />
-              Tracking {trackingStatus.state === 'ready' ? 'Aktif' : trackingStatus.state === 'loading' ? 'Mengirim...' : 'Lokasi'}
+              <span>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.12em] opacity-60">Tracking lokasi</span>
+                <span className="mt-0.5 block font-bold">{trackingLabel}</span>
+              </span>
             </span>
           )}
           {isPiketToday && jadwalPiketHariIni && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-600 ring-1 ring-inset ring-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:ring-purple-500/20">
+            <span className="col-span-2 inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3 py-2 text-xs font-semibold text-purple-700 sm:col-span-4 dark:border-purple-500/20 dark:bg-purple-500/10 dark:text-purple-300">
               <Users className="h-3.5 w-3.5" aria-hidden="true" />
               Piket - Maks {jadwalPiketHariIni.jam_piket} WIB
             </span>
