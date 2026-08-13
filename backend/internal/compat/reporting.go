@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -313,10 +314,20 @@ func (h *Handler) leaderboardChart(c *fiber.Ctx) error {
 	for _, log := range logs {
 		logsByUserDate[fmt.Sprintf("%d:%s", log.UserID, log.Tanggal.Format("2006-01-02"))] = log
 	}
+	var schedules []models.JadwalPiket
+	if err := h.db.Where("is_active = ?", true).Find(&schedules).Error; err != nil {
+		return err
+	}
+	piketByUserDay := map[string]string{}
+	for _, schedule := range schedules {
+		piketByUserDay[fmt.Sprintf("%d:%s", schedule.UserID, schedule.Hari)] = clockValue(schedule.JamPulangPiket)
+	}
+
 	rows := []map[string]any{}
 	for _, user := range users {
 		workdays := 0
-		hadir, izin, sakit := 0, 0, 0
+		hadir, tepatWaktu, terlambat, izin, sakit, lupaPulang := 0, 0, 0, 0, 0, 0
+		lemburHari, lemburMenit, records := 0, 0, 0
 		for _, date := range dateRange(start, end) {
 			ok, _ := calendar.isWorkday(user, date)
 			if !ok {
@@ -327,25 +338,63 @@ func (h *Handler) leaderboardChart(c *fiber.Ctx) error {
 			if !ok {
 				continue
 			}
+			records++
 			switch {
-			case contains([]string{"hadir", "hadir_terlambat", "hadir_izin_terlambat"}, log.Status):
+			case log.Status == "hadir":
 				hadir++
+				tepatWaktu++
+			case contains([]string{"hadir_terlambat", "hadir_izin_terlambat"}, log.Status):
+				hadir++
+				terlambat++
 			case log.Status == "izin":
 				izin++
 			case log.Status == "sakit":
 				sakit++
 			}
+			if contains([]string{"hadir", "hadir_terlambat", "hadir_izin_terlambat"}, log.Status) {
+				if date.Before(dateOnly(time.Now().In(appLocation(h)))) && isMissingCheckout(log) {
+					lupaPulang++
+				}
+				if minutes, ok := overtimeMinutes(log, date, piketByUserDay); ok {
+					lemburHari++
+					lemburMenit += minutes
+				}
+			}
 		}
-		pct := 0.0
+		persentaseKehadiran := 0.0
 		if workdays > 0 {
-			pct = float64(hadir) / float64(workdays) * 100
+			persentaseKehadiran = float64(hadir) / float64(workdays) * 100
 		}
-		rows = append(rows, map[string]any{"id": user.ID, "nama": user.Nama, "persentaseKehadiran": fmt.Sprintf("%.1f", pct), "skor": fmt.Sprintf("%.1f", pct), "hadir": hadir, "izin": izin, "sakit": sakit, "alfa": maxInt(workdays-hadir-izin-sakit, 0), "totalHari": workdays})
+		persentaseTepatWaktu := 0.0
+		if hadir > 0 {
+			persentaseTepatWaktu = float64(tepatWaktu) / float64(hadir) * 100
+		}
+		totalPulangLengkap := maxInt(hadir-lupaPulang, 0)
+		persentasePulang := 0.0
+		if hadir > 0 {
+			persentasePulang = float64(totalPulangLengkap) / float64(hadir) * 100
+		}
+		skorDasar := (persentaseKehadiran * 0.5) + (persentaseTepatWaktu * 0.25) + (persentasePulang * 0.25)
+		lemburBonus := float64(lemburMenit) / 60
+		skor := mathMin(skorDasar+lemburBonus, 100)
+		rows = append(rows, map[string]any{
+			"id": user.ID, "nama": user.Nama, "jabatan": user.Jabatan,
+			"totalHadir": hadir, "tepatWaktu": tepatWaktu, "terlambat": terlambat,
+			"izin": izin, "sakit": sakit, "lupaPulang": lupaPulang,
+			"lemburHari": lemburHari, "lemburMenit": lemburMenit, "lemburBonus": fmt.Sprintf("%.1f", lemburBonus),
+			"totalPulangLengkap": totalPulangLengkap, "persentasePulang": fmt.Sprintf("%.1f", persentasePulang),
+			"tidakPresensi": maxInt(workdays-records, 0), "totalHariAktif": workdays,
+			"persentaseKehadiran": fmt.Sprintf("%.1f", persentaseKehadiran), "persentaseTepatWaktu": fmt.Sprintf("%.1f", persentaseTepatWaktu),
+			"skor": fmt.Sprintf("%.1f", skor),
+		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
-		return fmt.Sprint(rows[i]["persentaseKehadiran"]) > fmt.Sprint(rows[j]["persentaseKehadiran"])
+		return parseFloat(rows[i]["skor"]) > parseFloat(rows[j]["skor"])
 	})
-	return httpx.Success(c, "Leaderboard berhasil diambil", rows)
+	return httpx.Success(c, "Leaderboard berhasil diambil", fiber.Map{
+		"period": c.Query("period", "month"), "startDate": start.Format("2006-01-02"), "endDate": end.Format("2006-01-02"),
+		"totalHariAktif": workingDayCount(users, start, end, calendar), "items": rows,
+	})
 }
 
 func (h *Handler) checkoutChart(c *fiber.Ctx) error {
@@ -419,7 +468,145 @@ func (h *Handler) completeStatsChart(c *fiber.Ctx) error {
 	if days < 1 || days > 365 {
 		days = 30
 	}
-	return httpx.Success(c, "Statistik lengkap berhasil diambil", fiber.Map{"lateStats": fiber.Map{"totalLatePct": "0.0", "statsPerGuru": []any{}, "totalLate": 0}, "latePiket": []any{}, "earlyCheckouts": []any{}, "izinSakit": []any{}, "forgotten": []any{}, "days": days})
+	now := dateOnly(time.Now().In(appLocation(h)))
+	start := now.AddDate(0, 0, -(days - 1))
+	var logs []models.AttendanceLog
+	if err := h.db.Where("tanggal BETWEEN ? AND ?", start.Format("2006-01-02"), now.Format("2006-01-02")).Order("tanggal DESC, id DESC").Find(&logs).Error; err != nil {
+		return err
+	}
+	var users []models.User
+	if err := h.db.Where("role = ? AND archived_at IS NULL", "guru").Order("nama ASC").Find(&users).Error; err != nil {
+		return err
+	}
+	var schedules []models.JadwalPiket
+	if err := h.db.Where("is_active = ?", true).Find(&schedules).Error; err != nil {
+		return err
+	}
+	piketByUserDay := map[string]string{}
+	for _, schedule := range schedules {
+		piketByUserDay[fmt.Sprintf("%d:%s", schedule.UserID, schedule.Hari)] = clockValue(schedule.JamPulangPiket)
+	}
+
+	statsByGuru := map[uint]map[string]any{}
+	for _, user := range users {
+		statsByGuru[user.ID] = map[string]any{"id": user.ID, "nama": user.Nama, "total": 0, "terlambat": 0, "persentase": "0.0"}
+	}
+	checkIns, lateLogs := 0, 0
+	latePiket := []map[string]any{}
+	earlyCheckouts := []map[string]any{}
+	izinSakit := []map[string]any{}
+	forgotten := []map[string]any{}
+	for _, log := range logs {
+		isHadir := contains([]string{"hadir", "hadir_terlambat", "hadir_izin_terlambat"}, log.Status)
+		isLate := contains([]string{"hadir_terlambat", "hadir_izin_terlambat"}, log.Status)
+		if isHadir {
+			checkIns++
+			if stat, ok := statsByGuru[log.UserID]; ok {
+				stat["total"] = stat["total"].(int) + 1
+				if isLate {
+					stat["terlambat"] = stat["terlambat"].(int) + 1
+				}
+			}
+		}
+		if isLate {
+			lateLogs++
+			if _, ok := piketByUserDay[fmt.Sprintf("%d:%s", log.UserID, dayName(log.Tanggal.Weekday()))]; ok {
+				latePiket = append(latePiket, mapAttendance(log))
+			}
+		}
+		if log.Keterangan != nil && strings.Contains(*log.Keterangan, "Izin Pulang Awal Piket") {
+			earlyCheckouts = append(earlyCheckouts, mapAttendance(log))
+		}
+		if log.Status == "izin" || log.Status == "sakit" {
+			izinSakit = append(izinSakit, mapAttendance(log))
+		}
+		if isHadir && log.Tanggal.Before(now) && isMissingCheckout(log) {
+			forgotten = append(forgotten, mapAttendance(log))
+		}
+	}
+	statsPerGuru := make([]map[string]any, 0, len(statsByGuru))
+	for _, stat := range statsByGuru {
+		total, late := stat["total"].(int), stat["terlambat"].(int)
+		pct := 0.0
+		if total > 0 {
+			pct = float64(late) / float64(total) * 100
+		}
+		stat["persentase"] = fmt.Sprintf("%.1f", pct)
+		statsPerGuru = append(statsPerGuru, stat)
+	}
+	sort.Slice(statsPerGuru, func(i, j int) bool {
+		return parseFloat(statsPerGuru[i]["persentase"]) > parseFloat(statsPerGuru[j]["persentase"])
+	})
+	totalLatePct := 0.0
+	if checkIns > 0 {
+		totalLatePct = float64(lateLogs) / float64(checkIns) * 100
+	}
+	return httpx.Success(c, "Statistik lengkap berhasil diambil", fiber.Map{
+		"lateStats": fiber.Map{"totalLatePct": fmt.Sprintf("%.1f", totalLatePct), "statsPerGuru": statsPerGuru, "totalLate": lateLogs},
+		"latePiket": latePiket, "earlyCheckouts": earlyCheckouts, "izinSakit": izinSakit, "forgotten": forgotten, "days": days,
+	})
+}
+
+func isMissingCheckout(log models.AttendanceLog) bool {
+	return log.JamPulang == nil || strings.TrimSpace(*log.JamPulang) == "" || *log.JamPulang == "-" || *log.JamPulang == "00:00:00"
+}
+
+func overtimeMinutes(log models.AttendanceLog, date time.Time, piketByUserDay map[string]string) (int, bool) {
+	if log.JamPulang == nil || strings.TrimSpace(*log.JamPulang) == "" || *log.JamPulang == "-" || *log.JamPulang == "00:00:00" {
+		return 0, false
+	}
+	if log.LokasiPulang != nil && *log.LokasiPulang != "" && *log.LokasiPulang != "sekolah" {
+		return 0, false
+	}
+	normal := "13:00"
+	if date.Weekday() == time.Friday {
+		normal = "10:15"
+	}
+	if scheduled, ok := piketByUserDay[fmt.Sprintf("%d:%s", log.UserID, dayName(date.Weekday()))]; ok && scheduled != "" {
+		normal = scheduled
+	}
+	pulang, ok := parseClockMinutes(*log.JamPulang)
+	if !ok {
+		return 0, false
+	}
+	base, _ := parseClockMinutes(normal)
+	return pulang - base, pulang > base
+}
+
+func clockValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	valueText := strings.TrimSpace(*value)
+	if len(valueText) >= 5 {
+		return valueText[:5]
+	}
+	return valueText
+}
+
+func parseClockMinutes(value string) (int, bool) {
+	parts := strings.Split(strings.TrimSpace(value), ":")
+	if len(parts) < 2 {
+		return 0, false
+	}
+	hour, errHour := strconv.Atoi(parts[0])
+	minute, errMinute := strconv.Atoi(parts[1])
+	if errHour != nil || errMinute != nil || hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+		return 0, false
+	}
+	return hour*60 + minute, true
+}
+
+func parseFloat(value any) float64 {
+	parsed, _ := strconv.ParseFloat(fmt.Sprint(value), 64)
+	return parsed
+}
+
+func mathMin(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (h *Handler) teacherWorkdays(c *fiber.Ctx) error {
@@ -514,6 +701,12 @@ func periodDates(period, startValue, endValue string, h *Handler) (time.Time, ti
 		start, errStart := parseDate(startValue, appLocation(h))
 		end, errEnd := parseDate(endValue, appLocation(h))
 		if errStart == nil && errEnd == nil {
+			if end.After(now) {
+				end = now
+			}
+			if start.After(end) {
+				start = end
+			}
 			return start, end
 		}
 	}
@@ -524,6 +717,14 @@ func periodDates(period, startValue, endValue string, h *Handler) (time.Time, ti
 		return now.AddDate(0, 0, -13), now
 	case "30days", "month":
 		return now.AddDate(0, 0, -29), now
+	case "all":
+		var row struct {
+			Earliest *time.Time `gorm:"column:earliest"`
+		}
+		if err := h.db.Model(&models.AttendanceLog{}).Select("MIN(tanggal) AS earliest").Scan(&row).Error; err == nil && row.Earliest != nil && !row.Earliest.IsZero() {
+			return dateOnly(*row.Earliest), now
+		}
+		return now, now
 	default:
 		return now, now
 	}

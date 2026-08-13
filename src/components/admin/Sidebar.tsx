@@ -5,18 +5,18 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
   const menuItems = [
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/data-guru', icon: Users, label: 'Data Guru' },
-    { path: '/admin/arsip-guru', icon: Archive, label: 'Arsip Guru', isNew: true },
+    { path: '/admin/arsip-guru', icon: Archive, label: 'Arsip Guru' },
     { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Jadwal Piket' },
     { path: '/admin/edit-presensi', icon: Edit, label: 'Edit Presensi' },
     { path: '/admin/download-laporan', icon: Download, label: 'Download Laporan' },
     { path: '/admin/hari-libur', icon: Calendar, label: 'Hari Libur' },
-    { path: '/admin/override-weekend', icon: CalendarX, label: 'Override Weekend', isNew: true },
-    { path: '/admin/hari-kerja-opsional', icon: CalendarPlus, label: 'Hari Kerja Opsional', isNew: true },
+    { path: '/admin/override-weekend', icon: CalendarX, label: 'Override Weekend' },
+    { path: '/admin/hari-kerja-opsional', icon: CalendarPlus, label: 'Hari Kerja Opsional' },
     { path: '/admin/log-aktivitas', icon: Activity, label: 'Log Aktivitas' },
-    { path: '/admin/lokasi-geofence', icon: Map, label: 'Lokasi & Geofence', isNew: true },
-    { path: '/admin/tracking-lokasi', icon: MapPin, label: 'Tracking Lokasi', isNew: true },
+    { path: '/admin/lokasi-geofence', icon: Map, label: 'Lokasi & Geofence' },
+    { path: '/admin/tracking-lokasi', icon: MapPin, label: 'Tracking Lokasi' },
     { path: '/admin/qr-code', icon: QrCode, label: 'QR Code Presensi' },
-    { path: '/admin/manual-entry', icon: UserPlus, label: 'Presensi Manual', isNew: true },
+    { path: '/admin/manual-entry', icon: UserPlus, label: 'Presensi Manual' },
     { path: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' },
     { path: '/admin/ai-agent', icon: Bot, label: 'AI Agent' }
   ]
@@ -85,11 +85,6 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
             >
               <item.icon className="w-5 h-5" />
               <span className="flex-1">{item.label}</span>
-              {item.isNew && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-emerald-500/20 text-emerald-300 rounded-full">
-                  New
-                </span>
-              )}
             </NavLink>
           ))}
         </nav>

@@ -27,7 +27,8 @@ function LeaderboardGuru() {
       } else {
         response = await adminChartsAPI.getLeaderboard(period)
       }
-      setLeaderboardData(response.data?.items || [])
+      const payload = response.data
+      setLeaderboardData(Array.isArray(payload) ? payload : payload?.items || [])
     } catch (error) {
       console.error('Failed to load leaderboard:', error)
     } finally {
