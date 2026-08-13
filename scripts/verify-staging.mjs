@@ -10,7 +10,8 @@ const checks = [
 for (const check of checks) {
   const response = await fetch(`${baseUrl}${check.path}`, { redirect: 'error' })
   if (response.status !== check.expected) {
-    throw new Error(`${check.path}: expected ${check.expected}, got ${response.status}`)
+    const body = await response.text()
+    throw new Error(`${check.path}: expected ${check.expected}, got ${response.status}; body=${body.slice(0, 500)}`)
   }
   if (check.path.startsWith('/health') || check.path === '/version') {
     const contentType = response.headers.get('content-type') || ''

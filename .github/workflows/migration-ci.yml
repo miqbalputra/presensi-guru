@@ -125,6 +125,7 @@ jobs:
           STAGING_URL=http://127.0.0.1:8080 npm run verify:staging
           smoke_status=$?
           if [ "$smoke_status" -ne 0 ]; then
+            docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml ps || true
             logs=$(docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml logs --no-color --tail=100 2>&1 || true)
             printf '%s\n' "$logs"
             detail=$(printf '%s' "$logs" | tail -n 12 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
