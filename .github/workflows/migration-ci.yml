@@ -132,4 +132,12 @@ jobs:
             echo "::error title=Migration staging smoke check failed::$detail"
             exit "$smoke_status"
           fi
-          LOAD_URL=http://127.0.0.1:8080 LOAD_DURATION_SECONDS=10 LOAD_CONCURRENCY=20 npm run test:load:staging
+          set +e
+          load_output=$(LOAD_URL=http://127.0.0.1:8080 LOAD_DURATION_SECONDS=10 LOAD_CONCURRENCY=20 npm run test:load:staging 2>&1)
+          load_status=$?
+          printf '%s\n' "$load_output"
+          if [ "$load_status" -ne 0 ]; then
+            detail=$(printf '%s' "$load_output" | tail -n 12 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error title=Migration staging load test failed::$detail"
+            exit "$load_status"
+          fi
