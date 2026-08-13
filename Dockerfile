@@ -11,7 +11,7 @@ ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
 COPY package*.json ./
 RUN npm ci
 
-COPY index.html vite.config.js postcss.config.js tailwind.config.js ./
+COPY index.html vite.config.ts tailwind.config.js ./
 COPY public ./public
 COPY src ./src
 RUN npm run build

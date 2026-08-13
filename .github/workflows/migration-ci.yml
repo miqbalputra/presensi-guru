@@ -1,0 +1,95 @@
+name: migration-stack-ci
+
+on:
+  push:
+    branches: [main, 'codex/**', 'migration/**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: geopresensi_test
+          MYSQL_USER: geopresensi_test
+          MYSQL_PASSWORD: geopresensi_test_password
+          MYSQL_ROOT_PASSWORD: root_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ugeopresensi_test -pgeopresensi_test_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run verify:source
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run verify:security
+      - run: npm run verify:deployment
+      - run: npm run test:reconciliation
+      - run: npm audit --audit-level=high
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: backend/go.sum
+
+      - working-directory: backend
+        run: go test -race ./...
+        env:
+          MYSQL_INTEGRATION: '1'
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: geopresensi_test
+          DB_USER: geopresensi_test
+          DB_PASS: geopresensi_test_password
+      - working-directory: backend
+        run: go vet ./...
+
+      - name: Build migration image
+        run: docker build -f Dockerfile.migration -t geopresensi:migration-ci .
+
+      - name: Run disposable migration staging smoke gate
+        shell: bash
+        run: |
+          cat > /tmp/geopresensi-ci.env <<'EOF'
+          APP_ENV=development
+          APP_PORT=8080
+          APP_URL=http://localhost:8080
+          FRONTEND_ORIGINS=http://localhost:8080
+          DB_NAME=geopresensi
+          DB_USER=geopresensi
+          DB_PASS=ci-db-password
+          DB_ROOT_PASS=ci-root-password
+          JWT_SECRET=ci-secret-that-is-long-enough-for-development
+          COOKIE_SECURE=false
+          TURNSTILE_REQUIRED=false
+          N8N_API_KEY=ci-n8n-key
+          HERMES_API_KEY=ci-hermes-key
+          ALLOW_PRIVATE_WEBHOOK_TARGETS=false
+          EOF
+          trap 'docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml logs app || true; docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml down -v || true' EXIT
+          docker compose --env-file /tmp/geopresensi-ci.env -f docker-compose.migration.yml up -d --build
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/health/ready >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = "30" ]; then
+              echo "migration staging readiness timeout"
+              exit 1
+            fi
+            sleep 2
+          done
+          STAGING_URL=http://127.0.0.1:8080 npm run verify:staging
+          LOAD_URL=http://127.0.0.1:8080 LOAD_DURATION_SECONDS=10 LOAD_CONCURRENCY=20 npm run test:load:staging

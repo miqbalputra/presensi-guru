@@ -1,4 +1,4 @@
-const CACHE_NAME = 'geo-presensi-v14';
+const CACHE_NAME = 'geo-presensi-v15';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -48,6 +48,13 @@ self.addEventListener('fetch', (event) => {
 
   // Jangan pernah intercept request ke sw.js sendiri
   if (url.pathname === '/sw.js') {
+    return;
+  }
+
+  // API and mutating requests must always reach the backend. Calling
+  // caches.match() with a POST request can throw in the service worker and
+  // surface as a generic "Failed to fetch" in the login form.
+  if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
     return;
   }
 

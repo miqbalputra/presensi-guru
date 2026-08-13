@@ -1,17 +1,17 @@
 # 📱 GeoPresensi Griya Quran
 ### Sistem Absensi Guru Berbasis Lokasi (GPS) & QR Code
 
-## Deploy Cepat ke Coolify
+## Stack migrasi dan deployment
 
-Project ini sudah mendukung deploy via Dockerfile berbasis FrankenPHP classic mode untuk Coolify. Lihat panduan lengkap di [COOLIFY.md](COOLIFY.md).
+Stack target menggunakan React 19/TypeScript/Vite/Tailwind v4 di frontend dan Go 1.25/Fiber/GORM/MySQL di backend. Frontend memanggil REST API `/api/v1`; route PHP lama hanya dipertahankan sebagai compatibility layer untuk rollback/klien lama. Image kandidat migrasi dibangun melalui `Dockerfile.migration`; deployment staging dijelaskan di [STAGING_MIGRATION.md](STAGING_MIGRATION.md). `Dockerfile` dan API PHP lama dipertahankan sementara sampai cutover disetujui.
 
 Ringkasnya:
 
-1. Buat database MySQL 8 di Coolify.
-2. Import dump produksi `geogqpresence.sql` secara manual ke database.
-3. Buat app dari repo GitHub ini dengan build pack Dockerfile.
-4. Isi environment variable `APP_URL`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, dan `N8N_API_KEY`.
-5. Deploy. Frontend akan memakai API same-origin di `/api`.
+1. Buat database MySQL 8.4 staging/production yang terpisah.
+2. Siapkan environment dari `deploy/staging.env.example` atau `.env.example`; isi semua secret dengan nilai acak.
+3. Build dengan `Dockerfile.migration` dan expose port `8080`.
+4. Pastikan `/health/live`, `/health/ready`, `/version`, login, dan security gate lulus sebelum cutover.
+5. Ikuti runbook [STAGING_MIGRATION.md](STAGING_MIGRATION.md) dan rencana lengkap [migrasi_stack.md](migrasi_stack.md).
 
 ## API Hermes Agent
 
@@ -76,6 +76,8 @@ curl -X PUT -H "X-API-Key: $HERMES_API_KEY" -H "Content-Type: application/json" 
 
 Field payload yang didukung: `id`, `userId`/`user_id`, `tanggal`, `status`, `jamMasuk`/`jam_masuk`, `jamPulang`/`jam_pulang`, `jamHadir`/`jam_hadir`, `jamIzin`/`jam_izin`, `jamSakit`/`jam_sakit`, `keterangan`, `latitude`, `longitude`, dan `metode`.
 
+Reminder WhatsApp direct ke GOWA tersedia melalui `GET/POST /api/webhook_reminder_direct.php` dengan header `X-API-Key`. Aktifkan hanya jika `GOWA_WEBHOOK_URL`, `GOWA_USERNAME`, dan `GOWA_PASSWORD` sudah diisi; endpoint menerapkan HTTPS/SSRF validation dan tidak menonaktifkan verifikasi TLS.
+
 Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat, transparan, dan real-time. Menggunakan validasi Geofencing (GPS) dan QR Code untuk menjamin kehadiran fisik guru di sekolah.
 
 ---
@@ -108,10 +110,10 @@ Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat,
 ---
 
 ## 🛠️ Tech Stack
-*   **Frontend:** React.js (Vite), Tailwind CSS, Lucide Icons, Recharts.
-*   **Backend:** PHP API (Custom RESTful).
-*   **Database:** MySQL / PostgreSQL (Supabase).
-*   **Deployment:** VPS / Shared Hosting dengan dukungan HTTPS.
+*   **Frontend:** TailAdmin-style React 19, TypeScript, Vite, Tailwind CSS v4, Radix/shadcn custom, Lucide, Recharts.
+*   **Backend:** Go 1.25, Fiber, GORM, REST API, JWT/bcrypt, Google OAuth, Cloudflare Turnstile.
+*   **Database:** MySQL 8.4 untuk development, staging, dan production.
+*   **Export/deployment:** ExcelJS, jsPDF, Docker multi-stage Node + Go + Alpine.
 
 ---
 

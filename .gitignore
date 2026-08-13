@@ -75,3 +75,9 @@ temp_zip_content/
 # Runtime writable folders
 sessions/
 logs/
+data/*.db*
+
+# Local verification artifacts
+audit.json
+backend/server.exe
+backend/build/

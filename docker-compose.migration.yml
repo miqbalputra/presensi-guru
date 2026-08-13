@@ -1,0 +1,67 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-geopresensi}
+      MYSQL_USER: ${DB_USER:-geopresensi}
+      MYSQL_PASSWORD: ${DB_PASS:?DB_PASS harus diisi}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:?DB_ROOT_PASS harus diisi}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - migration_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.migration
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_PORT: 8080
+      APP_TIMEZONE: Asia/Jakarta
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      STATIC_DIR: /app/dist
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
+      DB_DRIVER: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-geopresensi}
+      DB_USER: ${DB_USER:-geopresensi}
+      DB_PASS: ${DB_PASS:?DB_PASS harus diisi}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-20}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:-10}
+      DB_CONN_MAX_LIFETIME_MINUTES: ${DB_CONN_MAX_LIFETIME_MINUTES:-30}
+      DB_CONN_MAX_IDLE_TIME_MINUTES: ${DB_CONN_MAX_IDLE_TIME_MINUTES:-5}
+      DB_CONNECT_TIMEOUT: ${DB_CONNECT_TIMEOUT:-5s}
+      DB_READ_TIMEOUT: ${DB_READ_TIMEOUT:-10s}
+      DB_WRITE_TIMEOUT: ${DB_WRITE_TIMEOUT:-10s}
+      JWT_ISSUER: ${JWT_ISSUER:-geopresensi}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-geopresensi-web}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET harus diisi}
+      JWT_ACCESS_TTL_MINUTES: ${JWT_ACCESS_TTL_MINUTES:-15}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      TURNSTILE_REQUIRED: ${TURNSTILE_REQUIRED:-false}
+      N8N_API_KEY: ${N8N_API_KEY:-}
+      HERMES_API_KEY: ${HERMES_API_KEY:-}
+      GOWA_WEBHOOK_URL: ${GOWA_WEBHOOK_URL:-}
+      GOWA_USERNAME: ${GOWA_USERNAME:-}
+      GOWA_PASSWORD: ${GOWA_PASSWORD:-}
+      ALLOW_PRIVATE_WEBHOOK_TARGETS: ${ALLOW_PRIVATE_WEBHOOK_TARGETS:-false}
+
+volumes:
+  migration_mysql_data:

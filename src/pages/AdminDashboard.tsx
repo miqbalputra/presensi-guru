@@ -1,0 +1,112 @@
+import { useState, useEffect, Suspense, lazy } from 'react'
+import { Routes, Route, Navigate, useLocation, useNavigate } from '../router'
+import { Menu, ChevronRight } from 'lucide-react'
+import Sidebar from '../components/admin/Sidebar'
+import NotificationBell from '../components/admin/NotificationBell'
+
+const DashboardHome = lazy(() => import('../components/admin/DashboardHome'))
+const DataGuru = lazy(() => import('../components/admin/DataGuru'))
+const ArsipGuru = lazy(() => import('../components/admin/ArsipGuru'))
+const EditPresensi = lazy(() => import('../components/admin/EditPresensi'))
+const DownloadLaporan = lazy(() => import('../components/admin/DownloadLaporan'))
+const LogAktivitas = lazy(() => import('../components/admin/LogAktivitas'))
+const HariLibur = lazy(() => import('../components/admin/HariLibur'))
+const Pengaturan = lazy(() => import('../components/admin/Pengaturan'))
+const JadwalPiket = lazy(() => import('../components/admin/JadwalPiket'))
+const QRCodeGenerator = lazy(() => import('../components/admin/QRCodeGenerator'))
+const ManualEntry = lazy(() => import('../components/admin/ManualEntry'))
+const LokasiGeofence = lazy(() => import('../components/admin/LokasiGeofence'))
+const LocationTracking = lazy(() => import('../components/admin/LocationTracking'))
+const OverrideWeekend = lazy(() => import('../components/admin/OverrideWeekend'))
+const OptionalWorkdays = lazy(() => import('../components/admin/OptionalWorkdays'))
+const AIAgent = lazy(() => import('../components/admin/AIAgent'))
+
+function SectionLoading() {
+  return (
+    <div className="min-h-[240px] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
+}
+
+function AdminDashboard({ user, onLogout }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Restore path terakhir saat component mount (hanya sekali)
+  useEffect(() => {
+    if (!isInitialized) {
+      const lastPath = localStorage.getItem('lastAdminPath')
+      if (lastPath && lastPath !== location.pathname && lastPath.startsWith('/admin')) {
+        navigate(lastPath, { replace: true })
+      }
+      setIsInitialized(true)
+    }
+  }, [isInitialized, location.pathname, navigate])
+
+  // Simpan path terakhir ke localStorage setiap kali pindah halaman
+  useEffect(() => {
+    if (isInitialized) {
+      localStorage.setItem('lastAdminPath', location.pathname)
+    }
+  }, [location.pathname, isInitialized])
+
+  return (
+    <div className="flex h-screen bg-[#f8fafc] text-slate-800">
+      <Sidebar
+        user={user}
+        onLogout={onLogout}
+        isOpen={sidebarOpen}
+        setIsOpen={setSidebarOpen}
+      />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+          <div className="px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Buka menu">
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="hidden items-center gap-2 text-sm text-slate-400 sm:flex">
+                <span>Admin</span><ChevronRight className="h-4 w-4" /><span className="font-semibold text-slate-700">{location.pathname === '/admin' ? 'Dashboard' : 'Manajemen'}</span>
+              </div>
+              <h1 className="text-base font-bold text-slate-800 sm:hidden">Geo-Presensi</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <NotificationBell />
+              <span className="hidden text-sm font-semibold text-slate-700 sm:block">{user.nama}</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[#f8fafc] p-4 lg:p-7">
+          <Suspense fallback={<SectionLoading />}>
+            <Routes>
+              <Route path="/" element={<DashboardHome />} />
+              <Route path="/data-guru" element={<DataGuru />} />
+              <Route path="/arsip-guru" element={<ArsipGuru />} />
+              <Route path="/jadwal-piket" element={<JadwalPiket />} />
+              <Route path="/edit-presensi" element={<EditPresensi user={user} />} />
+              <Route path="/download-laporan" element={<DownloadLaporan />} />
+              <Route path="/hari-libur" element={<HariLibur user={user} />} />
+              <Route path="/log-aktivitas" element={<LogAktivitas />} />
+              <Route path="/pengaturan" element={<Pengaturan />} />
+              <Route path="/qr-code" element={<QRCodeGenerator />} />
+              <Route path="/manual-entry" element={<ManualEntry />} />
+              <Route path="/lokasi-geofence" element={<LokasiGeofence user={user} />} />
+              <Route path="/tracking-lokasi" element={<LocationTracking />} />
+              <Route path="/override-weekend" element={<OverrideWeekend />} />
+              <Route path="/hari-kerja-opsional" element={<OptionalWorkdays />} />
+              <Route path="/ai-agent" element={<AIAgent />} />
+              <Route path="*" element={<Navigate to="/admin" />} />
+            </Routes>
+          </Suspense>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+export default AdminDashboard
