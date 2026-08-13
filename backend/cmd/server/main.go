@@ -62,6 +62,9 @@ func main() {
 		MaxAge:           600,
 	}))
 	app.Use(limiter.New(limiter.Config{
+		Next: func(c *fiber.Ctx) bool {
+			return c.Path() == "/health/live" || c.Path() == "/health/ready"
+		},
 		Max:        120,
 		Expiration: time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
