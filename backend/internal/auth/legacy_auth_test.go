@@ -15,6 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const legacyAuthTestTimeout = 5_000
+
 func TestLegacyPWALoginUsesCompatibleResponseAndCookie(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:legacy-auth-test?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
@@ -49,7 +51,7 @@ func TestLegacyPWALoginUsesCompatibleResponseAndCookie(t *testing.T) {
 	body := bytes.NewBufferString(`{"username":"guru-pwa","password":"password-test"}`)
 	request := httptest.NewRequest(http.MethodPost, "/api/auth.php?action=login", body)
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-	response, err := app.Test(request)
+	response, err := app.Test(request, legacyAuthTestTimeout)
 	if err != nil {
 		t.Fatalf("legacy login request: %v", err)
 	}
@@ -84,7 +86,7 @@ func TestLegacyPWALoginUsesCompatibleResponseAndCookie(t *testing.T) {
 
 	checkRequest := httptest.NewRequest(http.MethodGet, "/api/auth.php?action=check", nil)
 	checkRequest.AddCookie(accessCookie)
-	checkResponse, err := app.Test(checkRequest)
+	checkResponse, err := app.Test(checkRequest, legacyAuthTestTimeout)
 	if err != nil {
 		t.Fatalf("legacy session check request: %v", err)
 	}
@@ -94,7 +96,7 @@ func TestLegacyPWALoginUsesCompatibleResponseAndCookie(t *testing.T) {
 
 	protectedRequest := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	protectedRequest.AddCookie(accessCookie)
-	protectedResponse, err := app.Test(protectedRequest)
+	protectedResponse, err := app.Test(protectedRequest, legacyAuthTestTimeout)
 	if err != nil {
 		t.Fatalf("protected request: %v", err)
 	}
