@@ -23,7 +23,7 @@ func TestCreateAttendanceSucceedsWhenAuditLogIsUnavailable(t *testing.T) {
 	}
 	// Deliberately omit ActivityLog. A broken/legacy audit table must not
 	// roll back the attendance that has already been saved.
-	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.Setting{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.Setting{}, &models.Holiday{}, &models.JadwalPiket{}); err != nil {
 		t.Fatal(err)
 	}
 

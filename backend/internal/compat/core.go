@@ -325,7 +325,7 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return invalid(c, "User presensi harus diisi")
 	}
 	var user models.User
-	if err := h.db.Select("id, nama").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
+	if err := h.db.Select("id, nama, tipe_guru").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
 		return httpx.Error(c, fiber.StatusNotFound, "USER_NOT_FOUND", "Data guru tidak ditemukan")
 	}
 	status := stringValue(body, "status")
@@ -371,9 +371,17 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 	jamIzin := stringValue(body, "jamIzin", "jam_izin")
 	jamSakit := stringValue(body, "jamSakit", "jam_sakit")
 	if claims.Role == "guru" {
-		serverTime := time.Now().In(appLocation(h)).Format("15:04:05")
+		serverNow := time.Now().In(appLocation(h))
+		serverTime := serverNow.Format("15:04:05")
 		if present {
 			jamMasuk = serverTime
+			target, targetLabel, targetErr := h.checkInTarget(userID, parsedDate, attendanceSettings)
+			if targetErr != nil {
+				return targetErr
+			}
+			var bodyNote string
+			status, bodyNote = classifyCheckIn(user, serverNow, target, targetLabel, attendanceSettings["toleransi_terlambat"], stringValue(body, "keterangan"))
+			body["keterangan"] = bodyNote
 		} else if status == "izin" {
 			jamIzin = serverTime
 		} else if status == "sakit" {

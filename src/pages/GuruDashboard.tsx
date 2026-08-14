@@ -8,6 +8,7 @@ import {
   Home,
   LogOut,
   Moon,
+  School,
   ShieldCheck,
   Sun,
   UserCog,
@@ -61,7 +62,9 @@ function useTheme() {
 function GuruDashboard({ user, onLogout }) {
   const { theme, toggle } = useTheme()
   const [activeTab, setActiveTab] = useState(() => readStorage('lastGuruTab', 'home'))
-  const [sidebarOpen, setSidebarOpen] = useState(() => readStorage('guru-sidebar-collapsed', '0') !== '1')
+  // Start with descriptive labels visible on desktop. The earlier icon-only
+  // preference is reset once because it made the menu hard to scan.
+  const [sidebarOpen, setSidebarOpen] = useState(() => readStorage('guru-sidebar-expanded-v2', '1') === '1')
 
   const tabs = [
     { id: 'home', label: 'Beranda', icon: Home },
@@ -85,7 +88,7 @@ function GuruDashboard({ user, onLogout }) {
   }, [activeTab])
 
   useEffect(() => {
-    localStorage.setItem('guru-sidebar-collapsed', sidebarOpen ? '0' : '1')
+    localStorage.setItem('guru-sidebar-expanded-v2', sidebarOpen ? '1' : '0')
   }, [sidebarOpen])
 
   useEffect(() => {
@@ -127,7 +130,7 @@ function GuruDashboard({ user, onLogout }) {
       <aside className={`academy-sidebar fixed inset-y-0 left-0 z-50 hidden flex-col border-r border-white/10 transition-[width] duration-200 lg:flex ${sidebarOpen ? 'w-64' : 'w-[4.5rem]'}`} aria-label="Navigasi guru">
         <div className={`flex h-16 items-center border-b border-white/10 ${sidebarOpen ? 'justify-between px-4' : 'justify-center'}`}>
           <button type="button" onClick={() => setActiveTab('home')} className={`flex items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${!sidebarOpen ? 'justify-center' : ''}`} title="Beranda">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-black text-white">GQ</span>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/40"><School className="h-5 w-5" aria-hidden="true" /></span>
             <span className={sidebarOpen ? 'min-w-0' : 'sr-only'}>
               <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">Portal Guru</span>
               <span className="block truncate text-sm font-semibold text-white">Geo-Presensi</span>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { UserCheck, UserX, FileText, AlertCircle, LogOut, RefreshCw, Clock, Users } from 'lucide-react'
+import { UserCheck, UserX, FileText, AlertCircle, LogIn, LogOut, RefreshCw, Clock, Users } from 'lucide-react'
 import { statusRekanAPI } from '../../services/api'
 
 function GuruStatus() {
@@ -217,13 +217,13 @@ function GuruStatus() {
                   {guru.statusFinal !== 'belum' && guru.statusFinal !== 'izin' && guru.statusFinal !== 'sakit' && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                       {guru.jamMasuk && guru.jamMasuk !== '-' && (
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          ▶ Masuk: <span className="font-semibold text-slate-700 dark:text-slate-300">{guru.jamMasuk}</span>
+                        <p className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          <LogIn className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden="true" /> Masuk: <span className="font-semibold text-slate-700 dark:text-slate-300">{guru.jamMasuk}</span>
                         </p>
                       )}
                       {guru.jamPulang && (
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          ◀ Pulang: <span className="font-semibold text-slate-700 dark:text-slate-300">{guru.jamPulang}</span>
+                        <p className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          <LogOut className="h-3 w-3 text-violet-600 dark:text-violet-400" aria-hidden="true" /> Pulang: <span className="font-semibold text-slate-700 dark:text-slate-300">{guru.jamPulang}</span>
                         </p>
                       )}
                     </div>

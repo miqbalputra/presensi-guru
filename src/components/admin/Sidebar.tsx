@@ -7,8 +7,6 @@ import {
   CalendarCheck,
   CalendarPlus,
   CalendarX,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Edit,
   LayoutDashboard,
@@ -16,6 +14,9 @@ import {
   Map,
   MapPin,
   QrCode,
+  PanelLeftClose,
+  PanelLeftOpen,
+  School,
   Settings,
   UserPlus,
   Users,
@@ -79,23 +80,24 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollaps
 
       <aside
         className={`academy-sidebar fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/10 transition-[width,transform] duration-200 ease-out lg:static lg:translate-x-0 ${
-          collapsed ? 'w-64 lg:w-[4.5rem]' : 'w-64'
+          collapsed ? 'w-72 lg:w-20' : 'w-72'
         } ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
         aria-label="Navigasi admin"
       >
         <div className={`flex h-16 shrink-0 items-center border-b border-white/10 ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
-          <button
-            type="button"
+          <NavLink
+            to="/admin"
+            end
             onClick={() => setIsOpen(false)}
             className={`flex items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${collapsed ? 'justify-center' : ''}`}
             title="Dashboard"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-black text-white shadow-sm">GQ</span>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/40"><School className="h-5 w-5" aria-hidden="true" /></span>
             <span className={collapsed ? 'sr-only' : 'min-w-0'}>
-              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">Admin Console</span>
+              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">Ruang kerja admin</span>
               <span className="block truncate text-sm font-semibold text-white">Geo-Presensi</span>
             </span>
-          </button>
+          </NavLink>
           {!collapsed && (
             <button
               type="button"
@@ -104,7 +106,7 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollaps
               aria-label="Ciutkan sidebar"
               title="Ciutkan sidebar (Ctrl+B)"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <PanelLeftClose className="h-4 w-4" />
             </button>
           )}
           <button
@@ -118,9 +120,9 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollaps
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col justify-between p-3">
-          <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto" aria-label="Menu utama">
+          <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" aria-label="Menu utama">
             {groups.map((group) => (
-              <div key={group.label}>
+              <div key={group.label} className="border-t border-white/10 pt-4 first:border-t-0 first:pt-0">
                 <p className={`mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
                 <div className="space-y-1">
                   {group.items.map((item) => (
@@ -129,13 +131,13 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollaps
                       to={item.path}
                       end={item.path === '/admin'}
                       onClick={() => setIsOpen(false)}
-                      aria-current={undefined}
+                      aria-label={collapsed ? item.label : undefined}
                       title={collapsed ? item.label : undefined}
-                      className={({ isActive }) => `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
-                        isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                      className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+                        isActive ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/40' : 'text-slate-300 hover:bg-white/10 hover:text-white'
                       } ${collapsed ? 'justify-center px-2' : ''}`}
                     >
-                      <item.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                      <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden="true" />
                       <span className={collapsed ? 'sr-only' : 'truncate'}>{item.label}</span>
                     </NavLink>
                   ))}
@@ -152,7 +154,7 @@ function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollaps
               aria-label="Lebarkan sidebar"
               title="Lebarkan sidebar (Ctrl+B)"
             >
-              <ChevronRight className="h-4 w-4" />
+              <PanelLeftOpen className="h-4 w-4" />
             </button>
           )}
         </div>

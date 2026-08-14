@@ -58,7 +58,9 @@ function useTheme() {
 function AdminDashboard({ user, onLogout }) {
   const { theme, toggle } = useTheme()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage('admin-sidebar-collapsed', '0') === '1')
+  // V2 starts expanded so menu labels are visible by default. The previous
+  // icon-only preference is intentionally not carried over.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage('admin-sidebar-collapsed-v2', '0') === '1')
   const [isInitialized, setIsInitialized] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -104,7 +106,7 @@ function AdminDashboard({ user, onLogout }) {
   }, [location.pathname, isInitialized])
 
   useEffect(() => {
-    localStorage.setItem('admin-sidebar-collapsed', sidebarCollapsed ? '1' : '0')
+    localStorage.setItem('admin-sidebar-collapsed-v2', sidebarCollapsed ? '1' : '0')
   }, [sidebarCollapsed])
 
   useEffect(() => {

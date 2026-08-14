@@ -9,6 +9,7 @@ import TrenJamPulang from './TrenJamPulang'
 import StatistikLengkap from './StatistikLengkap'
 import { Card, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Skeleton } from '../ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
@@ -183,7 +184,7 @@ function DashboardHome() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2 text-xs text-slate-500 sm:mr-2">
               <span className="font-semibold text-emerald-700">Live view</span>
-              <span className="text-slate-300">•</span>
+              <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden="true" />
               <span>{lastUpdated ? `Diperbarui ${lastUpdated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : 'Memuat data terbaru'}</span>
             </div>
             <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 shadow-xs">
@@ -201,16 +202,18 @@ function DashboardHome() {
                 <option value="30days">30 Hari Terakhir</option>
               </select>
             </div>
-            <button
+            <Button
               type="button"
               onClick={() => loadData(filter, true)}
               disabled={loading || refreshing}
               aria-label="Muat ulang dashboard"
               title="Muat ulang dashboard"
-              className="inline-flex items-center justify-center rounded-md border border-input bg-background p-2.5 text-muted-foreground shadow-xs transition hover:border-primary/30 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+              variant="outline"
+              size="icon"
+              className="shrink-0"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-            </button>
+            </Button>
           </div>
         </div>
         </CardHeader>
@@ -275,8 +278,8 @@ function DashboardHome() {
 
             {/* Info Waktu */}
             <div className="mt-3 p-3 bg-red-100 rounded-xl">
-              <p className="text-xs text-red-700 text-center">
-                ⏰ Data diperbarui saat halaman dimuat. Refresh untuk update terbaru.
+              <p className="flex items-center justify-center gap-1.5 text-center text-xs text-red-700">
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" /> Data diperbarui saat halaman dimuat. Refresh untuk update terbaru.
               </p>
             </div>
           </div>
@@ -292,7 +295,7 @@ function DashboardHome() {
             </div>
             <div>
               <h3 className="text-lg font-bold text-green-800">
-                ✅ Semua Guru Sudah Presensi!
+                Semua Guru Sudah Presensi!
               </h3>
               <p className="text-sm text-green-600">
                 {totalGuru} dari {totalGuru} guru sudah melakukan presensi hari ini

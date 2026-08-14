@@ -62,6 +62,14 @@ func (h *Handler) settings(c *fiber.Ctx) error {
 			return invalid(c, "Radius GPS harus antara 1 sampai 1000 meter")
 		}
 	}
+	if key == "jam_masuk_normal" && !validTime(value) {
+		return invalid(c, "Format jam masuk normal tidak valid")
+	}
+	if key == "toleransi_terlambat" {
+		if n, err := strconv.Atoi(value); err != nil || n < 0 || n > 240 {
+			return invalid(c, "Toleransi keterlambatan harus antara 0 sampai 240 menit")
+		}
+	}
 	if key == "jam_min_pulang" && !validTime(value) {
 		return invalid(c, "Format jam minimal pulang tidak valid")
 	}
