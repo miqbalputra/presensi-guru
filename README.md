@@ -12,6 +12,7 @@ Ringkasnya:
 3. Build dengan `Dockerfile.migration` dan expose port `8080`.
 4. Pastikan `/health/live`, `/health/ready`, `/version`, login, dan security gate lulus sebelum cutover.
 5. Ikuti runbook [STAGING_MIGRATION.md](STAGING_MIGRATION.md) dan rencana lengkap [migrasi_stack.md](migrasi_stack.md).
+6. Untuk backup terjadwal, import [workflow backup n8n](n8n/backup-geopresensi.json) dan ikuti [panduan workflow](n8n/BACKUP_WORKFLOW.md).
 
 ## API Hermes Agent
 
@@ -114,6 +115,7 @@ Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat,
 *   **Backend:** Go 1.25, Fiber, GORM, REST API, JWT/bcrypt, Google OAuth, Cloudflare Turnstile.
 *   **Database:** MySQL 8.4 untuk development, staging, dan production.
 *   **Export/deployment:** ExcelJS, jsPDF, Docker multi-stage Node + Go + Alpine.
+*   **Backup:** SQL/full logical backup MySQL, manifest/checksum, admin API, dan integrasi n8n ke Google Drive/S3.
 
 ---
 

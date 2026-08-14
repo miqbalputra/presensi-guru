@@ -59,7 +59,7 @@ async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
 
   try {
     const requestHeaders = new Headers(options.headers)
-    requestHeaders.set('Content-Type', 'application/json')
+    if (!requestHeaders.has('Content-Type')) requestHeaders.set('Content-Type', 'application/json')
     if (accessToken) {
       requestHeaders.set('Authorization', `Bearer ${accessToken}`)
     }
@@ -672,6 +672,89 @@ export const manualEntryAPI = {
   },
 }
 
+// Backup & Pemulihan API (admin only)
+export const backupAPI = {
+  list: async (limit = 50) => {
+    return fetchAPI(`/v1/admin/backups?limit=${limit}`, { method: 'GET', timeoutMs: 10000 })
+  },
+
+  create: async (kind, idempotencyKey = '') => {
+    return fetchAPI('/v1/admin/backups', {
+      method: 'POST',
+      body: JSON.stringify({ kind, idempotencyKey }),
+      timeoutMs: 10000,
+    })
+  },
+
+  get: async (id) => {
+    return fetchAPI(`/v1/admin/backups/${encodeURIComponent(id)}`, { method: 'GET', timeoutMs: 10000 })
+  },
+
+  verify: async (id) => {
+    return fetchAPI(`/v1/admin/backups/${encodeURIComponent(id)}/verify`, { method: 'GET', timeoutMs: 15000 })
+  },
+
+  restore: async (id, confirmationPhrase) => {
+    return fetchAPI(`/v1/admin/backups/${encodeURIComponent(id)}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmationPhrase }),
+      timeoutMs: 10000,
+    })
+  },
+
+  getRestoreStatus: async (id) => {
+    return fetchAPI(`/v1/admin/restores/${encodeURIComponent(id)}`, { method: 'GET', timeoutMs: 10000 })
+  },
+
+  listRestores: async (limit = 50) => {
+    return fetchAPI(`/v1/admin/restores?limit=${limit}`, { method: 'GET', timeoutMs: 10000 })
+  },
+
+  startRestoreUpload: async (fileName, expectedSize, expectedSha256 = '') => {
+    return fetchAPI('/v1/admin/restore-uploads', {
+      method: 'POST',
+      body: JSON.stringify({ fileName, expectedSize, expectedSha256 }),
+      timeoutMs: 10000,
+    })
+  },
+
+  appendRestoreUpload: async (id, offset, chunk) => {
+    return fetchAPI(`/v1/admin/restore-uploads/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: chunk,
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Chunk-Offset': String(offset),
+      },
+      timeoutMs: 30000,
+    })
+  },
+
+  download: async (id) => {
+    const response = await fetch(`${API_BASE_URL}/v1/admin/backups/${encodeURIComponent(id)}/download`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.message || 'File backup gagal diunduh')
+    }
+    const blob = await response.blob()
+    const disposition = response.headers.get('Content-Disposition') || ''
+    const match = disposition.match(/filename="([^"]+)"/i)
+    const fileName = match?.[1] || `backup-${id}.gz`
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  },
+}
+
 export default {
   authAPI,
   configAPI,
@@ -695,4 +778,5 @@ export default {
   teacherWorkdaysAPI,
   teachersWorkdaysAPI,
   optionalWorkdaysAPI,
+  backupAPI,
 }

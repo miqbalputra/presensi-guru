@@ -113,3 +113,11 @@ func TestPartialGowaConfigurationIsRejected(t *testing.T) {
 		t.Fatal("expected partial GOWA configuration to be rejected")
 	}
 }
+
+func TestProductionConfigurationRejectsWeakBackupIntegrationKey(t *testing.T) {
+	setProductionConfigEnv(t)
+	t.Setenv("BACKUP_N8N_API_KEY", "short-key")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected weak backup integration key to be rejected")
+	}
+}

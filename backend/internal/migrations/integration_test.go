@@ -54,7 +54,7 @@ func TestMySQLMigrationsAreIdempotentAndLegacyCompatible(t *testing.T) {
 		t.Fatalf("legacy compatibility migration: %v", err)
 	}
 
-	for _, table := range []string{"users", "attendance_logs", "jwt_refresh_tokens", "security_events", "optional_workdays", "user_weekend_overrides", "pengaturan_harian", "location_tracks", "webhook_config", "webhook_logs", "schema_migrations"} {
+	for _, table := range []string{"users", "attendance_logs", "jwt_refresh_tokens", "security_events", "optional_workdays", "user_weekend_overrides", "pengaturan_harian", "location_tracks", "webhook_config", "webhook_logs", "backup_jobs", "backup_restore_jobs", "maintenance_state", "backup_uploads", "schema_migrations"} {
 		var count int
 		if err := db.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?", table).Scan(&count).Error; err != nil {
 			t.Fatalf("check table %s: %v", table, err)

@@ -66,6 +66,17 @@ node scripts/reconcile-attendance.mjs --legacy .\evidence\php-attendance.json --
 
 Command keluar dengan status gagal bila ada record hilang/ekstra, duplikat, atau field inti berbeda.
 
+## Backup dan restore drill
+
+1. Isi `BACKUP_N8N_API_KEY` dengan key khusus yang berbeda dari `N8N_API_KEY`.
+2. Dari menu Admin → Backup & Pemulihan, buat SQL backup dan full backup.
+3. Verifikasi checksum lalu unduh artifact; pastikan file tidak tersedia melalui static asset route.
+4. Import `n8n/backup-geopresensi.json`, isi URL aplikasi, API key backup, dan credential Google Drive atau S3.
+5. Jalankan workflow secara manual, lalu pastikan artifact tersimpan private dan ukuran/checksum cocok.
+6. Restore artifact ke database staging terpisah dan bandingkan row count tabel utama.
+7. Aktifkan `BACKUP_RESTORE_ENABLED=true` hanya di staging untuk menguji pre-restore backup, maintenance mode, phrase konfirmasi, dan verifikasi pasca-restore.
+8. Kembalikan flag menjadi `false` setelah drill selesai. Production restore memerlukan persetujuan operasional terpisah.
+
 ## Security gate
 
 Staging tidak boleh dipromosikan bila ada temuan Critical/High, perbedaan data presensi, kegagalan login/role, atau credential staging keluar ke bundle frontend.

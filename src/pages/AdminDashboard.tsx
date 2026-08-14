@@ -20,6 +20,7 @@ const LocationTracking = lazy(() => import('../components/admin/LocationTracking
 const OverrideWeekend = lazy(() => import('../components/admin/OverrideWeekend'))
 const OptionalWorkdays = lazy(() => import('../components/admin/OptionalWorkdays'))
 const AIAgent = lazy(() => import('../components/admin/AIAgent'))
+const BackupPemulihan = lazy(() => import('../components/admin/BackupPemulihan'))
 
 function SectionLoading() {
   return (
@@ -82,6 +83,7 @@ function AdminDashboard({ user, onLogout }) {
     '/admin/override-weekend': 'Override Weekend',
     '/admin/hari-kerja-opsional': 'Hari Kerja Opsional',
     '/admin/ai-agent': 'AI Agent',
+    '/admin/backup': 'Backup & Pemulihan',
   }
   const activeSection = sectionLabels[location.pathname] || 'Manajemen'
   const firstName = (user?.nama || 'Admin').split(' ')[0]
@@ -184,6 +186,7 @@ function AdminDashboard({ user, onLogout }) {
                 <Route path="/override-weekend" element={<OverrideWeekend />} />
                 <Route path="/hari-kerja-opsional" element={<OptionalWorkdays />} />
                 <Route path="/ai-agent" element={<AIAgent />} />
+                <Route path="/backup" element={<BackupPemulihan />} />
                 <Route path="*" element={<Navigate to="/admin" />} />
               </Routes>
             </Suspense>

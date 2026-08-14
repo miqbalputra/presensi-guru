@@ -62,6 +62,18 @@ services:
       GOWA_USERNAME: ${GOWA_USERNAME:-}
       GOWA_PASSWORD: ${GOWA_PASSWORD:-}
       ALLOW_PRIVATE_WEBHOOK_TARGETS: ${ALLOW_PRIVATE_WEBHOOK_TARGETS:-false}
+      BACKUP_DIR: /var/lib/geopresensi/backups
+      BACKUP_JOB_TIMEOUT: ${BACKUP_JOB_TIMEOUT:-30m}
+      BACKUP_ARTIFACT_TTL: ${BACKUP_ARTIFACT_TTL:-24h}
+      BACKUP_MAX_SIZE_MB: ${BACKUP_MAX_SIZE_MB:-2048}
+      BACKUP_N8N_API_KEY: ${BACKUP_N8N_API_KEY:-}
+      BACKUP_RESTORE_ENABLED: ${BACKUP_RESTORE_ENABLED:-false}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_DUMP_BINARY: ${BACKUP_DUMP_BINARY:-mysqldump}
+      BACKUP_RESTORE_BINARY: ${BACKUP_RESTORE_BINARY:-mysql}
+    volumes:
+      - migration_backup_data:/var/lib/geopresensi/backups
 
 volumes:
   migration_mysql_data:
+  migration_backup_data:

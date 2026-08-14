@@ -19,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 
 	"github.com/griyaquran/geopresensi/backend/internal/auth"
+	"github.com/griyaquran/geopresensi/backend/internal/backup"
 	"github.com/griyaquran/geopresensi/backend/internal/compat"
 	"github.com/griyaquran/geopresensi/backend/internal/config"
 	"github.com/griyaquran/geopresensi/backend/internal/database"
@@ -46,7 +47,7 @@ func main() {
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 20 * time.Second,
 		IdleTimeout:  60 * time.Second,
-		BodyLimit:    1 * 1024 * 1024,
+		BodyLimit:    int(backup.UploadChunkSize),
 		ErrorHandler: middleware.ErrorHandler(cfg.AppEnv),
 	})
 
@@ -57,7 +58,7 @@ func main() {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.FrontendOrigins,
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Request-ID, X-CSRF-Token",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Request-ID, X-CSRF-Token, X-Chunk-Offset",
 		AllowCredentials: true,
 		MaxAge:           600,
 	}))
@@ -82,6 +83,13 @@ func main() {
 	j := auth.NewJWTManager(cfg)
 	authHandler := auth.NewHandler(db, cfg, j)
 	compatHandler := compat.NewHandler(db, cfg, j)
+	backupService := backup.NewService(db, cfg)
+	if err := backupService.Initialize(); err != nil {
+		log.Fatalf("initialize backup service: %v", err)
+	}
+	go backupService.StartCleanup(context.Background())
+	backupHandler := backup.NewHandler(backupService, db, cfg, j)
+	app.Use(backupService.MaintenanceMiddleware())
 
 	app.Get("/health/live", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"success": true, "status": "live"})
@@ -106,6 +114,7 @@ func main() {
 	compatHandler.RegisterCoreRoutes(app)
 	compatHandler.RegisterAttendanceRoutes(app)
 	compatHandler.RegisterIntegrationRoutes(app)
+	backupHandler.RegisterRoutes(app)
 
 	// Transitional compatibility path. Feature handlers are added per migration stage.
 	app.Get("/api/health.php", func(c *fiber.Ctx) error {

@@ -36,7 +36,17 @@ GOWA_WEBHOOK_URL=<optional-https-gowa-endpoint>
 GOWA_USERNAME=<optional-gowa-basic-auth-user>
 GOWA_PASSWORD=<optional-gowa-basic-auth-password>
 ALLOW_PRIVATE_WEBHOOK_TARGETS=false
+BACKUP_JOB_TIMEOUT=30m
+BACKUP_ARTIFACT_TTL=24h
+BACKUP_MAX_SIZE_MB=2048
+BACKUP_N8N_API_KEY=<dedicated-32-character-backup-key>
+BACKUP_RESTORE_ENABLED=false
+BACKUP_RETENTION_DAYS=30
+BACKUP_DUMP_BINARY=mysqldump
+BACKUP_RESTORE_BINARY=mysql
 ```
+
+Direktori backup harus memakai volume persistent private pada `/var/lib/geopresensi/backups`. Credential Google Drive dan S3 hanya disimpan di n8n. Jangan mengaktifkan `BACKUP_RESTORE_ENABLED` sebelum restore drill staging lulus.
 
 ## Verification
 

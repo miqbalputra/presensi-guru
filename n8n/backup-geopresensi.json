@@ -1,0 +1,280 @@
+{
+  "name": "GeoPresensi - Backup ke Google Drive atau S3",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 2 * * *" }
+          ]
+        }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000001",
+      "name": "Harian - SQL",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1180, -180]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 30 2 * * 0" }
+          ]
+        }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000002",
+      "name": "Mingguan - Full",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1180, 20]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 0 3 1 * *" }
+          ]
+        }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000003",
+      "name": "Bulanan - Full",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1180, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "const kind = $json.kind || 'sql';\nconst now = new Date();\nconst parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);\nconst dateParts = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));\nconst date = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;\nreturn [{ json: { kind, idempotencyKey: `n8n-${kind}-${date}` } }];"
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000004",
+      "name": "Siapkan Idempotency Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-720, 20]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "kind-sql", "name": "kind", "value": "sql", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000005",
+      "name": "Jenis SQL",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-940, -180]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "kind-full-weekly", "name": "kind", "value": "full", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000006",
+      "name": "Jenis Full Mingguan",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-940, 20]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "kind-full-monthly", "name": "kind", "value": "full", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000007",
+      "name": "Jenis Full Bulanan",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-940, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GEO_PRESENSI_URL}}/api/v1/integrations/backups/jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{$env.BACKUP_N8N_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ kind: $json.kind, idempotencyKey: $json.idempotencyKey }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000008",
+      "name": "Buat Job Backup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-440, 20]
+    },
+    {
+      "parameters": { "amount": 10, "unit": "seconds" },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000009",
+      "name": "Tunggu 10 Detik",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-180, 20]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GEO_PRESENSI_URL}}/api/v1/integrations/backups/jobs/{{$json.data.id}}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-API-Key", "value": "={{$env.BACKUP_N8N_API_KEY}}" }] },
+        "options": { "timeout": 30000 }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000010",
+      "name": "Cek Status Backup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [60, 20]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{$json.data.status}}", "operation": "equal", "value2": "succeeded" }]
+        }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000011",
+      "name": "Backup Berhasil?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [300, 20]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{$json.data.status}}", "operation": "equal", "value2": "failed" }]
+        }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000012",
+      "name": "Backup Gagal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [520, 180]
+    },
+    {
+      "parameters": { "amount": 20, "unit": "seconds" },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000013",
+      "name": "Polling Ulang",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "throw new Error(`Backup gagal: ${$json.data?.errorMessage || 'status failed'}`);"
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000019",
+      "name": "Hentikan karena Backup Gagal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 140]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GEO_PRESENSI_URL}}/api/v1/integrations/backups/jobs/{{$json.data.id}}/download",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-API-Key", "value": "={{$env.BACKUP_N8N_API_KEY}}" }] },
+        "responseFormat": "file",
+        "options": { "timeout": 180000, "response": { "response": { "neverError": false } } }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000014",
+      "name": "Download Artifact Binary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [540, -40]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{$env.BACKUP_STORAGE_PROVIDER}}", "operation": "equal", "value2": "google_drive" }]
+        }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000015",
+      "name": "Pakai Google Drive?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [780, -40]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "binaryPropertyName": "data",
+        "name": "={{$binary.data.fileName}}",
+        "driveId": "={{$env.GOOGLE_DRIVE_SHARED_DRIVE_ID}}",
+        "folderId": "={{$env.GOOGLE_DRIVE_FOLDER_ID}}",
+        "options": { "useResumableUpload": true }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000016",
+      "name": "Upload Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1040, -160]
+    },
+    {
+      "parameters": {
+        "resource": "object",
+        "operation": "upload",
+        "bucketName": "={{$env.S3_BUCKET}}",
+        "fileName": "={{$env.S3_PREFIX}}/{{$now.toFormat('yyyy/MM')}}/{{ $('Cek Status Backup').first().json.data.kind }}/{{$binary.data.fileName}}",
+        "binaryPropertyName": "data",
+        "additionalFields": { "serverSideEncryption": "AES256" }
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000017",
+      "name": "Upload S3",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [1040, 60]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst source = $('Download Artifact Binary').first();\nconst status = $('Cek Status Backup').first().json.data || {};\nconst storage = $env.BACKUP_STORAGE_PROVIDER || 'unknown';\nconst sourceBinary = source.binary?.data;\nif (!sourceBinary) throw new Error('Artifact backup tidak diterima sebagai binary data');\nconst sourceSize = Number(sourceBinary.fileSize || 0);\nif (status.fileSize && sourceSize && sourceSize !== Number(status.fileSize)) throw new Error('Ukuran artifact berbeda dari metadata backup');\nconst providerId = item.json?.id || item.json?.key || item.json?.Key || item.json?.objectKey;\nif (!providerId) throw new Error(`Provider ${storage} tidak mengembalikan identitas file/object`);\nreturn [{ json: { uploaded: true, backupId: status.id, fileName: status.fileName, fileSize: status.fileSize, sha256: status.sha256, providerId, storage, verifiedAt: new Date().toISOString() }, binary: source.binary }];"
+      },
+      "id": "8d3a6c5e-0a9b-4ef8-8d4a-100000000018",
+      "name": "Catat Upload Berhasil",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1290, -40]
+    }
+  ],
+  "connections": {
+    "Harian - SQL": { "main": [[{ "node": "Jenis SQL", "type": "main", "index": 0 }]] },
+    "Mingguan - Full": { "main": [[{ "node": "Jenis Full Mingguan", "type": "main", "index": 0 }]] },
+    "Bulanan - Full": { "main": [[{ "node": "Jenis Full Bulanan", "type": "main", "index": 0 }]] },
+    "Jenis SQL": { "main": [[{ "node": "Siapkan Idempotency Key", "type": "main", "index": 0 }]] },
+    "Jenis Full Mingguan": { "main": [[{ "node": "Siapkan Idempotency Key", "type": "main", "index": 0 }]] },
+    "Jenis Full Bulanan": { "main": [[{ "node": "Siapkan Idempotency Key", "type": "main", "index": 0 }]] },
+    "Siapkan Idempotency Key": { "main": [[{ "node": "Buat Job Backup", "type": "main", "index": 0 }]] },
+    "Buat Job Backup": { "main": [[{ "node": "Tunggu 10 Detik", "type": "main", "index": 0 }]] },
+    "Tunggu 10 Detik": { "main": [[{ "node": "Cek Status Backup", "type": "main", "index": 0 }]] },
+    "Cek Status Backup": { "main": [[{ "node": "Backup Berhasil?", "type": "main", "index": 0 }]] },
+    "Backup Berhasil?": { "main": [[{ "node": "Download Artifact Binary", "type": "main", "index": 0 }], [{ "node": "Backup Gagal?", "type": "main", "index": 0 }]] },
+    "Backup Gagal?": { "main": [[{ "node": "Hentikan karena Backup Gagal", "type": "main", "index": 0 }], [{ "node": "Polling Ulang", "type": "main", "index": 0 }]] },
+    "Polling Ulang": { "main": [[{ "node": "Cek Status Backup", "type": "main", "index": 0 }]] },
+    "Download Artifact Binary": { "main": [[{ "node": "Pakai Google Drive?", "type": "main", "index": 0 }]] },
+    "Pakai Google Drive?": { "main": [[{ "node": "Upload Google Drive", "type": "main", "index": 0 }], [{ "node": "Upload S3", "type": "main", "index": 0 }]] },
+    "Upload Google Drive": { "main": [[{ "node": "Catat Upload Berhasil", "type": "main", "index": 0 }]] },
+    "Upload S3": { "main": [[{ "node": "Catat Upload Berhasil", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Jakarta" },
+  "versionId": "8d3a6c5e-0a9b-4ef8-8d4a-100000000099",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}

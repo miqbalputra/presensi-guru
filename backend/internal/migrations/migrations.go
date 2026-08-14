@@ -92,6 +92,10 @@ func runSQLite(db *gorm.DB) error {
 		&models.LocationTrack{},
 		&models.WebhookConfig{},
 		&models.WebhookLog{},
+		&models.BackupJob{},
+		&models.BackupRestoreJob{},
+		&models.MaintenanceState{},
+		&models.BackupUpload{},
 	); err != nil {
 		return fmt.Errorf("auto migrate sqlite schema: %w", err)
 	}
@@ -109,6 +113,11 @@ func runSQLite(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_location_user_date ON location_tracks (user_id, tanggal, recorded_at)",
 		"CREATE UNIQUE INDEX IF NOT EXISTS uq_jwt_refresh_token_hash ON jwt_refresh_tokens (token_hash)",
 		"CREATE INDEX IF NOT EXISTS idx_attendance_qr_nonce ON attendance_logs (qr_nonce)",
+		"CREATE UNIQUE INDEX IF NOT EXISTS uq_backup_idempotency ON backup_jobs (idempotency_key)",
+		"CREATE INDEX IF NOT EXISTS idx_backup_status_requested ON backup_jobs (status, requested_at)",
+		"CREATE INDEX IF NOT EXISTS idx_backup_expires ON backup_jobs (expires_at)",
+		"CREATE INDEX IF NOT EXISTS idx_restore_status_created ON backup_restore_jobs (status, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_backup_upload_expires ON backup_uploads (expires_at)",
 	} {
 		if err := db.Exec(statement).Error; err != nil {
 			return fmt.Errorf("create sqlite index: %w", err)

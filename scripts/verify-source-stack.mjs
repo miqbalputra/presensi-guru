@@ -34,7 +34,7 @@ const phpReferences = files.filter((file) => /\.tsx?$/.test(file) && /\.php/.tes
 if (phpReferences.length > 0) {
   throw new Error(`Frontend source contains legacy PHP endpoint references: ${phpReferences.join(', ')}`)
 }
-for (const endpoint of ['/v1/users', '/v1/attendance', '/v1/settings', '/v1/reports/charts', '/v1/qr/scan']) {
+for (const endpoint of ['/v1/users', '/v1/attendance', '/v1/settings', '/v1/reports/charts', '/v1/qr/scan', '/v1/admin/backups']) {
   if (!apiClient.includes(endpoint)) throw new Error(`REST endpoint missing from frontend API client: ${endpoint}`)
 }
 

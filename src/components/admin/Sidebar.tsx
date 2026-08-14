@@ -2,6 +2,7 @@ import { NavLink } from '../../router'
 import {
   Activity,
   Archive,
+  ArchiveRestore,
   Bot,
   Calendar,
   CalendarCheck,
@@ -60,6 +61,7 @@ const groups = [
     label: 'Sistem',
     items: [
       { path: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' },
+      { path: '/admin/backup', icon: ArchiveRestore, label: 'Backup & Pemulihan' },
       { path: '/admin/ai-agent', icon: Bot, label: 'AI Agent' },
     ],
   },

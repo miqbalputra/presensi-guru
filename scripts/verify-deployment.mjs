@@ -14,6 +14,8 @@ const dockerRequirements = [
   ['non-root runtime user', /USER app/],
   ['live healthcheck', /HEALTHCHECK[\s\S]*\/health\/live/],
   ['static frontend copied to runtime', /COPY --from=frontend[\s\S]*\/app\/dist/],
+  ['MySQL backup client in runtime', /apk add --no-cache[^\n]*mysql-client/],
+  ['private backup directory', /BACKUP_DIR=\/var\/lib\/geopresensi\/backups/],
 ]
 
 const composeRequirements = [
@@ -23,6 +25,7 @@ const composeRequirements = [
   ['database password is externally supplied', /MYSQL_PASSWORD:\s*\$\{DB_PASS:\?/,],
   ['JWT secret is externally supplied', /JWT_SECRET:\s*\$\{JWT_SECRET:\?/,],
   ['database connection timeouts are configurable', /DB_CONNECT_TIMEOUT:[\s\S]*DB_READ_TIMEOUT:[\s\S]*DB_WRITE_TIMEOUT:/],
+  ['persistent private backup volume', /- migration_backup_data:\/var\/lib\/geopresensi\/backups/],
 ]
 
 for (const [label, pattern] of dockerRequirements) {

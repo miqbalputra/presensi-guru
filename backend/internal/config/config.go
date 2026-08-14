@@ -48,6 +48,15 @@ type Config struct {
 	GowaUsername               string
 	GowaPassword               string
 	AllowPrivateWebhookTargets bool
+	BackupDir                  string
+	BackupJobTimeout           time.Duration
+	BackupArtifactTTL          time.Duration
+	BackupMaxSizeBytes         int64
+	BackupN8NAPIKey            string
+	BackupRestoreEnabled       bool
+	BackupRetentionDays        int
+	BackupDumpBinary           string
+	BackupRestoreBinary        string
 }
 
 func Load() (Config, error) {
@@ -90,6 +99,15 @@ func Load() (Config, error) {
 		GowaUsername:               os.Getenv("GOWA_USERNAME"),
 		GowaPassword:               os.Getenv("GOWA_PASSWORD"),
 		AllowPrivateWebhookTargets: envBool("ALLOW_PRIVATE_WEBHOOK_TARGETS", false),
+		BackupDir:                  env("BACKUP_DIR", "./data/backups"),
+		BackupJobTimeout:           envDuration("BACKUP_JOB_TIMEOUT", 30*time.Minute),
+		BackupArtifactTTL:          envDuration("BACKUP_ARTIFACT_TTL", 24*time.Hour),
+		BackupMaxSizeBytes:         int64(envInt("BACKUP_MAX_SIZE_MB", 2048)) * 1024 * 1024,
+		BackupN8NAPIKey:            os.Getenv("BACKUP_N8N_API_KEY"),
+		BackupRestoreEnabled:       envBool("BACKUP_RESTORE_ENABLED", false),
+		BackupRetentionDays:        envInt("BACKUP_RETENTION_DAYS", 30),
+		BackupDumpBinary:           env("BACKUP_DUMP_BINARY", "mysqldump"),
+		BackupRestoreBinary:        env("BACKUP_RESTORE_BINARY", "mysql"),
 	}
 
 	if c.IsSecureEnvironment() && len(c.JWTSecret) < 32 {
@@ -144,6 +162,12 @@ func Load() (Config, error) {
 	}
 	if _, err := time.LoadLocation(c.AppTimezone); err != nil {
 		return Config{}, fmt.Errorf("timezone tidak valid: %w", err)
+	}
+	if strings.TrimSpace(c.BackupDir) == "" || c.BackupJobTimeout <= 0 || c.BackupArtifactTTL <= 0 || c.BackupMaxSizeBytes <= 0 || c.BackupRetentionDays <= 0 {
+		return Config{}, fmt.Errorf("konfigurasi backup tidak valid")
+	}
+	if c.IsSecureEnvironment() && c.BackupN8NAPIKey != "" && len(c.BackupN8NAPIKey) < 32 {
+		return Config{}, fmt.Errorf("BACKUP_N8N_API_KEY minimal 32 karakter")
 	}
 	return c, nil
 }

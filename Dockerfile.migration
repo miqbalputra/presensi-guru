@@ -23,16 +23,20 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o
 # Minimal runtime: Go binary + static Vite assets
 FROM alpine:3.22 AS runtime
 RUN addgroup -S app && adduser -S -G app app \
-    && apk add --no-cache ca-certificates tzdata
+    && apk add --no-cache ca-certificates tzdata mysql-client
 
 WORKDIR /app
 COPY --from=backend /out/geopresensi /app/geopresensi
 COPY --from=frontend /src/dist /app/dist
 
+RUN mkdir -p /var/lib/geopresensi/backups \
+    && chown -R app:app /var/lib/geopresensi
+
 ENV APP_ENV=production \
     APP_PORT=8080 \
     APP_TIMEZONE=Asia/Jakarta \
     STATIC_DIR=/app/dist \
+    BACKUP_DIR=/var/lib/geopresensi/backups \
     COOKIE_SECURE=true
 
 USER app
