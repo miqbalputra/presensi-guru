@@ -420,6 +420,14 @@ func (h *Handler) statusRekan(c *fiber.Ctx) error {
 		return err
 	}
 	date := today(h)
+	attendanceDate, err := parseDate(date, appLocation(h))
+	if err != nil {
+		return err
+	}
+	settings, err := settingsMap(h.db)
+	if err != nil {
+		return err
+	}
 	items := make([]map[string]any, 0, len(users))
 	for _, teacher := range users {
 		var attendance models.AttendanceLog
@@ -428,10 +436,16 @@ func (h *Handler) statusRekan(c *fiber.Ctx) error {
 			return query.Error
 		}
 		status := "belum"
+		storedStatus := status
 		jamMasuk := "-"
 		var jamPulang any
 		if query.RowsAffected > 0 {
 			status = attendance.Status
+			storedStatus = status
+			status, err = h.derivedAttendanceStatus(teacher, attendance, attendanceDate, settings)
+			if err != nil {
+				return err
+			}
 			if attendance.JamMasuk != nil {
 				jamMasuk = *attendance.JamMasuk
 			} else if attendance.JamHadir != nil {
@@ -446,7 +460,7 @@ func (h *Handler) statusRekan(c *fiber.Ctx) error {
 		if teacher.Jabatan != nil {
 			_ = json.Unmarshal([]byte(*teacher.Jabatan), &roles)
 		}
-		items = append(items, map[string]any{"id": teacher.ID, "nama": teacher.Nama, "jabatan": roles, "statusFinal": status, "statusAsli": status, "jamMasuk": jamMasuk, "jamPulang": jamPulang})
+		items = append(items, map[string]any{"id": teacher.ID, "nama": teacher.Nama, "jabatan": roles, "statusFinal": status, "statusAsli": storedStatus, "jamMasuk": jamMasuk, "jamPulang": jamPulang})
 	}
 	return httpx.Success(c, "Status rekan guru berhasil diambil", fiber.Map{"tanggal": date, "items": items})
 }

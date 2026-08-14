@@ -78,6 +78,36 @@ func classifyCheckIn(user models.User, checkedInAt time.Time, target, targetLabe
 	return "hadir_terlambat", "Terlambat " + strconv.Itoa(lateMinutes) + " menit" + severity + targetLabel
 }
 
+// derivedAttendanceStatus restores the effective status for a same-day record
+// that was saved as hadir before timing rules were applied by the API. It is
+// intentionally read-only: administrators' historical/manual corrections stay
+// untouched, while teacher-facing views still show the rule that applies now.
+func (h *Handler) derivedAttendanceStatus(user models.User, attendance models.AttendanceLog, date time.Time, settings map[string]string) (string, error) {
+	if attendance.Status != "hadir" || strings.EqualFold(strings.TrimSpace(user.TipeGuru), "partime") {
+		return attendance.Status, nil
+	}
+
+	checkInTime := attendance.JamMasuk
+	if checkInTime == nil || strings.TrimSpace(*checkInTime) == "" {
+		checkInTime = attendance.JamHadir
+	}
+	if checkInTime == nil || strings.TrimSpace(*checkInTime) == "" {
+		return attendance.Status, nil
+	}
+
+	minutes, valid := timeToMinutes(*checkInTime)
+	if !valid {
+		return attendance.Status, nil
+	}
+	target, targetLabel, err := h.checkInTarget(user.ID, date, settings)
+	if err != nil {
+		return attendance.Status, err
+	}
+	checkedInAt := time.Date(date.Year(), date.Month(), date.Day(), minutes/60, minutes%60, 0, 0, date.Location())
+	status, _ := classifyCheckIn(user, checkedInAt, target, targetLabel, settings["toleransi_terlambat"], "")
+	return status, nil
+}
+
 func settingTime(value, fallback string) string {
 	if _, ok := timeToMinutes(value); ok {
 		return normalizeTime(strings.TrimSpace(value))

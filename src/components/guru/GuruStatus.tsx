@@ -43,7 +43,7 @@ function GuruStatus() {
       case 'hadir_terlambat':
         return {
           icon: Clock,
-          text: 'Hadir (Terlambat)',
+          text: 'Hadir Terlambat',
           bg: 'bg-yellow-50 dark:bg-yellow-500/10',
           border: 'border-yellow-200 dark:border-yellow-500/20',
           badge: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-800 dark:text-yellow-300',

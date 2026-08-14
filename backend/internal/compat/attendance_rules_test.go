@@ -64,3 +64,28 @@ func TestCheckInTargetUsesOnlyActivePiketSchedule(t *testing.T) {
 		t.Fatalf("piket target = (%q, %q), want (07:00:00,  (Piket))", target, label)
 	}
 }
+
+func TestDerivedAttendanceStatusMarksStoredHadirLate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "-")+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	if err := db.AutoMigrate(&models.Holiday{}, &models.JadwalPiket{}); err != nil {
+		t.Fatalf("migrate database: %v", err)
+	}
+
+	h := &Handler{db: db}
+	checkInTime := "07:24:49"
+	status, err := h.derivedAttendanceStatus(
+		models.User{ID: 42, TipeGuru: "full_time"},
+		models.AttendanceLog{Status: "hadir", JamMasuk: &checkInTime},
+		time.Date(2026, time.August, 14, 0, 0, 0, 0, time.FixedZone("WIB", 7*60*60)),
+		map[string]string{"jam_masuk_normal": "07:20", "toleransi_terlambat": "15"},
+	)
+	if err != nil {
+		t.Fatalf("derive attendance status: %v", err)
+	}
+	if status != "hadir_terlambat" {
+		t.Fatalf("status = %q, want hadir_terlambat", status)
+	}
+}
