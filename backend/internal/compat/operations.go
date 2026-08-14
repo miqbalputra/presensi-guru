@@ -395,14 +395,30 @@ func (h *Handler) guruHome(c *fiber.Ctx) error {
 	attendanceQuery := h.db.Where("user_id = ? AND tanggal = ?", user.ID, date).First(&attendance)
 	var schedule models.JadwalPiket
 	scheduleQuery := h.db.Where("user_id = ? AND hari = ? AND is_active = 1", user.ID, dayName(time.Now().In(appLocation(h)).Weekday())).First(&schedule)
-	settings, _ := settingsMap(h.db)
+	settings, err := settingsMap(h.db)
+	if err != nil {
+		return err
+	}
+	attendanceDate, err := parseDate(date, appLocation(h))
+	if err != nil {
+		return err
+	}
+	pulangTarget, hasPiketPulangTarget, err := h.checkoutTarget(user.ID, attendanceDate, settings)
+	if err != nil {
+		return err
+	}
 	settings = visibleSettings(settings, user.Role)
 	return httpx.Success(c, "Data dashboard guru berhasil diambil", fiber.Map{"today": date, "settings": settings, "holiday": fiber.Map{"tanggal": date, "isHoliday": false, "isWeekend": false, "isWorkday": true, "dayName": dayName(time.Now().In(appLocation(h)).Weekday())}, "attendance": func() any {
 		if attendanceQuery.Error == nil {
 			return mapAttendance(attendance)
 		}
 		return nil
-	}(), "pulangThreshold": settings["jam_min_pulang"], "piketPulangTarget": schedule.JamPulangPiket, "piket": fiber.Map{"hari": dayName(time.Now().In(appLocation(h)).Weekday()), "mine": func() any {
+	}(), "pulangThreshold": pulangTarget, "piketPulangTarget": func() any {
+		if hasPiketPulangTarget {
+			return pulangTarget
+		}
+		return nil
+	}(), "piket": fiber.Map{"hari": dayName(time.Now().In(appLocation(h)).Weekday()), "mine": func() any {
 		if scheduleQuery.Error == nil {
 			return schedule
 		}

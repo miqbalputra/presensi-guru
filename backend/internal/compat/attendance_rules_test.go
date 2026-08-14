@@ -63,6 +63,10 @@ func TestCheckInTargetUsesOnlyActivePiketSchedule(t *testing.T) {
 	if target != "07:00:00" || label != " (Piket)" {
 		t.Fatalf("piket target = (%q, %q), want (07:00:00,  (Piket))", target, label)
 	}
+	status, note := classifyCheckIn(models.User{TipeGuru: "full_time"}, time.Date(2026, time.August, 18, 7, 1, 0, 0, time.UTC), target, label, "15", "")
+	if status != "hadir_terlambat" || note != "Terlambat 1 menit (Piket)" {
+		t.Fatalf("piket check in = (%q, %q), want (hadir_terlambat, Terlambat 1 menit (Piket))", status, note)
+	}
 }
 
 func TestDerivedAttendanceStatusMarksStoredHadirLate(t *testing.T) {
@@ -87,5 +91,33 @@ func TestDerivedAttendanceStatusMarksStoredHadirLate(t *testing.T) {
 	}
 	if status != "hadir_terlambat" {
 		t.Fatalf("status = %q, want hadir_terlambat", status)
+	}
+}
+
+func TestCheckoutTargetUsesPiketScheduleAndDailyOverride(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "-")+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	if err := db.AutoMigrate(&models.Holiday{}, &models.JadwalPiket{}, &models.PengaturanHarian{}); err != nil {
+		t.Fatalf("migrate database: %v", err)
+	}
+
+	piketPulang := "13:00"
+	if err := db.Create(&models.JadwalPiket{UserID: 42, Hari: "Selasa", JamPulangPiket: &piketPulang, IsActive: true}).Error; err != nil {
+		t.Fatalf("create piket schedule: %v", err)
+	}
+	date := time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC)
+	overridePiket := "14:00"
+	if err := db.Create(&models.PengaturanHarian{Tanggal: date, JamPulangPiketKhusus: &overridePiket, JamPulangPiketAktif: true}).Error; err != nil {
+		t.Fatalf("create daily override: %v", err)
+	}
+
+	target, isPiket, err := (&Handler{db: db}).checkoutTarget(42, date, map[string]string{"jam_min_pulang": "12:30"})
+	if err != nil {
+		t.Fatalf("checkout target: %v", err)
+	}
+	if target != "14:00:00" || !isPiket {
+		t.Fatalf("checkout target = (%q, %t), want (14:00:00, true)", target, isPiket)
 	}
 }

@@ -108,6 +108,57 @@ func (h *Handler) derivedAttendanceStatus(user models.User, attendance models.At
 	return status, nil
 }
 
+// checkoutTarget returns the effective minimum checkout time. An active piket
+// schedule takes precedence over the school-wide setting, unless the date is a
+// special workday. Both targets can be overridden from Pengaturan Harian.
+func (h *Handler) checkoutTarget(userID uint, date time.Time, settings map[string]string) (string, bool, error) {
+	target := settingTime(settings["jam_min_pulang"], "12:30")
+
+	var daily models.PengaturanHarian
+	dailyQuery := h.db.Where("DATE(tanggal) = ?", date.Format("2006-01-02")).First(&daily)
+	if dailyQuery.Error != nil && dailyQuery.Error != gorm.ErrRecordNotFound {
+		return "", false, dailyQuery.Error
+	}
+	if dailyQuery.Error == nil && daily.JamPulangKhususAktif && daily.JamPulangKhusus != nil && strings.TrimSpace(*daily.JamPulangKhusus) != "" {
+		target = settingTime(*daily.JamPulangKhusus, target)
+	}
+
+	var holiday models.Holiday
+	holidayQuery := h.db.Where("tanggal = ?", date.Format("2006-01-02")).First(&holiday)
+	if holidayQuery.Error != nil && holidayQuery.Error != gorm.ErrRecordNotFound {
+		return "", false, holidayQuery.Error
+	}
+	if holidayQuery.Error == nil && holiday.IsWorkday {
+		return target, false, nil
+	}
+
+	var piket models.JadwalPiket
+	piketQuery := h.db.Where("user_id = ? AND hari = ? AND is_active = ?", userID, dayName(date.Weekday()), true).First(&piket)
+	if piketQuery.Error != nil && piketQuery.Error != gorm.ErrRecordNotFound {
+		return "", false, piketQuery.Error
+	}
+	if piketQuery.Error != nil || piket.JamPulangPiket == nil || strings.TrimSpace(*piket.JamPulangPiket) == "" {
+		return target, false, nil
+	}
+
+	target = settingTime(*piket.JamPulangPiket, target)
+	if dailyQuery.Error == nil && daily.JamPulangPiketAktif && daily.JamPulangPiketKhusus != nil && strings.TrimSpace(*daily.JamPulangPiketKhusus) != "" {
+		target = settingTime(*daily.JamPulangPiketKhusus, target)
+	}
+	return target, true, nil
+}
+
+func addPiketEarlyCheckoutNote(note string) string {
+	const marker = "Izin Pulang Awal Piket"
+	if strings.Contains(note, marker) {
+		return note
+	}
+	if strings.TrimSpace(note) == "" {
+		return "(" + marker + ")"
+	}
+	return strings.TrimSpace(note) + " (" + marker + ")"
+}
+
 func settingTime(value, fallback string) string {
 	if _, ok := timeToMinutes(value); ok {
 		return normalizeTime(strings.TrimSpace(value))

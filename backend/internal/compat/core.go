@@ -460,24 +460,32 @@ func (h *Handler) updateAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 			location = "sekolah"
 		}
 		now := time.Now().In(appLocation(h))
-		if !boolValue(body, "izin_pulang_awal", "izinPulangAwal") && beforeCheckoutTime(now, settings["jam_min_pulang"]) {
-			threshold := settings["jam_min_pulang"]
-			if threshold == "" {
-				threshold = "12:30"
-			}
+		izinPulangAwal := boolValue(body, "izin_pulang_awal", "izinPulangAwal")
+		threshold, isPiket, targetErr := h.checkoutTarget(record.UserID, record.Tanggal, settings)
+		if targetErr != nil {
+			return targetErr
+		}
+		if !izinPulangAwal && beforeCheckoutTime(now, threshold) {
 			label := normalizeTime(threshold)
 			if len(label) > 5 {
 				label = label[:5]
 			}
+			if isPiket {
+				return httpx.Error(c, fiber.StatusConflict, "PIKET_RESTRICTION", "PIKET_RESTRICTION|"+label)
+			}
 			return httpx.Error(c, fiber.StatusConflict, "CHECKOUT_TOO_EARLY", fmt.Sprintf("Presensi pulang belum dapat dilakukan sebelum pukul %s WIB", label))
 		}
 		serverTime := now.Format("15:04:05")
+		note := stringValue(body, "keterangan")
+		if isPiket && izinPulangAwal {
+			note = addPiketEarlyCheckoutNote(note)
+		}
 		updates := map[string]any{
 			"jam_pulang":    serverTime,
 			"latitude":      lat,
 			"longitude":     lon,
 			"lokasi_pulang": location,
-			"keterangan":    stringValue(body, "keterangan"),
+			"keterangan":    note,
 		}
 		result := h.db.Model(&models.AttendanceLog{}).
 			Where("id = ? AND (jam_pulang IS NULL OR jam_pulang = '')", record.ID).
@@ -492,7 +500,7 @@ func (h *Handler) updateAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		record.Latitude = pointerFloat(lat, true)
 		record.Longitude = pointerFloat(lon, true)
 		record.LokasiPulang = pointerString(location)
-		record.Keterangan = pointerString(stringValue(body, "keterangan"))
+		record.Keterangan = pointerString(note)
 		return httpx.Success(c, "Presensi berhasil diupdate", fiber.Map{"attendance": mapAttendance(record)})
 	}
 	status := stringValue(body, "status")

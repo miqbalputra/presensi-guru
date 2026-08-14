@@ -154,7 +154,6 @@ func (h *Handler) qrScan(c *fiber.Ctx) error {
 	var attendance models.AttendanceLog
 	query := h.db.Where("user_id = ? AND tanggal = ?", claims.UserID, today(h)).First(&attendance)
 	if query.Error == nil {
-		isPulang := boolValue(body, "is_pulang", "isPulang")
 		if attendance.JamPulang != nil && *attendance.JamPulang != "" {
 			return httpx.Error(c, fiber.StatusConflict, "ATTENDANCE_COMPLETED", "Presensi hari ini sudah selesai")
 		}
@@ -166,10 +165,15 @@ func (h *Handler) qrScan(c *fiber.Ctx) error {
 			return httpx.Error(c, fiber.StatusBadRequest, code, message)
 		}
 		now := time.Now().In(appLocation(h))
-		currentMinutes := now.Hour()*60 + now.Minute()
-		minPulang = normalizeTime(minPulang)
-		target, _ := time.Parse("15:04:05", minPulang)
-		if !isPulang && currentMinutes < target.Hour()*60+target.Minute() {
+		izinPulangAwal := boolValue(body, "izin_pulang_awal", "izinPulangAwal")
+		minPulang, isPiket, targetErr := h.checkoutTarget(claims.UserID, attendance.Tanggal, settings)
+		if targetErr != nil {
+			return targetErr
+		}
+		if !izinPulangAwal && beforeCheckoutTime(now, minPulang) {
+			if isPiket {
+				return httpx.Error(c, fiber.StatusConflict, "PIKET_RESTRICTION", "PIKET_RESTRICTION|"+minPulang[:5])
+			}
 			return httpx.Error(c, fiber.StatusConflict, "CHECKOUT_TOO_EARLY", "Presensi pulang belum dapat dilakukan")
 		}
 		inside, _ := h.isInsideLocationWithSettings(settings, lat, lon)
@@ -181,8 +185,12 @@ func (h *Handler) qrScan(c *fiber.Ctx) error {
 		if inside || settings["mode_testing"] == "1" {
 			updates["lokasi_pulang"] = "sekolah"
 		}
-		if value := stringValue(body, "keterangan"); value != "" {
-			updates["keterangan"] = value
+		note := stringValue(body, "keterangan")
+		if isPiket && izinPulangAwal {
+			note = addPiketEarlyCheckoutNote(note)
+		}
+		if note != "" {
+			updates["keterangan"] = note
 		}
 		result := h.db.Model(&models.AttendanceLog{}).
 			Where("id = ? AND (jam_pulang IS NULL OR jam_pulang = '')", attendance.ID).
@@ -198,6 +206,9 @@ func (h *Handler) qrScan(c *fiber.Ctx) error {
 		attendance.Longitude = pointerFloat(lon, true)
 		attendance.LokasiPulang = pointerString(updates["lokasi_pulang"].(string))
 		attendance.QRNonce = pointerString(nonce)
+		if note != "" {
+			attendance.Keterangan = pointerString(note)
+		}
 		return httpx.Success(c, "Presensi pulang berhasil (Smart Scan)!", fiber.Map{"jam_pulang": updates["jam_pulang"], "attendance": mapAttendance(attendance), "message": "Hati-hati di jalan!"})
 	}
 	if query.Error != gorm.ErrRecordNotFound {

@@ -59,6 +59,7 @@ function GuruHome({ user, onChangeTab }) {
   const [isPiketToday, setIsPiketToday] = useState(false)
   const [showPiketModal, setShowPiketModal] = useState(false)
   const [piketCheckoutTime, setPiketCheckoutTime] = useState('')
+	const [piketPulangTarget, setPiketPulangTarget] = useState('')
   const [pendingQRData, setPendingQRData] = useState(null)
   // Jam minimal pulang efektif hari ini (dari guru_home, mengikuti override
   // per-tanggal pengaturan_harian). Null = pakai settings.jam_min_pulang.
@@ -367,6 +368,8 @@ function GuruHome({ user, onChangeTab }) {
     if (data.pulangThreshold) {
       setPulangThreshold(data.pulangThreshold)
     }
+
+    setPiketPulangTarget(data.piketPulangTarget || '')
 
     if (data.holiday) {
       const { isWorkday, isHoliday: holidayFound, isWeekend, holidayName, dayName } = data.holiday
@@ -1059,7 +1062,7 @@ function GuruHome({ user, onChangeTab }) {
           {isPiketToday && jadwalPiketHariIni && (
             <span className="col-span-2 inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3 py-2 text-xs font-semibold text-purple-700 sm:col-span-4 dark:border-purple-500/20 dark:bg-purple-500/10 dark:text-purple-300">
               <Users className="h-3.5 w-3.5" aria-hidden="true" />
-              Piket - Maks {jadwalPiketHariIni.jam_piket} WIB
+              Piket hari ini — masuk maksimal {scheduleInfo.time} WIB{piketPulangTarget && ` · pulang mulai ${piketPulangTarget.substring(0, 5)} WIB`}
             </span>
           )}
         </div>
