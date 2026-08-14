@@ -83,7 +83,8 @@ async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.message || 'API request failed')
+      const reference = data.requestId ? ` (Kode referensi: ${data.requestId})` : ''
+      throw new Error((data.message || 'API request failed') + reference)
     }
 
     return data

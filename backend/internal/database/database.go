@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	sqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/griyaquran/geopresensi/backend/internal/config"
 )
@@ -25,6 +27,7 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 		driver = "mysql"
 	}
 
+	gormConfig := &gorm.Config{Logger: newLogger(cfg.AppEnv)}
 	var db *gorm.DB
 	if driver == "sqlite" {
 		if cfg.DBPath == "" {
@@ -35,11 +38,11 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 				return nil, fmt.Errorf("create sqlite directory: %w", err)
 			}
 		}
-		db, err = gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
+		db, err = gorm.Open(sqlite.Open(cfg.DBPath), gormConfig)
 	} else {
 		dsnConfig := sqldriver.Config{User: cfg.DBUser, Passwd: cfg.DBPass, Net: "tcp", Addr: cfg.DBHost + ":" + cfg.DBPort, DBName: cfg.DBName, Params: map[string]string{"charset": "utf8mb4"}, ParseTime: true, Loc: location, Timeout: cfg.DBConnectTimeout, ReadTimeout: cfg.DBReadTimeout, WriteTimeout: cfg.DBWriteTimeout}
 		dsn := dsnConfig.FormatDSN()
-		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		db, err = gorm.Open(mysql.Open(dsn), gormConfig)
 	}
 	if err != nil {
 		return nil, err
@@ -69,4 +72,19 @@ func Open(cfg config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
 	sqlDB.SetConnMaxIdleTime(cfg.DBConnMaxIdleTime)
 	return db, nil
+}
+
+func newLogger(appEnv string) logger.Interface {
+	level := logger.Warn
+	if strings.EqualFold(strings.TrimSpace(appEnv), "development") {
+		level = logger.Info
+	}
+
+	return logger.New(log.New(os.Stdout, "", log.LstdFlags), logger.Config{
+		SlowThreshold:             time.Second,
+		LogLevel:                  level,
+		IgnoreRecordNotFoundError: true,
+		ParameterizedQueries:      true,
+		Colorful:                  false,
+	})
 }

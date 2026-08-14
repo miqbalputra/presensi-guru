@@ -967,16 +967,6 @@ function GuruHome({ user, onChangeTab }) {
         : locationStatus.state === 'error'
           ? 'Lokasi perlu diperbarui'
           : 'Siapkan lokasi sebelum hadir'
-  const trackingLabel = trackingStatus.state === 'ready'
-    ? 'Aktif'
-    : trackingStatus.state === 'loading'
-      ? 'Mengirim lokasi'
-      : trackingStatus.state === 'error'
-        ? 'Perlu perhatian'
-        : todayAttendance
-          ? 'Menunggu data'
-          : 'Aktif setelah hadir'
-
   return (
     <div className="space-y-5 pb-2">
       {/* Welcome / Hero Card */}
@@ -1065,34 +1055,6 @@ function GuruHome({ user, onChangeTab }) {
                       : 'bg-slate-400'
               }`} aria-hidden="true" />
             </Button>
-          )}
-          {settings.location_tracking_enabled == '1' && (
-            <span
-              className={`col-span-2 flex min-h-[62px] items-center justify-between rounded-2xl border px-3 py-2.5 text-xs font-medium sm:col-span-1 ${
-                trackingStatus.state === 'ready'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
-                  : trackingStatus.state === 'loading'
-                    ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300'
-                    : trackingStatus.state === 'error'
-                      ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300'
-              }`}
-              title={trackingStatus.message}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${
-                trackingStatus.state === 'ready'
-                  ? 'bg-emerald-500'
-                  : trackingStatus.state === 'loading'
-                    ? 'animate-pulse bg-blue-500'
-                    : trackingStatus.state === 'error'
-                      ? 'bg-amber-500'
-                      : 'bg-slate-400'
-              }`} />
-              <span>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.12em] opacity-60">Tracking lokasi</span>
-                <span className="mt-0.5 block font-bold">{trackingLabel}</span>
-              </span>
-            </span>
           )}
           {isPiketToday && jadwalPiketHariIni && (
             <span className="col-span-2 inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3 py-2 text-xs font-semibold text-purple-700 sm:col-span-4 dark:border-purple-500/20 dark:bg-purple-500/10 dark:text-purple-300">

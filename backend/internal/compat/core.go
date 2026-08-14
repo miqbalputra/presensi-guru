@@ -3,6 +3,7 @@ package compat
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -395,16 +396,21 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 	if !present {
 		record.JamMasuk, record.JamHadir = nil, nil
 	}
-	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&record).Error; err != nil {
-			return err
-		}
-		return tx.Create(&models.ActivityLog{User: user.Nama, Aktivitas: "Input Presensi", Status: status}).Error
-	}); err != nil {
+	if err := h.db.Create(&record).Error; err != nil {
 		if isDuplicateError(err) {
 			return httpx.Error(c, fiber.StatusConflict, "DUPLICATE_ATTENDANCE", "Guru sudah memiliki presensi pada tanggal tersebut")
 		}
 		return err
+	}
+	// Audit logging is best-effort. A legacy/misconfigured activity_logs table
+	// must never make the attendance itself fail after it has been saved.
+	if err := h.db.Create(&models.ActivityLog{
+		Waktu:     time.Now().In(appLocation(h)),
+		User:      user.Nama,
+		Aktivitas: "Input Presensi",
+		Status:    status,
+	}).Error; err != nil {
+		log.Printf("attendance audit log failed for attendance %d: %v", record.ID, err)
 	}
 	return httpx.Success(c, "Presensi berhasil disimpan", fiber.Map{"id": record.ID, "attendance": mapAttendance(record)})
 }
@@ -647,7 +653,7 @@ func (h *Handler) activity(c *fiber.Ctx) error {
 	}
 	// The actor is always taken from the authenticated session. The legacy
 	// client still sends `user`, but accepting it would allow audit-log spoofing.
-	log := models.ActivityLog{User: actor.Nama, Aktivitas: activityName, Status: stringValue(body, "status")}
+	log := models.ActivityLog{Waktu: time.Now().In(appLocation(h)), User: actor.Nama, Aktivitas: activityName, Status: stringValue(body, "status")}
 	if err := h.db.Create(&log).Error; err != nil {
 		return err
 	}

@@ -62,8 +62,11 @@ func formatDate(value time.Time) string {
 }
 
 type ActivityLog struct {
-	ID        uint      `gorm:"column:id;primaryKey" json:"id"`
-	Waktu     time.Time `gorm:"column:waktu;index" json:"waktu"`
+	ID uint `gorm:"column:id;primaryKey" json:"id"`
+	// Waktu must be populated by GORM when callers omit it. Without this tag,
+	// MySQL strict mode can reject the zero timestamp and roll back an
+	// otherwise valid attendance write when its audit log is created.
+	Waktu     time.Time `gorm:"column:waktu;autoCreateTime;index" json:"waktu"`
 	User      string    `gorm:"column:user" json:"user"`
 	Aktivitas string    `gorm:"column:aktivitas" json:"aktivitas"`
 	Status    string    `gorm:"column:status" json:"status"`

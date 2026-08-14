@@ -415,11 +415,14 @@ func (h *Handler) statusRekan(c *fiber.Ctx) error {
 	items := make([]map[string]any, 0, len(users))
 	for _, teacher := range users {
 		var attendance models.AttendanceLog
-		query := h.db.Where("user_id = ? AND tanggal = ?", teacher.ID, date).First(&attendance)
+		query := h.db.Where("user_id = ? AND tanggal = ?", teacher.ID, date).Limit(1).Find(&attendance)
+		if query.Error != nil {
+			return query.Error
+		}
 		status := "belum"
 		jamMasuk := "-"
 		var jamPulang any
-		if query.Error == nil {
+		if query.RowsAffected > 0 {
 			status = attendance.Status
 			if attendance.JamMasuk != nil {
 				jamMasuk = *attendance.JamMasuk

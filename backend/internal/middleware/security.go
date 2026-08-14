@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -33,6 +34,7 @@ func ErrorHandler(appEnv string) fiber.ErrorHandler {
 			message = fiberErr.Message
 		}
 		if status >= 500 && appEnv != "development" {
+			log.Printf("server error request_id=%s method=%s path=%s: %v", c.Get("X-Request-ID"), c.Method(), c.Path(), err)
 			message = "Terjadi kesalahan pada server."
 		}
 		return c.Status(status).JSON(fiber.Map{
