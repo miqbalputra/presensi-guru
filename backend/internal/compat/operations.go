@@ -236,10 +236,24 @@ func (h *Handler) checkDate(c *fiber.Ctx, value string) error {
 	var holiday models.Holiday
 	query := h.db.Where("tanggal = ?", date.Format("2006-01-02")).First(&holiday)
 	hasHoliday := query.Error == nil
+	if query.Error != nil && query.Error != gorm.ErrRecordNotFound {
+		return query.Error
+	}
 	weekend := date.Weekday() == time.Saturday || date.Weekday() == time.Sunday
-	settings, _ := settingsMap(h.db)
-	weekendWorkday := settings["weekend_workday_enabled"] == "1"
-	return httpx.Success(c, "Pengecekan hari berhasil", fiber.Map{"tanggal": value, "isHoliday": hasHoliday && !holiday.IsWorkday, "isWeekend": weekend, "isWeekendWorkday": weekend && weekendWorkday, "isWorkday": (hasHoliday && holiday.IsWorkday) || (!weekend && !hasHoliday) || (weekend && weekendWorkday), "jamMasukKhusus": holiday.JamMasukKhusus, "holidayName": holiday.Nama, "holidayType": holiday.Jenis, "dayName": dayName(date.Weekday())})
+	gender := c.Query("jenis_kelamin")
+	if gender == "" {
+		gender = c.Query("jenisKelamin")
+	}
+	user := models.User{}
+	if gender != "" {
+		user.JenisKelamin = &gender
+	}
+	workday, optional, err := h.isWorkday(user, date)
+	if err != nil {
+		return err
+	}
+	effectiveWorkday := workday || optional
+	return httpx.Success(c, "Pengecekan hari berhasil", fiber.Map{"tanggal": date.Format("2006-01-02"), "isHoliday": hasHoliday && !holiday.IsWorkday, "isWeekend": weekend, "isWeekendWorkday": weekend && effectiveWorkday && !hasHoliday, "isWorkday": effectiveWorkday, "jamMasukKhusus": holiday.JamMasukKhusus, "holidayName": holiday.Nama, "holidayType": holiday.Jenis, "dayName": dayName(date.Weekday())})
 }
 
 func dayName(day time.Weekday) string {
@@ -403,12 +417,24 @@ func (h *Handler) guruHome(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	workday, optional, err := h.isWorkday(user, attendanceDate)
+	if err != nil {
+		return err
+	}
+	var holiday models.Holiday
+	holidayQuery := h.db.Where("tanggal = ?", date).First(&holiday)
+	if holidayQuery.Error != nil && holidayQuery.Error != gorm.ErrRecordNotFound {
+		return holidayQuery.Error
+	}
+	hasHoliday := holidayQuery.Error == nil
+	isWeekend := attendanceDate.Weekday() == time.Saturday || attendanceDate.Weekday() == time.Sunday
+	effectiveWorkday := workday || optional
 	pulangTarget, hasPiketPulangTarget, err := h.checkoutTarget(user.ID, attendanceDate, settings)
 	if err != nil {
 		return err
 	}
 	settings = visibleSettings(settings, user.Role)
-	return httpx.Success(c, "Data dashboard guru berhasil diambil", fiber.Map{"today": date, "settings": settings, "holiday": fiber.Map{"tanggal": date, "isHoliday": false, "isWeekend": false, "isWorkday": true, "dayName": dayName(time.Now().In(appLocation(h)).Weekday())}, "attendance": func() any {
+	return httpx.Success(c, "Data dashboard guru berhasil diambil", fiber.Map{"today": date, "settings": settings, "holiday": fiber.Map{"tanggal": date, "isHoliday": hasHoliday && !holiday.IsWorkday, "isWeekend": isWeekend, "isWorkday": effectiveWorkday, "dayName": dayName(attendanceDate.Weekday()), "holidayName": holiday.Nama, "holidayType": holiday.Jenis, "jamMasukKhusus": holiday.JamMasukKhusus}, "attendance": func() any {
 		if attendanceQuery.Error == nil {
 			return mapAttendance(attendance)
 		}

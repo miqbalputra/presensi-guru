@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, CalendarRange, Plus, Edit2, Trash2, AlertCircle, CheckCircle, X } from 'lucide-react'
 import { holidaysAPI, activityAPI } from '../../services/api'
-import { formatDate, formatDateForInput } from '../../utils/dateUtils'
+import { formatDisplayDate } from '../../utils/dateUtils'
 
 function HariLibur({ user }) {
   const [holidays, setHolidays] = useState([])
@@ -315,7 +315,7 @@ function HariLibur({ user }) {
                   <tr key={holiday.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-900">{index + 1}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {formatDate(new Date(holiday.tanggal + 'T00:00:00'))}
+                      {formatDisplayDate(holiday.tanggal)}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       {holiday.nama}

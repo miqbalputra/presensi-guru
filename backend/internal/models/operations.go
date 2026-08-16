@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Setting struct {
 	ID          uint      `gorm:"column:id;primaryKey" json:"id"`
@@ -25,6 +28,31 @@ type Holiday struct {
 }
 
 func (Holiday) TableName() string { return "holidays" }
+
+// MarshalJSON keeps DATE columns date-only at the API boundary. Returning the
+// database driver's full timestamp here makes clients append another time
+// suffix and produces invalid dates such as NaN-NaN-NaN.
+func (h Holiday) MarshalJSON() ([]byte, error) {
+	type holidayJSON struct {
+		ID             uint      `json:"id"`
+		Tanggal        string    `json:"tanggal"`
+		Nama           string    `json:"nama"`
+		Jenis          string    `json:"jenis"`
+		Keterangan     *string   `json:"keterangan,omitempty"`
+		CreatedAt      time.Time `json:"created_at"`
+		IsWorkday      bool      `json:"is_workday"`
+		JamMasukKhusus *string   `json:"jam_masuk_khusus,omitempty"`
+	}
+	tanggal := ""
+	if !h.Tanggal.IsZero() {
+		tanggal = h.Tanggal.Format("2006-01-02")
+	}
+	return json.Marshal(holidayJSON{
+		ID: h.ID, Tanggal: tanggal, Nama: h.Nama, Jenis: h.Jenis,
+		Keterangan: h.Keterangan, CreatedAt: h.CreatedAt,
+		IsWorkday: h.IsWorkday, JamMasukKhusus: h.JamMasukKhusus,
+	})
+}
 
 type JadwalPiket struct {
 	ID             uint      `gorm:"column:id;primaryKey" json:"id"`

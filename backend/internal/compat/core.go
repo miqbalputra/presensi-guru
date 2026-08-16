@@ -343,6 +343,15 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 	if err != nil {
 		return invalid(c, "Format tanggal tidak valid")
 	}
+	if claims.Role == "guru" {
+		workday, optional, workdayErr := h.isWorkday(user, parsedDate)
+		if workdayErr != nil {
+			return workdayErr
+		}
+		if !workday && !optional {
+			return httpx.Error(c, fiber.StatusConflict, "HOLIDAY_NOT_WORKDAY", "Presensi tidak tersedia pada hari libur atau hari non-kerja")
+		}
+	}
 	lat, hasLat := floatValue(body, "latitude")
 	lon, hasLon := floatValue(body, "longitude")
 	present := contains([]string{"hadir", "hadir_terlambat", "hadir_izin_terlambat"}, status)
