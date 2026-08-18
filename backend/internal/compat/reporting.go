@@ -89,7 +89,9 @@ func (calendar workdayCalendar) isWorkday(user models.User, date time.Time) (boo
 func (h *Handler) isWorkday(user models.User, date time.Time) (bool, bool, error) {
 	dateString := date.Format("2006-01-02")
 	var holiday models.Holiday
-	holidayQuery := h.db.Where("tanggal = ?", dateString).First(&holiday)
+	holidayQuery := h.db.
+		Where("tanggal >= ? AND tanggal < ?", date, date.AddDate(0, 0, 1)).
+		First(&holiday)
 	if holidayQuery.Error != nil && !errors.Is(holidayQuery.Error, gorm.ErrRecordNotFound) {
 		return false, false, holidayQuery.Error
 	}

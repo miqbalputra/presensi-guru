@@ -77,6 +77,26 @@ curl -X PUT -H "X-API-Key: $HERMES_API_KEY" -H "Content-Type: application/json" 
 
 Field payload yang didukung: `id`, `userId`/`user_id`, `tanggal`, `status`, `jamMasuk`/`jam_masuk`, `jamPulang`/`jam_pulang`, `jamHadir`/`jam_hadir`, `jamIzin`/`jam_izin`, `jamSakit`/`jam_sakit`, `keterangan`, `latitude`, `longitude`, dan `metode`.
 
+### Integrasi status presensi ke aplikasi jurnal
+
+Aplikasi jurnal memakai endpoint baca khusus berikut:
+
+```bash
+GET /api/v1/integrations/journal/attendance
+Header: X-API-Key: <JOURNAL_API_KEY>
+```
+
+Parameter wajib: `teacher_ids` (daftar `id_guru` dipisahkan koma), `start_date`, dan `end_date` dalam format `YYYY-MM-DD`. Rentang maksimal 366 hari. Respons hanya berisi `id_guru`, `tanggal`, `status`, dan `updated_at`; endpoint ini tidak dapat menambah atau mengubah presensi.
+
+Contoh:
+
+```bash
+curl -H "X-API-Key: $JOURNAL_API_KEY" \
+  "https://geo.griyaquran.web.id/api/v1/integrations/journal/attendance?teacher_ids=GURU001,GURU002&start_date=2026-08-01&end_date=2026-08-31"
+```
+
+`JOURNAL_API_KEY` adalah secret terpisah dari `HERMES_API_KEY` dan `N8N_API_KEY`. Identitas `id_guru` harus sama dengan `teachers.niy` pada aplikasi jurnal.
+
 Reminder WhatsApp direct ke GOWA tersedia melalui `GET/POST /api/webhook_reminder_direct.php` dengan header `X-API-Key`. Aktifkan hanya jika `GOWA_WEBHOOK_URL`, `GOWA_USERNAME`, dan `GOWA_PASSWORD` sudah diisi; endpoint menerapkan HTTPS/SSRF validation dan tidak menonaktifkan verifikasi TLS.
 
 Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat, transparan, dan real-time. Menggunakan validasi Geofencing (GPS) dan QR Code untuk menjamin kehadiran fisik guru di sekolah.

@@ -44,6 +44,7 @@ type Config struct {
 	TurnstileRequired          bool
 	N8NAPIKey                  string
 	HermesAPIKey               string
+	JournalAPIKey              string
 	GowaWebhookURL             string
 	GowaUsername               string
 	GowaPassword               string
@@ -95,6 +96,7 @@ func Load() (Config, error) {
 		TurnstileRequired:          envBool("TURNSTILE_REQUIRED", false),
 		N8NAPIKey:                  os.Getenv("N8N_API_KEY"),
 		HermesAPIKey:               os.Getenv("HERMES_API_KEY"),
+		JournalAPIKey:              os.Getenv("JOURNAL_API_KEY"),
 		GowaWebhookURL:             os.Getenv("GOWA_WEBHOOK_URL"),
 		GowaUsername:               os.Getenv("GOWA_USERNAME"),
 		GowaPassword:               os.Getenv("GOWA_PASSWORD"),
@@ -143,6 +145,9 @@ func Load() (Config, error) {
 	}
 	if c.TurnstileRequired && strings.TrimSpace(c.TurnstileSiteKey) == "" {
 		return Config{}, fmt.Errorf("TURNSTILE_SITE_KEY wajib diisi saat TURNSTILE_REQUIRED=true")
+	}
+	if c.IsSecureEnvironment() && c.JournalAPIKey != "" && len(c.JournalAPIKey) < 32 {
+		return Config{}, fmt.Errorf("JOURNAL_API_KEY minimal 32 karakter")
 	}
 	gowaConfigured := c.GowaWebhookURL != "" || c.GowaUsername != "" || c.GowaPassword != ""
 	if gowaConfigured && (c.GowaWebhookURL == "" || c.GowaUsername == "" || c.GowaPassword == "") {

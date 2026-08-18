@@ -32,6 +32,7 @@ TURNSTILE_SECRET_KEY=<staging-or-production-turnstile-secret>
 GOOGLE_CLIENT_ID=<oauth-client-id>
 N8N_API_KEY=<random-integration-key>
 HERMES_API_KEY=<random-integration-key>
+JOURNAL_API_KEY=<dedicated-read-only-journal-key>
 GOWA_WEBHOOK_URL=<optional-https-gowa-endpoint>
 GOWA_USERNAME=<optional-gowa-basic-auth-user>
 GOWA_PASSWORD=<optional-gowa-basic-auth-password>

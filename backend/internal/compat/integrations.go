@@ -31,6 +31,7 @@ func (h *Handler) RegisterIntegrationRoutes(app fiber.Router) {
 	app.All("/api/webhook_config.php", auth.RequireActiveUser(h.db, h.jwt), auth.RequireRoles("admin"), h.webhookConfig)
 	app.All("/api/webhook_reminder.php", h.integrationAuth, h.webhookReminder)
 	app.All("/api/webhook_reminder_direct.php", h.integrationAuth, h.webhookReminderDirect)
+	app.Get("/api/journal_attendance.php", h.journalIntegrationAuth, h.journalAttendance)
 
 	v1 := app.Group("/api/v1/integrations")
 	v1.All("/hermes", h.integrationAuth, h.hermesConnect)
@@ -42,6 +43,110 @@ func (h *Handler) RegisterIntegrationRoutes(app fiber.Router) {
 	v1.All("/n8n/activity", h.integrationAuth, h.n8nActivity)
 	v1.All("/webhook", h.integrationAuth, h.webhookReminder)
 	v1.All("/webhook/direct", h.integrationAuth, h.webhookReminderDirect)
+	v1.Get("/journal/attendance", h.journalIntegrationAuth, h.journalAttendance)
+}
+
+// journalIntegrationAuth deliberately accepts only the dedicated read-only
+// JOURNAL_API_KEY. It must not fall back to HERMES_API_KEY, N8N_API_KEY, or an
+// admin JWT because the journal application only needs attendance status data.
+func (h *Handler) journalIntegrationAuth(c *fiber.Ctx) error {
+	provided := strings.TrimSpace(c.Get("X-API-Key"))
+	expected := strings.TrimSpace(h.cfg.JournalAPIKey)
+	if provided == "" || expected == "" || len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+		return httpx.Error(c, fiber.StatusUnauthorized, "JOURNAL_INTEGRATION_UNAUTHORIZED", "API key jurnal tidak valid")
+	}
+	return c.Next()
+}
+
+type journalAttendanceRow struct {
+	IDGuru    string    `gorm:"column:id_guru"`
+	Tanggal   time.Time `gorm:"column:tanggal"`
+	Status    string    `gorm:"column:status"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+// journalAttendance returns the minimum read-only data needed to decide
+// whether a teacher's journal reminder is excused for a date. The external
+// identity is users.id_guru; internal numeric user IDs are never exposed.
+func (h *Handler) journalAttendance(c *fiber.Ctx) error {
+	if c.Method() != fiber.MethodGet {
+		return fiber.ErrMethodNotAllowed
+	}
+
+	ids := parseJournalTeacherIDs(c.Query("teacher_ids"))
+	if len(ids) == 0 {
+		return invalid(c, "teacher_ids wajib diisi")
+	}
+	if len(ids) > 500 {
+		return invalid(c, "teacher_ids maksimal 500 guru per request")
+	}
+
+	location := appLocation(h)
+	start, err := parseDate(c.Query("start_date"), location)
+	if err != nil {
+		return invalid(c, "Format start_date tidak valid")
+	}
+	end, err := parseDate(c.Query("end_date"), location)
+	if err != nil {
+		return invalid(c, "Format end_date tidak valid")
+	}
+	if end.Before(start) {
+		return invalid(c, "end_date tidak boleh sebelum start_date")
+	}
+	if end.Sub(start) > 366*24*time.Hour {
+		return invalid(c, "Rentang tanggal maksimal 366 hari")
+	}
+
+	var rows []journalAttendanceRow
+	query := h.db.Table("attendance_logs AS a").
+		Select("u.id_guru, a.tanggal, a.status, a.updated_at").
+		Joins("JOIN users AS u ON u.id = a.user_id").
+		Where("u.role = ?", "guru").
+		Where("u.id_guru IN ?", ids).
+		// DATE() keeps the contract stable across the MySQL DATE column used in
+		// production and SQLite's datetime representation used by tests.
+		Where("DATE(a.tanggal) BETWEEN ? AND ?", start.Format("2006-01-02"), end.Format("2006-01-02")).
+		Order("a.tanggal ASC, u.id_guru ASC")
+	if err := query.Scan(&rows).Error; err != nil {
+		return err
+	}
+
+	data := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		data = append(data, map[string]any{
+			"id_guru":    row.IDGuru,
+			"tanggal":    row.Tanggal.In(location).Format("2006-01-02"),
+			"status":     row.Status,
+			"updated_at": row.UpdatedAt.In(location).Format(time.RFC3339),
+		})
+	}
+
+	return httpx.Success(c, "Status presensi guru berhasil diambil", data)
+}
+
+func parseJournalTeacherIDs(value string) []string {
+	seen := make(map[string]struct{})
+	ids := make([]string, 0)
+	for _, raw := range strings.Split(value, ",") {
+		id := strings.TrimSpace(raw)
+		if id == "" || len(id) > 64 {
+			continue
+		}
+		valid := true
+		for _, char := range id {
+			if !(char >= 'a' && char <= 'z') && !(char >= 'A' && char <= 'Z') && !(char >= '0' && char <= '9') && char != '-' && char != '_' && char != '.' {
+				valid = false
+				break
+			}
+		}
+		if valid {
+			if _, exists := seen[id]; !exists {
+				seen[id] = struct{}{}
+				ids = append(ids, id)
+			}
+		}
+	}
+	return ids
 }
 
 func (h *Handler) integrationAuth(c *fiber.Ctx) error {

@@ -18,7 +18,9 @@ func (h *Handler) checkInTarget(userID uint, date time.Time, settings map[string
 	label := ""
 
 	var holiday models.Holiday
-	holidayQuery := h.db.Where("tanggal = ?", date.Format("2006-01-02")).First(&holiday)
+	holidayQuery := h.db.
+		Where("tanggal >= ? AND tanggal < ?", date, date.AddDate(0, 0, 1)).
+		First(&holiday)
 	if holidayQuery.Error != nil && holidayQuery.Error != gorm.ErrRecordNotFound {
 		return "", "", holidayQuery.Error
 	}
@@ -124,7 +126,9 @@ func (h *Handler) checkoutTarget(userID uint, date time.Time, settings map[strin
 	}
 
 	var holiday models.Holiday
-	holidayQuery := h.db.Where("tanggal = ?", date.Format("2006-01-02")).First(&holiday)
+	holidayQuery := h.db.
+		Where("tanggal >= ? AND tanggal < ?", date, date.AddDate(0, 0, 1)).
+		First(&holiday)
 	if holidayQuery.Error != nil && holidayQuery.Error != gorm.ErrRecordNotFound {
 		return "", false, holidayQuery.Error
 	}
