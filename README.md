@@ -97,6 +97,24 @@ curl -H "X-API-Key: $JOURNAL_API_KEY" \
 
 `JOURNAL_API_KEY` adalah secret terpisah dari `HERMES_API_KEY` dan `N8N_API_KEY`. Identitas `id_guru` harus sama dengan `teachers.niy` pada aplikasi jurnal.
 
+Untuk memverifikasi mapping guru tanpa membaca data presensi, aplikasi jurnal juga memakai endpoint identitas berikut:
+
+```bash
+GET /api/v1/integrations/journal/teachers
+Header: X-API-Key: <JOURNAL_API_KEY>
+```
+
+Parameter wajib `teacher_ids` berisi maksimal 500 `id_guru` yang dipisahkan koma. Endpoint hanya mengembalikan guru ber-role `guru` yang belum diarsipkan dan hanya field `id_guru`.
+
+Contoh:
+
+```bash
+curl -H "X-API-Key: $JOURNAL_API_KEY" \
+  "https://geo.griyaquran.web.id/api/v1/integrations/journal/teachers?teacher_ids=GURU001,GURU002"
+```
+
+Kedua endpoint jurnal bersifat baca-saja dan hanya menerima metode `GET`. API key tidak boleh ditanam di browser atau dibagikan ke pengguna.
+
 Reminder WhatsApp direct ke GOWA tersedia melalui `GET/POST /api/webhook_reminder_direct.php` dengan header `X-API-Key`. Aktifkan hanya jika `GOWA_WEBHOOK_URL`, `GOWA_USERNAME`, dan `GOWA_PASSWORD` sudah diisi; endpoint menerapkan HTTPS/SSRF validation dan tidak menonaktifkan verifikasi TLS.
 
 Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat, transparan, dan real-time. Menggunakan validasi Geofencing (GPS) dan QR Code untuk menjamin kehadiran fisik guru di sekolah.

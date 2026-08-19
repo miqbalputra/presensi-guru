@@ -95,6 +95,8 @@ func TestRESTV1AliasesRequireAuthentication(t *testing.T) {
 		"/api/v1/integrations/hermes",
 		"/api/v1/integrations/n8n/users",
 		"/api/v1/integrations/webhook",
+		"/api/v1/integrations/journal/teachers",
+		"/api/v1/integrations/journal/attendance",
 	} {
 		response, err := app.Test(httptest.NewRequest("GET", path, nil))
 		if err != nil {

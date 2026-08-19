@@ -43,6 +43,7 @@ func (h *Handler) RegisterIntegrationRoutes(app fiber.Router) {
 	v1.All("/n8n/activity", h.integrationAuth, h.n8nActivity)
 	v1.All("/webhook", h.integrationAuth, h.webhookReminder)
 	v1.All("/webhook/direct", h.integrationAuth, h.webhookReminderDirect)
+	v1.Get("/journal/teachers", h.journalIntegrationAuth, h.journalTeachers)
 	v1.Get("/journal/attendance", h.journalIntegrationAuth, h.journalAttendance)
 }
 
@@ -122,6 +123,45 @@ func (h *Handler) journalAttendance(c *fiber.Ctx) error {
 	}
 
 	return httpx.Success(c, "Status presensi guru berhasil diambil", data)
+}
+
+type journalTeacherRow struct {
+	IDGuru string `gorm:"column:id_guru"`
+}
+
+// journalTeachers verifies the external teacher identities without exposing
+// profile, authentication, or attendance data. The journal service uses this
+// endpoint to distinguish a valid NIY mapping from a locally entered but
+// unknown ID in GeoPresensi.
+func (h *Handler) journalTeachers(c *fiber.Ctx) error {
+	if c.Method() != fiber.MethodGet {
+		return fiber.ErrMethodNotAllowed
+	}
+
+	ids := parseJournalTeacherIDs(c.Query("teacher_ids"))
+	if len(ids) == 0 {
+		return invalid(c, "teacher_ids wajib diisi")
+	}
+	if len(ids) > 500 {
+		return invalid(c, "teacher_ids maksimal 500 guru per request")
+	}
+
+	var rows []journalTeacherRow
+	query := h.db.Model(&models.User{}).
+		Select("id_guru").
+		Where("role = ? AND archived_at IS NULL", "guru").
+		Where("id_guru IN ?", ids).
+		Order("id_guru ASC")
+	if err := query.Scan(&rows).Error; err != nil {
+		return err
+	}
+
+	data := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		data = append(data, map[string]any{"id_guru": row.IDGuru})
+	}
+
+	return httpx.Success(c, "Identitas guru GeoPresensi berhasil diverifikasi", data)
 }
 
 func parseJournalTeacherIDs(value string) []string {

@@ -2,6 +2,7 @@ package compat
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -125,5 +126,90 @@ func TestJournalAttendanceIntegrationUsesDedicatedKeyAndReadOnlyMethod(t *testin
 	}
 	if postResponse.StatusCode != fiber.StatusMethodNotAllowed {
 		t.Fatalf("POST status = %d, want 405", postResponse.StatusCode)
+	}
+}
+
+func TestJournalTeachersIntegrationReturnsOnlyActiveGuruIdentities(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "-")+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		t.Fatal(err)
+	}
+
+	activeID := "GURU001"
+	archivedID := "GURU002"
+	adminID := "ADMIN001"
+	archivedAt := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	users := []models.User{
+		{IDGuru: &activeID, Username: "active-guru", Role: "guru", Nama: "Guru Aktif", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{IDGuru: &archivedID, Username: "archived-guru", Role: "guru", Nama: "Guru Arsip", ArchivedAt: &archivedAt, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{IDGuru: &adminID, Username: "admin", Role: "admin", Nama: "Admin", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+	}
+	if err := db.Create(&users).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Config{AppTimezone: "Asia/Jakarta", JournalAPIKey: "journal-test-key"}
+	app := fiber.New()
+	NewHandler(db, cfg, auth.NewJWTManager(cfg)).RegisterIntegrationRoutes(app)
+
+	request := httptest.NewRequest("GET", "/api/v1/integrations/journal/teachers?teacher_ids=GURU001,GURU002,ADMIN001,UNKNOWN", nil)
+	request.Header.Set("X-API-Key", cfg.JournalAPIKey)
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+
+	var payload struct {
+		Success bool             `json:"success"`
+		Data    []map[string]any `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if !payload.Success || len(payload.Data) != 1 || payload.Data[0]["id_guru"] != activeID {
+		t.Fatalf("payload = %#v, want only active guru identity", payload)
+	}
+	if len(payload.Data[0]) != 1 {
+		t.Fatalf("unexpected identity fields leaked: %#v", payload.Data[0])
+	}
+
+	post := httptest.NewRequest("POST", "/api/v1/integrations/journal/teachers", nil)
+	post.Header.Set("X-API-Key", cfg.JournalAPIKey)
+	postResponse, err := app.Test(post)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postResponse.StatusCode != fiber.StatusMethodNotAllowed {
+		t.Fatalf("POST status = %d, want 405", postResponse.StatusCode)
+	}
+}
+
+func TestJournalTeachersIntegrationRejectsMoreThan500IDs(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "-")+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{JournalAPIKey: "journal-test-key"}
+	app := fiber.New()
+	NewHandler(db, cfg, auth.NewJWTManager(cfg)).RegisterIntegrationRoutes(app)
+
+	ids := make([]string, 501)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("%d", i)
+	}
+	request := httptest.NewRequest("GET", "/api/v1/integrations/journal/teachers?teacher_ids="+strings.Join(ids, ","), nil)
+	request.Header.Set("X-API-Key", cfg.JournalAPIKey)
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.StatusCode)
 	}
 }
