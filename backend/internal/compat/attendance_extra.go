@@ -35,6 +35,7 @@ func (h *Handler) RegisterAttendanceRoutes(app fiber.Router) {
 	v1.All("/attendance/manual", protected, auth.RequireRoles("admin"), h.manualEntry)
 	v1.All("/reports/admin-summary", protected, auth.RequireRoles("admin", "kepala_sekolah"), h.adminSummary)
 	v1.All("/reports/charts", protected, auth.RequireRoles("admin", "kepala_sekolah"), h.adminCharts)
+	v1.Get("/reports/my-attendance", protected, auth.RequireRoles("guru"), h.myTeacherAttendanceReport)
 	v1.All("/reports/teacher-workdays", protected, h.teacherWorkdays)
 	v1.All("/reports/teachers-workdays", protected, auth.RequireRoles("admin", "kepala_sekolah"), h.teachersWorkdays)
 }

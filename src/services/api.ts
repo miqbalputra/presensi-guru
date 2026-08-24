@@ -672,6 +672,17 @@ export const manualEntryAPI = {
   },
 }
 
+// Canonical individual report. The backend owns all workday and Alfa rules so
+// the guru view and integrations consume the exact same calculation.
+export const teacherAttendanceReportAPI = {
+  getMine: async (startDate, endDate) => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+    return fetchAPI(`/v1/reports/my-attendance?${params}`, {
+      method: 'GET',
+    })
+  },
+}
+
 // Backup & Pemulihan API (admin only)
 export const backupAPI = {
   list: async (limit = 50) => {
@@ -775,6 +786,7 @@ export default {
   locationTrackingAPI,
   manualEntryAPI,
   weekendOverridesAPI,
+  teacherAttendanceReportAPI,
   teacherWorkdaysAPI,
   teachersWorkdaysAPI,
   optionalWorkdaysAPI,

@@ -45,6 +45,7 @@ func (h *Handler) RegisterIntegrationRoutes(app fiber.Router) {
 	v1.All("/webhook/direct", h.integrationAuth, h.webhookReminderDirect)
 	v1.Get("/journal/teachers", h.journalIntegrationAuth, h.journalTeachers)
 	v1.Get("/journal/attendance", h.journalIntegrationAuth, h.journalAttendance)
+	v1.Get("/journal/teacher-report", h.journalIntegrationAuth, h.journalTeacherReport)
 }
 
 // journalIntegrationAuth deliberately accepts only the dedicated read-only

@@ -5,7 +5,7 @@ import { formatDate, formatDateForInput } from '../../utils/dateUtils'
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { downloadJsonWorkbook } from '../../utils/excelExport'
-import { useGuruReport } from '../../hooks/useGuruReport'
+import { teacherAttendanceReportAPI } from '../../services/api'
 
 const STATUS_STYLES: Record<string, string> = {
   hadir: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/20',
@@ -37,6 +37,9 @@ const rowVariants = {
 function GuruRiwayat({ user }) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [report, setReport] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [reportError, setReportError] = useState('')
 
   useEffect(() => {
     const today = new Date()
@@ -46,17 +49,52 @@ function GuruRiwayat({ user }) {
     setEndDate(formatDateForInput(today))
   }, [user.id])
 
-  const guru = user
-  const { loading, getGuruReportRows, getGuruSummary } = useGuruReport(guru, startDate, endDate, {
-    allGuru: false,
-  })
+  useEffect(() => {
+    let cancelled = false
+    if (!startDate || !endDate || !user?.id) return () => { cancelled = true }
 
-  let reportRows: any[] = []
-  let summary = null
-  if (startDate && endDate && guru?.id) {
-    reportRows = getGuruReportRows(guru.id)
-    summary = getGuruSummary(guru.id)
-  }
+    setLoading(true)
+    setReportError('')
+    teacherAttendanceReportAPI.getMine(startDate, endDate)
+      .then((response) => {
+        if (cancelled) return
+        const data = response.data || {}
+        const summary = data.summary || {}
+        setReport({
+          ...data,
+          summary: {
+            totalHari: summary.total_hari ?? 0,
+            hadir: summary.hadir ?? 0,
+            izin: summary.izin ?? 0,
+            sakit: summary.sakit ?? 0,
+            alfa: summary.alfa ?? 0,
+            persentase: summary.persentase ?? 0,
+          },
+          rows: (data.rows || []).map((row) => ({
+            id: `report-${row.tanggal}`,
+            tanggal: row.tanggal,
+            jamMasuk: row.jam_masuk || '-',
+            jamPulang: row.jam_pulang || '-',
+            status: row.status,
+            keterangan: row.keterangan || '-',
+          })),
+        })
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setReport(null)
+          setReportError(error.message || 'Laporan presensi belum dapat dimuat.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [startDate, endDate, user?.id])
+
+  const reportRows: any[] = report?.rows || []
+  const summary = report?.summary || null
 
   const filteredLogs = reportRows
 
@@ -169,6 +207,12 @@ function GuruRiwayat({ user }) {
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Riwayat Presensi</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Pantau rekam jejak kehadiran Anda dalam periode tertentu.</p>
       </div>
+
+      {reportError && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+          {reportError}
+        </div>
+      )}
 
       {/* Filter Card */}
       <div className="guru-surface p-5 sm:p-6">

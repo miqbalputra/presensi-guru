@@ -41,14 +41,15 @@ type workdayCalendar struct {
 func (h *Handler) loadWorkdayCalendar(start, end time.Time) (workdayCalendar, error) {
 	calendar := workdayCalendar{holidays: map[string]models.Holiday{}, optional: map[string]struct{}{}}
 	var holidays []models.Holiday
-	if err := h.db.Where("tanggal BETWEEN ? AND ?", start.Format("2006-01-02"), end.Format("2006-01-02")).Find(&holidays).Error; err != nil {
+	endExclusive := end.AddDate(0, 0, 1).Format("2006-01-02")
+	if err := h.db.Where("tanggal >= ? AND tanggal < ?", start.Format("2006-01-02"), endExclusive).Find(&holidays).Error; err != nil {
 		return calendar, err
 	}
 	for _, holiday := range holidays {
 		calendar.holidays[holiday.Tanggal.Format("2006-01-02")] = holiday
 	}
 	var optional []models.OptionalWorkday
-	if err := h.db.Where("tanggal BETWEEN ? AND ?", start.Format("2006-01-02"), end.Format("2006-01-02")).Find(&optional).Error; err != nil {
+	if err := h.db.Where("tanggal >= ? AND tanggal < ?", start.Format("2006-01-02"), endExclusive).Find(&optional).Error; err != nil {
 		return calendar, err
 	}
 	for _, row := range optional {

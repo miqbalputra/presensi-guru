@@ -115,6 +115,15 @@ curl -H "X-API-Key: $JOURNAL_API_KEY" \
 
 Kedua endpoint jurnal bersifat baca-saja dan hanya menerima metode `GET`. API key tidak boleh ditanam di browser atau dibagikan ke pengguna.
 
+Untuk laporan satu guru yang dipakai Edu, tersedia endpoint kanonis berikut:
+
+```text
+GET /api/v1/integrations/journal/teacher-report
+Header: X-API-Key: <JOURNAL_API_KEY>
+```
+
+Parameter wajib: `id_guru`, `start_date`, dan `end_date` (`YYYY-MM-DD`, maksimal 366 hari). Respons hanya berisi identitas guru, periode efektif, statistik kehadiran, dan baris laporan yang siap ditampilkan/diunduh. Aturan hari kerja, libur, hari opsional, override akhir pekan, dan Alfa dihitung di backend GeoPresensi. Endpoint hanya untuk komunikasi server-ke-server; browser menggunakan endpoint guru yang terautentikasi dan tidak pernah menerima API key integrasi.
+
 Reminder WhatsApp direct ke GOWA tersedia melalui `GET/POST /api/webhook_reminder_direct.php` dengan header `X-API-Key`. Aktifkan hanya jika `GOWA_WEBHOOK_URL`, `GOWA_USERNAME`, dan `GOWA_PASSWORD` sudah diisi; endpoint menerapkan HTTPS/SSRF validation dan tidak menonaktifkan verifikasi TLS.
 
 Aplikasi web modern yang dirancang untuk mengelola kehadiran guru secara akurat, transparan, dan real-time. Menggunakan validasi Geofencing (GPS) dan QR Code untuk menjamin kehadiran fisik guru di sekolah.
