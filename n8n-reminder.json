@@ -1,0 +1,324 @@
+{
+  "name": "GeoPresensi — Pengingat Presensi Guru",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "nodes": [
+    {
+      "id": "8f5a5a09-5190-48e2-ac58-a0415ff57f0c",
+      "name": "Jadwal pengingat",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1080, 180],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8,9,10 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7783c1d5-1c8e-4884-b74b-e9e7d7f005bf",
+      "name": "Konfigurasi workflow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-860, 180],
+      "parameters": {
+        "jsCode": "const readEnv = (name) => String($env[name] || '').trim();\n\nlet appUrl = readEnv('GEO_PRESENSI_URL');\nconst n8nApiKey = readEnv('N8N_API_KEY');\nconst gowaUrl = readEnv('GOWA_WEBHOOK_URL');\nconst adminPhone = readEnv('REMINDER_ADMIN_PHONE').replace(/[^0-9]/g, '');\n\nwhile (appUrl.endsWith('/')) appUrl = appUrl.slice(0, -1);\nif (appUrl.toLowerCase().endsWith('/api')) appUrl = appUrl.slice(0, -4);\n\nif (!/^https:\\/\\//i.test(appUrl)) {\n  throw new Error('GEO_PRESENSI_URL harus berupa URL HTTPS aplikasi, misalnya https://geo.griyaquran.web.id.');\n}\nif (!n8nApiKey) {\n  throw new Error('N8N_API_KEY belum tersedia di environment n8n.');\n}\nif (!/^https:\\/\\//i.test(gowaUrl)) {\n  throw new Error('GOWA_WEBHOOK_URL harus berupa URL HTTPS endpoint GOWA.');\n}\n\nconst parts = Object.fromEntries(\n  new Intl.DateTimeFormat('en-CA', {\n    timeZone: 'Asia/Jakarta',\n    year: 'numeric',\n    month: '2-digit',\n    day: '2-digit',\n    hour: '2-digit',\n    hourCycle: 'h23'\n  }).formatToParts(new Date()).map((part) => [part.type, part.value])\n);\nconst hour = Number(parts.hour);\nconst reminderType = hour <= 8 ? 'first' : hour === 9 ? 'second' : 'final';\nconst reminderLabel = {\n  first: 'Pengingat Presensi',\n  second: 'Pengingat Presensi Kedua',\n  final: 'Pengingat Presensi Terakhir'\n}[reminderType];\n\nreturn [{\n  json: {\n    appUrl,\n    n8nApiKey,\n    gowaUrl,\n    adminPhone,\n    tanggal: parts.year + '-' + parts.month + '-' + parts.day,\n    reminderType,\n    reminderLabel,\n    executedAt: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "689e416b-77ae-4423-9a66-744ed56e0584",
+      "name": "Ambil guru wajib presensi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-620, 180],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.appUrl + '/api/v1/integrations/n8n/missing-attendance' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tanggal",
+              "value": "={{ $json.tanggal }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $json.n8nApiKey }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "e1c7732b-6891-47dd-9f33-9dd2c6d42e95",
+      "name": "Format penerima dan pesan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-380, 180],
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst cfg = $items('Konfigurasi workflow')[0]?.json;\n\nif (!cfg) throw new Error('Konfigurasi workflow tidak ditemukan.');\nif (!response.success) {\n  throw new Error(response.message || 'Aplikasi tidak dapat mengembalikan daftar guru.');\n}\n\nconst payload = response.data || {};\nconst teachers = Array.isArray(payload.data) ? payload.data : [];\nconst normalizePhone = (raw) => {\n  let phone = String(raw || '').trim().replace(/[^0-9+]/g, '');\n  if (phone.startsWith('+')) phone = phone.slice(1);\n  if (phone.startsWith('0')) phone = '62' + phone.slice(1);\n  if (phone.startsWith('8')) phone = '62' + phone;\n  return /^62\\d{8,13}$/.test(phone) ? phone : '';\n};\n\nconst messageFor = (name) => {\n  const greeting = \"Assalamu'alaikum Bapak/Ibu *\" + name + \"*,\";\n  const action = 'Silakan buka GeoPresensi dan lakukan presensi saat berada di area sekolah yang ditetapkan.\\n👉 ' + cfg.appUrl;\n\n  if (cfg.reminderType === 'second') {\n    return ['🔔 *' + cfg.reminderLabel + '*', '', greeting, '', 'Presensi hari ini belum tercatat. Mohon luangkan waktu sebentar untuk melakukan presensi.', '', action, '', 'Jika berhalangan, gunakan pilihan Izin atau Sakit pada beranda.', '', '_Sistem GeoPresensi Griya Quran_'].join('\\n');\n  }\n  if (cfg.reminderType === 'final') {\n    return ['⚠️ *' + cfg.reminderLabel + '*', '', greeting, '', 'Kami mencatat presensi hari ini masih belum tercatat. Mohon segera melakukan presensi atau mengisi Izin/Sakit bila berhalangan.', '', action, '', 'Terima kasih. _Sistem GeoPresensi Griya Quran_'].join('\\n');\n  }\n  return ['🔔 *' + cfg.reminderLabel + '*', '', greeting, '', 'Jangan lupa melakukan presensi hari ini melalui GeoPresensi.', '', action, '', \"Semoga Allah Ta'ala mudahkan aktivitas Anda. _Sistem GeoPresensi Griya Quran_\"].join('\\n');\n};\n\nreturn teachers.flatMap((teacher) => {\n  const phone = normalizePhone(teacher.noHP || teacher.no_hp);\n  if (!phone) return [];\n  const nama = String(teacher.nama || 'Guru').trim() || 'Guru';\n  return [{\n    json: {\n      nama,\n      phone,\n      message: messageFor(nama),\n      gowaUrl: cfg.gowaUrl,\n      reminderType: cfg.reminderType,\n      reminderLabel: cfg.reminderLabel,\n      tanggal: payload.tanggal || cfg.tanggal\n    }\n  }];\n});"
+      }
+    },
+    {
+      "id": "c63570d4-2182-4e99-a3a2-a770c91ce3d3",
+      "name": "Loop pengiriman",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-120, 180],
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      }
+    },
+    {
+      "id": "5de0e829-4cd5-4b04-bd37-810ddc27c21f",
+      "name": "Jeda antar pesan",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [120, 280],
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "c6a65c4b-b1bb-423a-a2fc-e06787cc4d0a",
+      "name": "Kirim WhatsApp guru",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [360, 280],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.gowaUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REPLACE_WITH_GOWA_BASIC_AUTH_CREDENTIAL_ID",
+          "name": "Gowa Basic Auth"
+        }
+      }
+    },
+    {
+      "id": "50690216-18dc-4a63-979a-b429cf134a4b",
+      "name": "Ringkas pengiriman",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 80],
+      "parameters": {
+        "jsCode": "const recipients = $items('Format penerima dan pesan').map((item) => item.json);\nconst cfg = $items('Konfigurasi workflow')[0]?.json;\nif (!cfg) throw new Error('Konfigurasi workflow tidak ditemukan.');\n\nconst names = recipients.map((item, index) => String(index + 1) + '. ' + item.nama).join('\\n') || '-';\nconst adminMessage = [\n  '*Laporan Pengingat Presensi*',\n  '',\n  'Jenis: ' + cfg.reminderLabel,\n  'Tanggal: ' + cfg.tanggal,\n  'Pesan terkirim: ' + recipients.length + ' guru',\n  '',\n  names,\n  '',\n  '_Sistem GeoPresensi Griya Quran_'\n].join('\\n');\n\nreturn [{\n  json: {\n    reminderType: cfg.reminderType,\n    adminPhone: cfg.adminPhone,\n    gowaUrl: cfg.gowaUrl,\n    adminMessage\n  }\n}];"
+      }
+    },
+    {
+      "id": "4e876799-c8bc-4364-8779-091b4c2a2a56",
+      "name": "Kirim laporan admin?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [420, 80],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "18f05e45-e63d-4161-a568-687c56a1e8ea",
+              "leftValue": "={{ $json.reminderType === 'final' && Boolean($json.adminPhone) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ce9705a7-95af-49e9-949b-a4c430bb8d1c",
+      "name": "Kirim laporan admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 20],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.gowaUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{ $json.adminPhone }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.adminMessage }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REPLACE_WITH_GOWA_BASIC_AUTH_CREDENTIAL_ID",
+          "name": "Gowa Basic Auth"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Jadwal pengingat": {
+      "main": [
+        [
+          {
+            "node": "Konfigurasi workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Konfigurasi workflow": {
+      "main": [
+        [
+          {
+            "node": "Ambil guru wajib presensi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil guru wajib presensi": {
+      "main": [
+        [
+          {
+            "node": "Format penerima dan pesan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format penerima dan pesan": {
+      "main": [
+        [
+          {
+            "node": "Loop pengiriman",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop pengiriman": {
+      "main": [
+        [
+          {
+            "node": "Ringkas pengiriman",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Jeda antar pesan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jeda antar pesan": {
+      "main": [
+        [
+          {
+            "node": "Kirim WhatsApp guru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim WhatsApp guru": {
+      "main": [
+        [
+          {
+            "node": "Loop pengiriman",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ringkas pengiriman": {
+      "main": [
+        [
+          {
+            "node": "Kirim laporan admin?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim laporan admin?": {
+      "main": [
+        [
+          {
+            "node": "Kirim laporan admin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {}
+}
