@@ -975,8 +975,8 @@ function GuruHome({ user, onChangeTab }) {
       <div><h2 id="attendance-action-title" tabIndex={-1} className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">
         {isHoliday ? (holidayInfo?.message || 'Tidak perlu melakukan presensi hari ini.') : checkedOut ? 'Jam masuk dan pulang Anda sudah tersimpan.' : isLeave ? 'Tidak perlu presensi pulang untuk status ini.' : isPresent ? checkoutReady ? 'Catat kepulangan untuk menyelesaikan presensi hari ini.' : 'Presensi pulang tersedia mulai ' + formatPulangThreshold() + ' WIB.' : 'Tekan tombol di bawah saat berada di area sekolah.'}
       </p></div>
-      {actionVisible && (actionAllowed ? <Button type="button" size="lg" className="w-full text-base" onClick={() => isPresent ? handlePulang() : handleHadir()} disabled={loading || !checkoutReady}>
-        {loading ? <RefreshCw className="animate-spin" aria-hidden="true" /> : <CheckCircle aria-hidden="true" />}
+      {actionVisible && (actionAllowed ? <Button type="button" size="lg" className={`w-full text-base ${isPresent ? 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500' : ''}`} onClick={() => isPresent ? handlePulang() : handleHadir()} disabled={loading || !checkoutReady}>
+        {loading ? <RefreshCw className="animate-spin" aria-hidden="true" /> : isPresent ? <LogOut aria-hidden="true" /> : <CheckCircle aria-hidden="true" />}
         {loading ? 'Memproses presensi...' : isPresent ? checkoutReady ? 'Presensi pulang' : 'Pulang mulai ' + formatPulangThreshold() + ' WIB' : 'Presensi masuk'}
       </Button> : <Notice tone="warning">Presensi tombol sedang dinonaktifkan. Hubungi administrator untuk metode presensi yang ditetapkan sekolah.</Notice>)}
       {todayAttendance && <dl className="grid grid-cols-2 gap-4 rounded-lg bg-muted/60 p-3">
