@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { notify } from '../ui/toast'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { Save, MapPin, Map, Users, Calendar, Info, ToggleLeft, ToggleRight, CheckCircle, XCircle, Loader } from 'lucide-react'
 import { settingsAPI } from '../../services/api'
 
@@ -19,6 +21,9 @@ const DEFAULT_SETTINGS = {
 function LokasiGeofence({ user }) {
   const isReadOnly = user?.role === 'kepala_sekolah'
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [savingKey, setSavingKey] = useState(null) // track which group is saving
   const [notification, setNotification] = useState({ show: false, message: '', type: '' })
@@ -28,22 +33,31 @@ function LokasiGeofence({ user }) {
   }, [])
 
   const loadSettings = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     try {
       setLoading(true)
       const response = await settingsAPI.getAll()
+      if (requestId !== loadRequest.current) return
+
       // Merge dengan default agar tidak ada undefined
       setSettings(prev => ({ ...DEFAULT_SETTINGS, ...prev, ...response.data }))
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       console.error('Failed to load settings:', error)
       showNotification('Gagal memuat pengaturan: ' + error.message, 'error')
     } finally {
-      setLoading(false)
+      requestId === loadRequest.current && setLoading(false)
     }
   }
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type })
-    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3500)
+    notify(message, type)
   }
 
   const handleChange = (key, value) => {
@@ -102,6 +116,8 @@ function LokasiGeofence({ user }) {
     )
   }
 
+  if (loadError) return <Notice onRetry={() => loadSettings()}>{loadError}</Notice>
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -129,7 +145,7 @@ function LokasiGeofence({ user }) {
 
         {/* LOKASI APEL SENIN */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white flex justify-between items-center">
+          <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
               <h3 className="font-bold text-lg">Lokasi Apel Pagi (Senin)</h3>
@@ -164,8 +180,8 @@ function LokasiGeofence({ user }) {
             <p className="text-sm text-gray-600">Titik kumpul seluruh guru di hari Senin pagi untuk apel bersama.</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-40" className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
+                <input id="lokasigeofence-field-40" aria-label="Latitude"
                   type="number"
                   step="0.000001"
                   value={settings.lokasi_apel_latitude}
@@ -176,8 +192,8 @@ function LokasiGeofence({ user }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-41" className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
+                <input id="lokasigeofence-field-41" aria-label="Longitude"
                   type="number"
                   step="0.000001"
                   value={settings.lokasi_apel_longitude}
@@ -220,8 +236,8 @@ function LokasiGeofence({ user }) {
             <p className="text-sm text-gray-600">Titik lokasi presensi khusus guru laki-laki di hari kerja normal.</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-42" className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
+                <input id="lokasigeofence-field-42" aria-label="Latitude"
                   type="number"
                   step="0.000001"
                   value={settings.lokasi_laki_latitude}
@@ -232,8 +248,8 @@ function LokasiGeofence({ user }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-43" className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
+                <input id="lokasigeofence-field-43" aria-label="Longitude"
                   type="number"
                   step="0.000001"
                   value={settings.lokasi_laki_longitude}
@@ -276,8 +292,8 @@ function LokasiGeofence({ user }) {
             <p className="text-sm text-gray-600">Titik lokasi presensi khusus guru perempuan di hari kerja normal.</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-44" className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
+                <input id="lokasigeofence-field-44" aria-label="Latitude"
                   type="number"
                   step="0.000001"
                   value={settings.lokasi_perempuan_latitude}
@@ -288,8 +304,8 @@ function LokasiGeofence({ user }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-45" className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
+                <input id="lokasigeofence-field-45" aria-label="Longitude"
                   type="number"
                   step="0.000001"
                   value={settings.lokasi_perempuan_longitude}
@@ -332,8 +348,8 @@ function LokasiGeofence({ user }) {
             <p className="text-sm text-gray-600">Titik koordinat utama sekolah yang digunakan sebagai fallback.</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-46" className="block text-xs font-bold text-gray-500 uppercase mb-1">Latitude</label>
+                <input id="lokasigeofence-field-46" aria-label="Latitude"
                   type="number"
                   step="0.000001"
                   value={settings.sekolah_latitude}
@@ -344,8 +360,8 @@ function LokasiGeofence({ user }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
-                <input
+                <label htmlFor="lokasigeofence-field-47" className="block text-xs font-bold text-gray-500 uppercase mb-1">Longitude</label>
+                <input id="lokasigeofence-field-47" aria-label="Longitude"
                   type="number"
                   step="0.000001"
                   value={settings.sekolah_longitude}
@@ -398,16 +414,7 @@ function LokasiGeofence({ user }) {
       </div>
 
       {/* Notification Toast */}
-      {notification.show && (
-        <div className={`fixed bottom-4 right-4 px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center gap-3 transition-all ${
-          notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-        } text-white font-bold`}>
-          {notification.type === 'success'
-            ? <CheckCircle className="w-5 h-5 flex-shrink-0" />
-            : <XCircle className="w-5 h-5 flex-shrink-0" />}
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { AppDialog } from '../ui/dialog'
+import { useState, useEffect, useRef } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { formatDateForInput } from '../../utils/dateUtils'
 
 function GuruModal({ guru, onClose, onSave }) {
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
+  const [saveError, setSaveError] = useState('')
   const [formData, setFormData] = useState({
     idGuru: '',
     nama: '',
@@ -49,14 +54,23 @@ function GuruModal({ guru, onClose, onSave }) {
     }
   }, [guru])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+
+
     // Filter jabatan yang kosong
     const cleanedData = {
       ...formData,
       jabatan: formData.jabatan.filter(j => j.trim() !== '')
     }
-    onSave(cleanedData)
+    setSaveError('')
+    try { await onSave(cleanedData) } catch (error) { setSaveError(error.message || 'Data guru belum dapat disimpan.') }
+
+    } finally { savingRef.current = false; setSaving(false) }
   }
 
   const addJabatan = () => {
@@ -75,23 +89,16 @@ function GuruModal({ guru, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-800">
-            {guru ? 'Edit Guru' : 'Tambah Guru Baru'}
-          </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+    <AppDialog open={true} onOpenChange={(open) => { if (!open) onClose() }} title={guru ? 'Edit guru' : 'Tambah guru'} busy={saving}>
+<fieldset disabled={saving} className="min-w-0">
+{saveError && <Notice>{saveError}</Notice>}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="gurumodal-field-16" className="block text-sm font-medium text-gray-700 mb-2">
               ID Guru <span className="text-xs text-gray-500">(Nomor Induk Guru)</span>
             </label>
-            <input
+            <input id="gurumodal-field-16" aria-label="ID Guru"
               type="text"
               value={formData.idGuru}
               onChange={(e) => setFormData({ ...formData, idGuru: e.target.value })}
@@ -102,8 +109,8 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap</label>
-            <input
+            <label htmlFor="gurumodal-field-17" className="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap</label>
+            <input id="gurumodal-field-17" aria-label="Nama Lengkap"
               type="text"
               value={formData.nama}
               onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
@@ -113,8 +120,8 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Lahir</label>
-            <input
+            <label htmlFor="gurumodal-field-18" className="block text-sm font-medium text-gray-700 mb-2">Tanggal Lahir</label>
+            <input id="gurumodal-field-18" aria-label="Tanggal Lahir"
               type="date"
               value={formData.tanggalLahir}
               onChange={(e) => setFormData({ ...formData, tanggalLahir: e.target.value })}
@@ -124,8 +131,8 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Jenis Kelamin</label>
-            <select
+            <label htmlFor="gurumodal-field-19" className="block text-sm font-medium text-gray-700 mb-2">Jenis Kelamin</label>
+            <select id="gurumodal-field-19" aria-label="Jenis Kelamin"
               value={formData.jenisKelamin}
               onChange={(e) => setFormData({ ...formData, jenisKelamin: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -136,8 +143,8 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Guru</label>
-            <select
+            <label htmlFor="gurumodal-field-20" className="block text-sm font-medium text-gray-700 mb-2">Tipe Guru</label>
+            <select id="gurumodal-field-20" aria-label="Tipe Guru"
               value={formData.tipeGuru}
               onChange={(e) => setFormData({ ...formData, tipeGuru: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -153,8 +160,8 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Alamat</label>
-            <textarea
+            <label htmlFor="gurumodal-field-21" className="block text-sm font-medium text-gray-700 mb-2">Alamat</label>
+            <textarea id="gurumodal-field-21" aria-label="Alamat"
               value={formData.alamat}
               onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -164,8 +171,8 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nomor HP</label>
-            <input
+            <label htmlFor="gurumodal-field-22" className="block text-sm font-medium text-gray-700 mb-2">Nomor HP</label>
+            <input id="gurumodal-field-22" aria-label="Nomor HP"
               type="tel"
               value={formData.noHP}
               onChange={(e) => setFormData({ ...formData, noHP: e.target.value })}
@@ -213,8 +220,8 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Bertugas</label>
-            <input
+            <label htmlFor="gurumodal-field-23" className="block text-sm font-medium text-gray-700 mb-2">Tanggal Bertugas</label>
+            <input id="gurumodal-field-23" aria-label="Tanggal Bertugas"
               type="date"
               value={formData.tanggalBertugas}
               onChange={(e) => setFormData({ ...formData, tanggalBertugas: e.target.value })}
@@ -224,10 +231,10 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="gurumodal-field-24" className="block text-sm font-medium text-gray-700 mb-2">
               Username {guru && <span className="text-xs text-gray-500">(ID Login)</span>}
             </label>
-            <input
+            <input id="gurumodal-field-24" aria-label="Username"
               type="text"
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -237,10 +244,10 @@ function GuruModal({ guru, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="gurumodal-field-25" className="block text-sm font-medium text-gray-700 mb-2">
               Password {guru && <span className="text-xs text-gray-500">(Kosongkan jika tidak ingin mengubah)</span>}
             </label>
-            <input
+            <input id="gurumodal-field-25" aria-label="Password"
               type="text"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -266,8 +273,8 @@ function GuruModal({ guru, onClose, onSave }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+
+</fieldset></AppDialog>
   )
 }
 

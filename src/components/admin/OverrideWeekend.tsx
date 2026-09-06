@@ -1,15 +1,23 @@
-import { useState, useEffect } from 'react'
+import { notify } from '../ui/toast'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { Calendar as CalendarIcon, CheckCircle, XCircle, Save, Trash2, Users, AlertCircle } from 'lucide-react'
 import { guruAPI, weekendOverridesAPI } from '../../services/api'
 import { formatDateForInput, getDayName } from '../../utils/dateUtils'
 
 function OverrideWeekend() {
+  const overridesRequest = useRef(0)
+  useEffect(() => () => { overridesRequest.current++ }, [])
+
   const [gurus, setGurus] = useState([])
   const [selectedGurus, setSelectedGurus] = useState([])
   const [selectedDate, setSelectedDate] = useState('')
   const [overrideType, setOverrideType] = useState('workday') // 'workday' or 'off'
   const [keterangan, setKeterangan] = useState('')
   const [overrides, setOverrides] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [filterGender, setFilterGender] = useState('')
@@ -39,29 +47,46 @@ function OverrideWeekend() {
   }, [periodStart, periodEnd])
 
   const loadInitialData = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     try {
       setLoading(true)
       const guruResponse = await guruAPI.getAll()
+      if (requestId !== loadRequest.current) return
+
       setGurus(guruResponse.data || [])
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       showNotification('Gagal memuat data guru: ' + error.message, 'error')
     } finally {
-      setLoading(false)
+      requestId === loadRequest.current && setLoading(false)
     }
   }
 
   const loadOverrides = async () => {
+    const request = ++overridesRequest.current
+
     try {
       const response = await weekendOverridesAPI.getAll({ start_date: periodStart, end_date: periodEnd })
+      if (request !== overridesRequest.current) return
+
       setOverrides(response.data || [])
     } catch (error) {
+      if (request !== overridesRequest.current) return
+      setOverrides([])
+      notify('Daftar jadwal akhir pekan belum dapat dimuat. Ubah periode untuk mencoba lagi.')
+
       console.error('Failed to load overrides:', error)
     }
   }
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type })
-    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000)
+    notify(message, type)
   }
 
   const handleSelectAll = () => {
@@ -199,6 +224,8 @@ function OverrideWeekend() {
     )
   }
 
+  if (loadError) return <Notice onRetry={() => loadInitialData()}>{loadError}</Notice>
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -223,8 +250,8 @@ function OverrideWeekend() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Sabtu/Minggu</label>
-            <input
+            <label htmlFor="overrideweekend-field-55" className="block text-sm font-medium text-gray-700 mb-2">Tanggal Sabtu/Minggu</label>
+            <input id="overrideweekend-field-55" aria-label="Tanggal Sabtu/Minggu"
               type="date"
               value={bulkDate}
               onChange={(e) => setBulkDate(e.target.value)}
@@ -290,8 +317,8 @@ function OverrideWeekend() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Keterangan (opsional)</label>
-            <input
+            <label htmlFor="overrideweekend-field-56" className="block text-sm font-medium text-gray-700 mb-2">Keterangan (opsional)</label>
+            <input id="overrideweekend-field-56" aria-label="Keterangan (opsional)"
               type="text"
               value={bulkKeterangan}
               onChange={(e) => setBulkKeterangan(e.target.value)}
@@ -317,8 +344,8 @@ function OverrideWeekend() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Sabtu/Minggu</label>
-            <input
+            <label htmlFor="overrideweekend-field-57" className="block text-sm font-medium text-gray-700 mb-2">Tanggal Sabtu/Minggu</label>
+            <input id="overrideweekend-field-57" aria-label="Tanggal Sabtu/Minggu"
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
@@ -358,8 +385,8 @@ function OverrideWeekend() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Keterangan (opsional)</label>
-            <input
+            <label htmlFor="overrideweekend-field-58" className="block text-sm font-medium text-gray-700 mb-2">Keterangan (opsional)</label>
+            <input id="overrideweekend-field-58" aria-label="Keterangan (opsional)"
               type="text"
               value={keterangan}
               onChange={(e) => setKeterangan(e.target.value)}
@@ -372,8 +399,8 @@ function OverrideWeekend() {
         {/* Filter & Select Guru */}
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Pilih Guru</label>
-            <select
+            <label htmlFor="overrideweekend-field-59" className="text-sm font-medium text-gray-700">Pilih Guru</label>
+            <select id="overrideweekend-field-59" aria-label="Pilih Guru"
               value={filterGender}
               onChange={(e) => setFilterGender(e.target.value)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
@@ -513,13 +540,7 @@ function OverrideWeekend() {
         )}
       </div>
 
-      {notification.show && (
-        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in ${
-          notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'
-        } text-white`}>
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

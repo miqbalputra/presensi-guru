@@ -150,7 +150,7 @@ function AIAgent() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="p-3 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl">
+        <div className="p-3 bg-blue-600 rounded-xl">
           <Bot className="w-7 h-7 text-white" />
         </div>
         <div>

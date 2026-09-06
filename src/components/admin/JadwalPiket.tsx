@@ -1,10 +1,18 @@
-import { useState, useEffect } from 'react'
+import { notify } from '../ui/toast'
+import { Notice } from '../ui/page'
+import { AppDialog } from '../ui/dialog'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Edit2, Trash2, Calendar, Clock, User, Info } from 'lucide-react'
 import { jadwalPiketAPI, guruAPI } from '../../services/api'
 
 function JadwalPiket() {
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [jadwalPiket, setJadwalPiket] = useState([])
   const [dataGuru, setDataGuru] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingJadwal, setEditingJadwal] = useState(null)
@@ -28,25 +36,34 @@ function JadwalPiket() {
   }, [])
 
   const loadData = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     try {
       setLoading(true)
       const [jadwalResponse, guruResponse] = await Promise.all([
         jadwalPiketAPI.getAll(),
         guruAPI.getAll()
       ])
+      if (requestId !== loadRequest.current) return
+
       setJadwalPiket(jadwalResponse.data)
       setDataGuru(guruResponse.data)
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message, 'error')
     } finally {
-      setLoading(false)
+      requestId === loadRequest.current && setLoading(false)
     }
   }
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type })
-    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000)
+    notify(message, type)
   }
 
   const handleAdd = () => {
@@ -105,7 +122,13 @@ function JadwalPiket() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+
+
+
     if (!formData.user_id || !formData.nama_guru) {
       showNotification('Pilih guru terlebih dahulu', 'error')
       return
@@ -124,6 +147,8 @@ function JadwalPiket() {
     } catch (error) {
       showNotification('Gagal menyimpan jadwal piket: ' + error.message, 'error')
     }
+
+    } finally { savingRef.current = false; setSaving(false) }
   }
 
   const handleGuruChange = (e) => {
@@ -141,7 +166,7 @@ function JadwalPiket() {
   const handleHariChange = (e) => {
     const newHari = e.target.value
     let newJamPulang = formData.jam_pulang_piket
-    
+
     // Jika ganti ke Jumat, set default 10:15
     if (newHari === 'Jumat') {
       newJamPulang = '10:15'
@@ -150,8 +175,8 @@ function JadwalPiket() {
       newJamPulang = '13:00'
     }
 
-    setFormData({ 
-      ...formData, 
+    setFormData({
+      ...formData,
       hari: newHari,
       jam_pulang_piket: newJamPulang
     })
@@ -169,6 +194,8 @@ function JadwalPiket() {
     acc[hari] = filteredJadwal.filter(j => j.hari === hari)
     return acc
   }, {})
+
+  if (loadError) return <Notice onRetry={() => loadData()}>{loadError}</Notice>
 
   return (
     <div className="space-y-6">
@@ -204,8 +231,8 @@ function JadwalPiket() {
         <div className="text-sm text-amber-800">
           <p className="font-semibold">Fitur Aktifkan / Nonaktifkan Jadwal Piket</p>
           <p className="mt-0.5">
-            Gunakan tombol <span className="font-bold">On / Off</span> pada setiap jadwal untuk menonaktifkan sementara tanpa menghapus data. 
-            Cocok ketika ada agenda rapat atau libur peserta didik — jadwal tetap tersimpan dan bisa diaktifkan kembali kapan saja. 
+            Gunakan tombol <span className="font-bold">On / Off</span> pada setiap jadwal untuk menonaktifkan sementara tanpa menghapus data.
+            Cocok ketika ada agenda rapat atau libur peserta didik — jadwal tetap tersimpan dan bisa diaktifkan kembali kapan saja.
             Jadwal yang <span className="font-bold">Off</span> tidak akan diterapkan saat presensi.
           </p>
         </div>
@@ -218,7 +245,7 @@ function JadwalPiket() {
           if (filterHari !== 'all' && filterHari !== hari) return null
           const aktifCount = jadwalHari.filter(j => j.is_active == 1).length
           const nonaktifCount = jadwalHari.length - aktifCount
-          
+
           return (
             <div key={hari} className="bg-white rounded-lg shadow">
               <div className="p-4 border-b border-gray-200 bg-blue-50">
@@ -247,7 +274,7 @@ function JadwalPiket() {
                     {jadwalHari.map(jadwal => {
                       const isActive = jadwal.is_active == 1
                       return (
-                      <div 
+                      <div
                         key={jadwal.id}
                         className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
                           isActive ? 'bg-gray-50 hover:bg-gray-100' : 'bg-gray-100 opacity-60 hover:opacity-80'
@@ -266,13 +293,13 @@ function JadwalPiket() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                             <div className="flex items-center gap-2">
                               <Clock className="w-3 h-3 text-emerald-500" />
-                              <p className="text-[10px] text-gray-600">
+                              <p className="text-xs text-gray-600">
                                 Datang: {jadwal.jam_piket.substring(0, 5)}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
                               <Clock className="w-3 h-3 text-rose-500" />
-                              <p className="text-[10px] text-gray-600">
+                              <p className="text-xs text-gray-600">
                                 Pulang: {(jadwal.jam_pulang_piket || '16:00:00').substring(0, 5)}
                               </p>
                             </div>
@@ -332,17 +359,15 @@ function JadwalPiket() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">
-              {editingJadwal ? 'Edit Jadwal Piket' : 'Tambah Jadwal Piket'}
-            </h3>
+        <AppDialog open={true} onOpenChange={(open) => { if (!open) setShowModal(false) }} title={editingJadwal ? 'Edit jadwal piket' : 'Tambah jadwal piket'} busy={saving}>
+<fieldset disabled={saving} className="min-w-0">
+{notification.show && notification.type === 'error' && <Notice>{notification.message}</Notice>}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="jadwalpiket-field-34" className="block text-sm font-medium text-gray-700 mb-2">
                   Pilih Guru
                 </label>
-                <select
+                <select id="jadwalpiket-field-34" aria-label="Pilih Guru"
                   value={formData.user_id}
                   onChange={handleGuruChange}
                   required
@@ -356,10 +381,10 @@ function JadwalPiket() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="jadwalpiket-field-35" className="block text-sm font-medium text-gray-700 mb-2">
                   Hari
                 </label>
-                <select
+                <select id="jadwalpiket-field-35" aria-label="Hari"
                   value={formData.hari}
                   onChange={handleHariChange}
                   required
@@ -373,10 +398,10 @@ function JadwalPiket() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                  <label htmlFor="jadwalpiket-field-36" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                     Jam Datang
                   </label>
-                  <input
+                  <input id="jadwalpiket-field-36" aria-label="Jam Datang"
                     type="time"
                     value={formData.jam_piket}
                     onChange={(e) => setFormData({ ...formData, jam_piket: e.target.value })}
@@ -385,10 +410,10 @@ function JadwalPiket() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                  <label htmlFor="jadwalpiket-field-37" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                     Jam Pulang
                   </label>
-                  <input
+                  <input id="jadwalpiket-field-37" aria-label="Jam Pulang"
                     type="time"
                     value={formData.jam_pulang_piket}
                     onChange={(e) => setFormData({ ...formData, jam_pulang_piket: e.target.value })}
@@ -399,10 +424,10 @@ function JadwalPiket() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="jadwalpiket-field-38" className="block text-sm font-medium text-gray-700 mb-2">
                   Keterangan (Opsional)
                 </label>
-                <textarea
+                <textarea id="jadwalpiket-field-38" aria-label="Keterangan (Opsional)"
                   value={formData.keterangan}
                   onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                   rows={2}
@@ -452,18 +477,12 @@ function JadwalPiket() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+
+</fieldset></AppDialog>
       )}
 
       {/* Notification */}
-      {notification.show && (
-        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in ${
-          notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-        } text-white`}>
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

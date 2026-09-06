@@ -267,7 +267,7 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
                         <h2 className="text-white font-bold leading-tight">Presensi QR Code</h2>
                         <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${location ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></span>
-                            <span className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+                            <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">
                                 {location ? 'Lokasi Terdeteksi' : 'Mencari GPS...'}
                             </span>
                         </div>
@@ -333,14 +333,14 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
                                         className="bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 p-4 rounded-2xl flex flex-col items-center gap-1 transition-all"
                                     >
                                         <RefreshCcw className="w-6 h-6 text-white" />
-                                        <span className="text-[10px] text-white font-bold uppercase tracking-widest">Kamera</span>
+                                        <span className="text-xs text-white font-bold uppercase tracking-widest">Kamera</span>
                                     </button>
                                     <button
                                         onClick={onClose}
                                         className="bg-red-500 hover:bg-red-600 shadow-lg p-4 rounded-2xl flex flex-col items-center gap-1 transition-all"
                                     >
                                         <X className="w-6 h-6 text-white" />
-                                        <span className="text-[10px] text-white font-bold uppercase tracking-widest">Batal</span>
+                                        <span className="text-xs text-white font-bold uppercase tracking-widest">Batal</span>
                                     </button>
                                 </div>
                             </div>
@@ -382,7 +382,7 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
                     <div className="px-6 pb-12 pt-4 flex flex-col items-center">
                         <button
                             onClick={() => setManualInput(!manualInput)}
-                            className="text-gray-500 hover:text-gray-300 text-[11px] font-bold uppercase tracking-widest transition-colors mb-4"
+                            className="text-gray-500 hover:text-gray-300 text-xs font-bold uppercase tracking-widest transition-colors mb-4"
                         >
                             {manualInput ? 'Sembunyikan Input Manual' : 'Scanner bermasalah? Masukkan kode'}
                         </button>

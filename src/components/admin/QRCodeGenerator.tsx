@@ -1,3 +1,4 @@
+import { AppDialog } from '../ui/dialog'
 import { useState, useEffect, useRef } from 'react'
 import { QrCode, Copy, RefreshCw, Download, Printer, CheckCircle, AlertTriangle, Info } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
@@ -82,9 +83,9 @@ function QRCodeGenerator() {
         <title>QR Code Presensi - ${qrData?.school_name || 'Sekolah'}</title>
         <style>
           @page { size: A4; margin: 2cm; }
-          body { 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
+          body {
+            font-family: Arial, sans-serif;
+            text-align: center;
             padding: 40px;
           }
           .container {
@@ -94,8 +95,8 @@ function QRCodeGenerator() {
             border-radius: 20px;
             padding: 40px;
           }
-          h1 { 
-            color: #1e40af; 
+          h1 {
+            color: #1e40af;
             margin-bottom: 10px;
             font-size: 28px;
           }
@@ -184,7 +185,7 @@ function QRCodeGenerator() {
         <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+                <div className="bg-blue-600 p-6 text-white">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                             <QrCode className="w-6 h-6" />
@@ -313,13 +314,14 @@ function QRCodeGenerator() {
 
             {/* Confirmation Modal */}
             {showRegenerateConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-xl max-w-md w-full p-6">
+                <AppDialog open={true} onOpenChange={(open) => { if (!open) setShowRegenerateConfirm(false) }} title="Perbarui QR Code" busy={regenerating}>
+<fieldset disabled={regenerating} className="min-w-0">
+
                         <div className="text-center mb-6">
                             <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <AlertTriangle className="w-8 h-8 text-yellow-600" />
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">Yakin Regenerate Secret?</h3>
+
                             <p className="text-gray-600">
                                 QR Code yang sudah dicetak tidak akan berfungsi lagi.
                                 Anda perlu mencetak ulang dan memasang QR Code baru.
@@ -339,8 +341,8 @@ function QRCodeGenerator() {
                                 Ya, Regenerate
                             </button>
                         </div>
-                    </div>
-                </div>
+
+</fieldset></AppDialog>
             )}
         </div>
     )

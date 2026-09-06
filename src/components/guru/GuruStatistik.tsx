@@ -1,3 +1,4 @@
+import { Notice } from '../ui/page'
 import { useState } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX, Inbox } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -59,7 +60,7 @@ function GuruStatistik({ user }) {
   const { startDate, endDate } = getPeriodRange()
 
   // Sumber data tunggal: sama dengan Admin "Download Laporan" dan Guru "Riwayat".
-  const { loading, getGuruReportRows, getGuruSummary } = useGuruReport(user, startDate, endDate, {
+  const { loading, error, retry, getGuruReportRows, getGuruSummary } = useGuruReport(user, startDate, endDate, {
     allGuru: false,
   })
 
@@ -119,7 +120,7 @@ function GuruStatistik({ user }) {
     ${status === 'izin' ? 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300' : ''}
     ${status === 'sakit' ? 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300' : ''}
     ${status === 'alfa' ? 'bg-slate-200 dark:bg-slate-600/30 text-slate-800 dark:text-slate-300' : ''}
-    ${status === 'libur' ? 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-800 dark:text-indigo-300' : ''}
+    ${status === 'libur' ? 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300' : ''}
     ${status === 'libur_override' ? 'bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-300' : ''}
     ${status === 'opsional' ? 'bg-slate-100 dark:bg-slate-700/40 text-slate-700 dark:text-slate-300' : ''}`
 
@@ -191,12 +192,14 @@ function GuruStatistik({ user }) {
     },
   ]
 
+  if (error) return <Notice onRetry={retry}>{error}</Notice>
+
   if (loading) {
     return (
       <div className="flex min-h-[280px] flex-col items-center justify-center gap-3">
         <div className="relative h-10 w-10">
-          <div className="absolute inset-0 rounded-full border-4 border-indigo-100 dark:border-slate-800" />
-          <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-indigo-600 dark:border-t-indigo-400" />
+          <div className="absolute inset-0 rounded-full border-4 border-blue-100 dark:border-slate-800" />
+          <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-blue-600 dark:border-t-blue-400" />
         </div>
         <p className="text-xs font-medium text-slate-400 dark:text-slate-500">Memuat statistik...</p>
       </div>
@@ -204,7 +207,7 @@ function GuruStatistik({ user }) {
   }
 
   return (
-    <motion.main
+    <motion.div
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -224,7 +227,7 @@ function GuruStatistik({ user }) {
             aria-label="Pilih periode statistik"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            className="appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
             <option value="bulan_ini">Bulan Ini</option>
             <option value="bulan_lalu">Bulan Lalu</option>
@@ -243,9 +246,9 @@ function GuruStatistik({ user }) {
       >
         <div className="relative flex items-center justify-between">
           <div>
-            <p id="persentase-kehadiran-title" className="text-xs font-semibold uppercase tracking-wider text-indigo-100">Persentase Kehadiran</p>
+            <p id="persentase-kehadiran-title" className="text-xs font-semibold uppercase tracking-wider text-blue-100">Persentase Kehadiran</p>
             <p className="mt-2 text-5xl font-black tracking-tight">{persentaseHadir}%</p>
-            <p className="mt-2 text-sm text-indigo-100">
+            <p className="mt-2 text-sm text-blue-100">
               {totalHadir} dari {totalPresensi} hari kerja
             </p>
           </div>
@@ -277,7 +280,7 @@ function GuruStatistik({ user }) {
               </div>
             </div>
             <p className={`text-sm font-semibold ${stat.textColor} ${stat.darkTextColor}`}>{stat.label}</p>
-            {stat.sublabel && <p className="text-[10px] text-slate-400 dark:text-slate-500">{stat.sublabel}</p>}
+            {stat.sublabel && <p className="text-xs text-slate-400 dark:text-slate-500">{stat.sublabel}</p>}
             <p className="mt-2 text-2xl font-black text-slate-800 dark:text-slate-100">{stat.value}</p>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200/60 dark:bg-slate-700/60">
               <motion.div
@@ -287,7 +290,7 @@ function GuruStatistik({ user }) {
                 className={`h-full rounded-full ${stat.color} ${stat.darkColor}`}
               />
             </div>
-            <p className="mt-1.5 text-[10px] font-medium text-slate-400 dark:text-slate-500">
+            <p className="mt-1.5 text-xs font-medium text-slate-400 dark:text-slate-500">
               {stat.percentage}% {stat.sublabel ? 'dari hadir' : 'dari total'}
             </p>
           </motion.div>
@@ -318,7 +321,7 @@ function GuruStatistik({ user }) {
             <thead className="bg-slate-50 dark:bg-slate-800/60">
               <tr>
                 {['Tanggal', 'Jam Masuk', 'Jam Pulang', 'Status', 'Keterangan'].map(h => (
-                  <th key={h} className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{h}</th>
+                  <th key={h} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -351,21 +354,21 @@ function GuruStatistik({ user }) {
         </div>
       </motion.section>
 
-      <motion.div variants={itemVariants} className="flex items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-500/20 dark:bg-indigo-500/10">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+      <motion.div variants={itemVariants} className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300">
           <Calendar className="h-5 w-5" />
         </span>
         <div>
-          <h3 className="text-sm font-bold text-indigo-800 dark:text-indigo-300">Tips Meningkatkan Kehadiran</h3>
-          <ul className="mt-2 space-y-1 text-xs text-indigo-700 dark:text-indigo-300/80">
-            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-indigo-500" /> Datang tepat waktu sebelum jam masuk normal</li>
-            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-indigo-500" /> Jangan lupa presensi pulang saat jam pulang sudah dibuka</li>
-            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-indigo-500" /> Jika berhalangan, segera isi presensi izin/sakit dengan keterangan</li>
-            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-indigo-500" /> Cek jadwal piket Anda agar tidak terlambat</li>
+          <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300">Tips Meningkatkan Kehadiran</h3>
+          <ul className="mt-2 space-y-1 text-xs text-blue-700 dark:text-blue-300/80">
+            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-blue-500" /> Datang tepat waktu sebelum jam masuk normal</li>
+            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-blue-500" /> Jangan lupa presensi pulang saat jam pulang sudah dibuka</li>
+            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-blue-500" /> Jika berhalangan, segera isi presensi izin/sakit dengan keterangan</li>
+            <li className="flex items-start gap-1.5"><span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-blue-500" /> Cek jadwal piket Anda agar tidak terlambat</li>
           </ul>
         </div>
       </motion.div>
-    </motion.main>
+    </motion.div>
   )
 }
 

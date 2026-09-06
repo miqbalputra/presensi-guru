@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react'
+import { notify } from '../ui/toast'
+import { Notice } from '../ui/page'
+import { AppDialog } from '../ui/dialog'
+import { useState, useEffect, useRef } from 'react'
 import { Archive, RotateCcw, Trash2, Eye, X, Search } from 'lucide-react'
 import { guruAPI, presensiAPI } from '../../services/api'
 import { formatDisplayDate } from '../../utils/dateUtils'
@@ -7,6 +10,9 @@ function ArsipGuru() {
   const [arsip, setArsip] = useState([])
   const [filtered, setFiltered] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' })
   // Modal detail presensi
@@ -19,19 +25,28 @@ function ArsipGuru() {
   }, [])
 
   const loadArsip = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     try {
       setLoading(true)
       const response = await guruAPI.getArchived()
+      if (requestId !== loadRequest.current) return
+
       const data = response.data || []
       // Hitung jumlah presensi per guru (ringkasan)
       // Untuk efisiensi, ambil semua presensi sekali jalan lalu group by user_id
       setArsip(data)
       setFiltered(data)
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       console.error('Failed to load arsip:', error)
       showNotification('Gagal memuat data arsip: ' + error.message, 'error')
     } finally {
-      setLoading(false)
+      requestId === loadRequest.current && setLoading(false)
     }
   }
 
@@ -52,7 +67,7 @@ function ArsipGuru() {
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type })
-    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3500)
+    notify(message, type)
   }
 
   const handleUnarchive = async (guru) => {
@@ -142,6 +157,8 @@ function ArsipGuru() {
       </span>
     )
   }
+
+  if (loadError) return <Notice onRetry={() => loadArsip()}>{loadError}</Notice>
 
   return (
     <div className="space-y-6">
@@ -256,22 +273,9 @@ function ArsipGuru() {
 
       {/* Modal Detail Presensi */}
       {detailGuru && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-              <div>
-                <h2 className="text-xl font-bold text-gray-800">Riwayat Presensi Arsip</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {detailGuru.nama} ({detailGuru.idGuru || '-'}) — {presensiList.length} catatan presensi
-                </p>
-              </div>
-              <button
-                onClick={() => setDetailGuru(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+        <AppDialog open={true} onOpenChange={(open) => { if (!open) setDetailGuru(null) }} title="Riwayat presensi arsip" busy={false} className="sm:max-w-4xl">
+<fieldset disabled={false} className="min-w-0">
+<p className="mb-4 text-sm text-muted-foreground">{detailGuru.nama} · {presensiList.length} catatan</p>
             <div className="p-6">
               {presensiLoading ? (
                 <div className="text-center py-8 text-gray-500">Memuat data presensi...</div>
@@ -310,20 +314,12 @@ function ArsipGuru() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+
+</fieldset></AppDialog>
       )}
 
       {/* Notification */}
-      {notification.show && (
-        <div
-          className={`fixed bottom-4 right-4 text-white px-6 py-3 rounded-lg shadow-lg z-50 ${
-            notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'
-          }`}
-        >
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

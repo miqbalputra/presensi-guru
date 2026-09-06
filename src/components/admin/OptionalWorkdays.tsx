@@ -1,10 +1,17 @@
-import { useState, useEffect } from 'react'
+import { notify } from '../ui/toast'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { Calendar as CalendarIcon, Plus, Trash2, AlertCircle } from 'lucide-react'
 import { optionalWorkdaysAPI } from '../../services/api'
 import { formatDateForInput, getDayName } from '../../utils/dateUtils'
 
 function OptionalWorkdays() {
+  const saveRef = useRef(false)
+  const [saving, setSaving] = useState(false)
   const [workdays, setWorkdays] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [tanggal, setTanggal] = useState('')
   const [nama, setNama] = useState('')
@@ -16,28 +23,40 @@ function OptionalWorkdays() {
   }, [])
 
   const loadWorkdays = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     try {
       setLoading(true)
       const response = await optionalWorkdaysAPI.getAll()
+      if (requestId !== loadRequest.current) return
+
       setWorkdays(response.data || [])
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       showNotification('Gagal memuat data: ' + error.message, 'error')
     } finally {
-      setLoading(false)
+      requestId === loadRequest.current && setLoading(false)
     }
   }
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type })
-    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000)
+    notify(message, type)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (saveRef.current) return
     if (!tanggal || !nama.trim()) {
       showNotification('Tanggal dan nama harus diisi', 'error')
       return
     }
+    saveRef.current = true
+    setSaving(true)
     try {
       await optionalWorkdaysAPI.create({ tanggal, nama: nama.trim(), keterangan: keterangan.trim() })
       showNotification('Hari kerja opsional berhasil disimpan')
@@ -47,7 +66,7 @@ function OptionalWorkdays() {
       loadWorkdays()
     } catch (error) {
       showNotification('Gagal menyimpan: ' + error.message, 'error')
-    }
+    } finally { saveRef.current = false; setSaving(false) }
   }
 
   const handleDelete = async (id) => {
@@ -68,6 +87,8 @@ function OptionalWorkdays() {
       </div>
     )
   }
+
+  if (loadError) return <Notice onRetry={() => loadWorkdays()}>{loadError}</Notice>
 
   return (
     <div className="space-y-6">
@@ -91,28 +112,28 @@ function OptionalWorkdays() {
         <h2 className="text-lg font-semibold text-gray-800">Tambah Hari Kerja Opsional</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal</label>
-            <input
+            <label htmlFor="optionalworkdays-field-52" className="block text-sm font-medium text-gray-700 mb-2">Tanggal</label>
+            <input id="optionalworkdays-field-52" aria-label="Tanggal"
               type="date"
-              value={tanggal}
+              required value={tanggal}
               onChange={(e) => setTanggal(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
             {tanggal && <p className="text-xs mt-1 text-gray-500">{getDayName(tanggal)}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nama Kegiatan</label>
-            <input
+            <label htmlFor="optionalworkdays-field-53" className="block text-sm font-medium text-gray-700 mb-2">Nama Kegiatan</label>
+            <input id="optionalworkdays-field-53" aria-label="Nama Kegiatan"
               type="text"
-              value={nama}
+              required value={nama}
               onChange={(e) => setNama(e.target.value)}
               placeholder="Contoh: Remidial"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Keterangan (opsional)</label>
-            <input
+            <label htmlFor="optionalworkdays-field-54" className="block text-sm font-medium text-gray-700 mb-2">Keterangan (opsional)</label>
+            <input id="optionalworkdays-field-54" aria-label="Keterangan (opsional)"
               type="text"
               value={keterangan}
               onChange={(e) => setKeterangan(e.target.value)}
@@ -122,7 +143,7 @@ function OptionalWorkdays() {
           </div>
         </div>
         <button
-          type="submit"
+          type="submit" disabled={saving}
           className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
         >
           <Plus className="w-5 h-5" />
@@ -170,13 +191,7 @@ function OptionalWorkdays() {
         )}
       </div>
 
-      {notification.show && (
-        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in ${
-          notification.type === 'error' ? 'bg-red-600' : 'bg-green-600'
-        } text-white`}>
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { notify } from '../ui/toast'
+import { useState, useEffect, useRef } from 'react'
 import {
-  BarChart2, 
-  Clock, 
-  AlertTriangle, 
-  LogOut, 
-  FileText, 
+  BarChart2,
+  Clock,
+  AlertTriangle,
+  LogOut,
+  FileText,
   UserX,
   Download,
   TrendingDown,
@@ -15,6 +17,9 @@ import { formatDate } from '../../utils/dateUtils'
 import { createWorkbook, addJsonSheet, downloadWorkbook } from '../../utils/excelExport'
 
 function StatistikLengkap() {
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [filterDays, setFilterDays] = useState(30)
   const [lateStats, setLateStats] = useState({ totalLatePct: '0.0', statsPerGuru: [], totalLate: 0 })
@@ -28,9 +33,14 @@ function StatistikLengkap() {
   }, [filterDays])
 
   const loadData = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+
     try {
       setLoading(true)
       const response = await adminChartsAPI.getCompleteStats(filterDays)
+      if (requestId !== loadRequest.current) return
+
       const data = response.data || {}
       setLateStats(data.lateStats || { totalLatePct: '0.0', statsPerGuru: [], totalLate: 0 })
       setLatePiket(data.latePiket || [])
@@ -38,9 +48,12 @@ function StatistikLengkap() {
       setIzinSakit(data.izinSakit || [])
       setForgotten(data.forgotten || [])
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data analitik belum dapat dimuat. Coba perbarui kembali.')
+
       console.error('Gagal memuat data statistik:', error)
     } finally {
-      setLoading(false)
+      if (requestId === loadRequest.current) setLoading(false)
     }
   }
 
@@ -92,8 +105,10 @@ function StatistikLengkap() {
     }))
     addJsonSheet(wb, 'Lupa Presensi Pulang', forgottenData)
 
-    downloadWorkbook(wb, `Laporan_Statistik_Lengkap_${formatDate(new Date())}.xlsx`).catch((error) => alert('Gagal export Excel: ' + error.message))
+    downloadWorkbook(wb, `Laporan_Statistik_Lengkap_${formatDate(new Date())}.xlsx`).catch((error) => notify('Gagal export Excel: ' + error.message))
   }
+
+  if (loadError) return <Notice onRetry={() => loadData()}>{loadError}</Notice>
 
   if (loading) {
     return (
@@ -122,9 +137,9 @@ function StatistikLengkap() {
               <p className="text-sm text-gray-500">Analisis mendalam perilaku kehadiran guru</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
-            <select
+            <select aria-label="Periode statistik"
               value={filterDays}
               onChange={(e) => setFilterDays(parseInt(e.target.value))}
               className="px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -134,8 +149,8 @@ function StatistikLengkap() {
               <option value={90}>90 Hari Terakhir</option>
               <option value={365}>1 Tahun Terakhir</option>
             </select>
-            
-            <button 
+
+            <button
               onClick={downloadFullReportExcel}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all"
             >
@@ -209,7 +224,7 @@ function StatistikLengkap() {
               <TrendingDown className="w-5 h-5 text-amber-500" />
               <h3 className="font-bold text-gray-800">Ranking Keterlambatan</h3>
             </div>
-            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-black uppercase">Persentase</span>
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-black uppercase">Persentase</span>
           </div>
           <div className="p-0 max-h-[400px] overflow-auto">
             <table className="w-full text-sm">
@@ -377,7 +392,7 @@ function StatistikLengkap() {
                     <td className="px-6 py-4 font-bold text-gray-700">{l.nama}</td>
                     <td className="px-6 py-4 text-gray-500">{l.tanggal}</td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${l.status === 'izin' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`px-2 py-1 rounded text-xs font-black uppercase ${l.status === 'izin' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
                         {l.status}
                       </span>
                     </td>

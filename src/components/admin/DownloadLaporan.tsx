@@ -1,3 +1,4 @@
+import { Notice, PageLoading } from '../ui/page'
 import { useState, useEffect } from 'react'
 import { Download, FileText, Users, User } from 'lucide-react'
 import { formatDate, formatDateForInput } from '../../utils/dateUtils'
@@ -10,6 +11,8 @@ import { useGuruReport } from '../../hooks/useGuruReport'
 function DownloadLaporan() {
   const [activeTab, setActiveTab] = useState('semua') // 'semua' or 'individu'
   const [dataGuru, setDataGuru] = useState<any[]>([])
+  const [exportError, setExportError] = useState('')
+  const [loadError, setLoadError] = useState('')
   const [selectedGuru, setSelectedGuru] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -20,6 +23,9 @@ function DownloadLaporan() {
   // Shared report hook — same data source as Guru "Riwayat" menu.
   // allGuru=true agar seluruh presensi & workdays guru dimuat untuk admin.
   const {
+    loading: reportLoading,
+    error: reportError,
+    retry: retryReport,
     attendanceLogs,
     getGuruSummary: getGuruSummaryFromHook,
     getGuruReportRows: getGuruReportRowsFromHook,
@@ -32,6 +38,7 @@ function DownloadLaporan() {
   const loadData = async () => {
     try {
       setLoading(true)
+      setLoadError('')
       const [guruResponse, piketResponse] = await Promise.all([
         guruAPI.getAllIncludingArchived(),
         jadwalPiketAPI.getAll(),
@@ -40,6 +47,7 @@ function DownloadLaporan() {
       setDataGuru(guruResponse.data)
       setJadwalPiket(piketResponse.data)
     } catch (error) {
+      setLoadError(error.message || 'Daftar guru belum dapat dimuat.')
       console.error('Failed to load data:', error)
       showNotification('Gagal memuat data: ' + error.message)
     } finally {
@@ -58,7 +66,7 @@ function DownloadLaporan() {
 
   const showNotification = (message) => {
     setNotification({ show: true, message })
-    setTimeout(() => setNotification({ show: false, message: '' }), 3000)
+
   }
 
   // Wrapper agar fungsi internal tetap menerima objek guru dari dataGuru
@@ -73,8 +81,10 @@ function DownloadLaporan() {
   }
 
   const downloadPDF = () => {
+    setExportError('')
+    if (loading || reportLoading || reportError || loadError) { setExportError('Tunggu sampai data laporan berhasil dimuat.'); return }
     if (!selectedGuru) {
-      alert('Pilih guru terlebih dahulu!')
+      setExportError('Pilih guru terlebih dahulu!')
       return
     }
 
@@ -83,19 +93,19 @@ function DownloadLaporan() {
     const summary = getGuruSummary(guru.id)
 
     if (summary.totalHari === 0) {
-      alert('Tidak ada hari kerja untuk periode ini!')
+      setExportError('Tidak ada hari kerja untuk periode ini!')
       return
     }
 
     const doc: any = new jsPDF()
-    
+
     doc.setFontSize(16)
     doc.text('Laporan Presensi Guru', 14, 15)
     doc.setFontSize(10)
     doc.text(`Nama: ${guru.nama}`, 14, 25)
     doc.text(`Jabatan: ${Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan}`, 14, 30)
     doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 35)
-    
+
     const tableData = logs.map(log => [
       log.tanggal,
       log.jamMasuk || log.jam_masuk || log.jamHadir || log.jam_hadir || '-',
@@ -127,8 +137,10 @@ function DownloadLaporan() {
   }
 
   const downloadExcel = () => {
+    setExportError('')
+    if (loading || reportLoading || reportError || loadError) { setExportError('Tunggu sampai data laporan berhasil dimuat.'); return }
     if (!selectedGuru) {
-      alert('Pilih guru terlebih dahulu!')
+      setExportError('Pilih guru terlebih dahulu!')
       return
     }
 
@@ -137,7 +149,7 @@ function DownloadLaporan() {
     const summary = getGuruSummary(guru.id)
 
     if (summary.totalHari === 0) {
-      alert('Tidak ada hari kerja untuk periode ini!')
+      setExportError('Tidak ada hari kerja untuk periode ini!')
       return
     }
 
@@ -178,15 +190,17 @@ function DownloadLaporan() {
   const selectedReportRows = selectedGuruData ? getGuruReportRows(selectedGuruData.id) : []
 
   const downloadSemuaGuruPDF = () => {
+    setExportError('')
+    if (loading || reportLoading || reportError || loadError) { setExportError('Tunggu sampai data laporan berhasil dimuat.'); return }
     if (dataGuru.length === 0) {
-      alert('Tidak ada data guru!')
+      setExportError('Tidak ada data guru!')
       return
     }
 
     const doc: any = new jsPDF('landscape', 'mm', 'a4')
     const pageWidth = doc.internal.pageSize.getWidth()
     const printedAt = new Date().toLocaleString('id-ID')
-    
+
     // Header
     doc.setFillColor(15, 23, 42)
     doc.rect(0, 0, pageWidth, 34, 'F')
@@ -194,12 +208,12 @@ function DownloadLaporan() {
     doc.setFontSize(17)
     doc.setFont(undefined, 'bold')
     doc.text('LAPORAN RINGKASAN PRESENSI SEMUA GURU', pageWidth / 2, 15, { align: 'center' })
-    
+
     doc.setFont(undefined, 'normal')
     doc.setFontSize(10)
     doc.text(`Periode: ${startDate} s/d ${endDate}`, pageWidth / 2, 23, { align: 'center' })
     doc.text('Hari tanpa presensi pada hari kerja dihitung sebagai Alfa', pageWidth / 2, 29, { align: 'center' })
-    
+
     const summaries = dataGuru.map(guru => ({
       guru,
       ...getGuruSummary(guru.id)
@@ -237,7 +251,7 @@ function DownloadLaporan() {
       doc.setTextColor(15, 23, 42)
       doc.text(String(value), x + 3, 54)
     })
-    
+
     const tableData = summaries.map(({ guru, totalHari, hadir, izin, sakit, alfa, persentase }, index) => [
         index + 1,
         guru.nama,
@@ -255,7 +269,7 @@ function DownloadLaporan() {
       head: [['No', 'Nama Guru', 'Jabatan', 'Hari Kerja', 'Hadir', 'Izin', 'Sakit', 'Alfa', '% Hadir']],
       body: tableData,
       theme: 'grid',
-      headStyles: { 
+      headStyles: {
         fillColor: [30, 64, 175],
         textColor: [255, 255, 255],
         fontSize: 8,
@@ -263,7 +277,7 @@ function DownloadLaporan() {
         halign: 'center',
         valign: 'middle'
       },
-      bodyStyles: { 
+      bodyStyles: {
         fontSize: 7.5,
         cellPadding: 2,
         valign: 'middle',
@@ -301,8 +315,10 @@ function DownloadLaporan() {
   }
 
   const downloadSemuaGuruExcel = () => {
+    setExportError('')
+    if (loading || reportLoading || reportError || loadError) { setExportError('Tunggu sampai data laporan berhasil dimuat.'); return }
     if (dataGuru.length === 0) {
-      alert('Tidak ada data guru!')
+      setExportError('Tidak ada data guru!')
       return
     }
 
@@ -329,7 +345,7 @@ function DownloadLaporan() {
     // 2. Terlambat Piket Sheet
     const rangeLogs = attendanceLogs.filter(log => log.tanggal >= startDate && log.tanggal <= endDate)
     const hariMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
-    
+
     const latePiketData = rangeLogs.filter(log => {
       const logDate = new Date(log.tanggal)
       const hariIni = hariMap[logDate.getDay()]
@@ -372,9 +388,9 @@ function DownloadLaporan() {
 
     // 5. Lupa Checkout Sheet
     const todayStr = new Date().toISOString().split('T')[0]
-    const forgottenData = rangeLogs.filter(log => 
-      log.tanggal < todayStr && 
-      log.status.startsWith('hadir') && 
+    const forgottenData = rangeLogs.filter(log =>
+      log.tanggal < todayStr &&
+      log.status.startsWith('hadir') &&
       (!log.jamPulang || log.jamPulang === '-')
     ).map(l => ({
       'Nama Guru': l.nama,
@@ -410,7 +426,12 @@ function DownloadLaporan() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Download Laporan Guru</h1>
+      <div className="page-heading"><div><h1>Laporan presensi</h1><p>Pilih guru dan periode, periksa pratinjau, lalu unduh laporan.</p></div></div>
+      {loadError && <Notice onRetry={loadData}>{loadError}</Notice>}
+      {reportError && <Notice onRetry={retryReport}>{reportError}</Notice>}
+      {exportError && <Notice onDismiss={() => setExportError('')}>{exportError}</Notice>}
+      {notification.show && <Notice tone={notification.message.startsWith('Gagal') ? 'error' : 'success'} onDismiss={() => setNotification({ show: false, message: '' })}>{notification.message}</Notice>}
+      {(loading || reportLoading) && <PageLoading />}
 
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow">
@@ -460,10 +481,10 @@ function DownloadLaporan() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Tanggal Mulai */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="downloadlaporan-field-4" className="block text-sm font-medium text-gray-700 mb-2">
                 Dari Tanggal
               </label>
-              <input
+              <input id="downloadlaporan-field-4" aria-label="Dari Tanggal"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -473,10 +494,10 @@ function DownloadLaporan() {
 
             {/* Tanggal Akhir */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="downloadlaporan-field-5" className="block text-sm font-medium text-gray-700 mb-2">
                 Sampai Tanggal
               </label>
-              <input
+              <input id="downloadlaporan-field-5" aria-label="Sampai Tanggal"
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
@@ -531,14 +552,14 @@ function DownloadLaporan() {
           {/* Download Buttons */}
           <div className="flex gap-3 pt-4 border-t">
             <button
-              onClick={downloadSemuaGuruPDF}
+              onClick={downloadSemuaGuruPDF} disabled={loading || reportLoading || !!reportError || !!loadError}
               className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold"
             >
               <Download className="w-5 h-5" />
               Download PDF
             </button>
             <button
-              onClick={downloadSemuaGuruExcel}
+              onClick={downloadSemuaGuruExcel} disabled={loading || reportLoading || !!reportError || !!loadError}
               className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
             >
               <Download className="w-5 h-5" />
@@ -547,7 +568,7 @@ function DownloadLaporan() {
           </div>
 
           {/* Preview Data Semua Guru */}
-          {dataGuru.length > 0 && startDate && endDate && (
+          {!loading && !reportLoading && !reportError && !loadError && dataGuru.length > 0 && startDate && endDate && (
             <div className="pt-4 border-t">
               <div className="flex items-center gap-3 mb-4">
                 <FileText className="w-6 h-6 text-blue-600" />
@@ -578,7 +599,7 @@ function DownloadLaporan() {
                           <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
                           <td className="px-4 py-3 text-sm text-gray-900 font-medium">
                             {guru.archivedAt && (
-                              <span className="mr-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold align-middle">ARSIP</span>
+                              <span className="mr-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-bold align-middle">ARSIP</span>
                             )}
                             {guru.nama}
                           </td>
@@ -643,10 +664,10 @@ function DownloadLaporan() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Pilih Guru */}
             <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="downloadlaporan-field-6" className="block text-sm font-medium text-gray-700 mb-2">
                 Pilih Guru
               </label>
-              <select
+              <select id="downloadlaporan-field-6" aria-label="Pilih Guru"
                 value={selectedGuru}
                 onChange={(e) => setSelectedGuru(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -662,10 +683,10 @@ function DownloadLaporan() {
 
           {/* Tanggal Mulai */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="downloadlaporan-field-7" className="block text-sm font-medium text-gray-700 mb-2">
               Dari Tanggal
             </label>
-            <input
+            <input id="downloadlaporan-field-7" aria-label="Dari Tanggal"
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
@@ -675,10 +696,10 @@ function DownloadLaporan() {
 
           {/* Tanggal Akhir */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="downloadlaporan-field-8" className="block text-sm font-medium text-gray-700 mb-2">
               Sampai Tanggal
             </label>
-            <input
+            <input id="downloadlaporan-field-8" aria-label="Sampai Tanggal"
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
@@ -712,16 +733,14 @@ function DownloadLaporan() {
           {/* Download Buttons */}
           <div className="flex gap-3 pt-4 border-t">
             <button
-              onClick={downloadPDF}
-              disabled={!selectedGuru}
+              onClick={downloadPDF} disabled={loading || reportLoading || !!reportError || !!loadError}
               className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
             >
               <Download className="w-5 h-5" />
               Download PDF
             </button>
             <button
-              onClick={downloadExcel}
-              disabled={!selectedGuru}
+              onClick={downloadExcel} disabled={loading || reportLoading || !!reportError || !!loadError}
               className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
             >
               <Download className="w-5 h-5" />
@@ -730,7 +749,7 @@ function DownloadLaporan() {
           </div>
 
           {/* Preview Section */}
-          {selectedGuruData && (
+          {!loading && !reportLoading && !reportError && !loadError && selectedGuruData && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-3 mb-4">
             <FileText className="w-6 h-6 text-blue-600" />
@@ -747,8 +766,8 @@ function DownloadLaporan() {
               <div>
                 <span className="font-medium text-gray-700">Jabatan:</span>
                 <span className="ml-2 text-gray-900">
-                  {Array.isArray(selectedGuruData.jabatan) 
-                    ? selectedGuruData.jabatan.join(', ') 
+                  {Array.isArray(selectedGuruData.jabatan)
+                    ? selectedGuruData.jabatan.join(', ')
                     : selectedGuruData.jabatan}
                 </span>
               </div>
@@ -849,12 +868,7 @@ function DownloadLaporan() {
         </div>
       )}
 
-      {/* Notification */}
-      {notification.show && (
-        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

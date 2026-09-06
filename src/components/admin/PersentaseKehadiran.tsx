@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts'
 import { Activity, UserCheck, FileText, UserX, Users } from 'lucide-react'
 import { adminChartsAPI } from '../../services/api'
@@ -21,6 +22,9 @@ function PersentaseKehadiran() {
     total: 0,
     persentase: 0
   })
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -28,9 +32,14 @@ function PersentaseKehadiran() {
   }, [])
 
   const loadData = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+
     try {
       setLoading(true)
       const response = await adminChartsAPI.getOverview()
+      if (requestId !== loadRequest.current) return
+
       setStats(response.data?.todayStats || {
         hadir: 0,
         izin: 0,
@@ -41,9 +50,12 @@ function PersentaseKehadiran() {
         persentase: 0
       })
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data analitik belum dapat dimuat. Coba perbarui kembali.')
+
       console.error('Failed to load attendance stats:', error)
     } finally {
-      setLoading(false)
+      if (requestId === loadRequest.current) setLoading(false)
     }
   }
 
@@ -77,6 +89,8 @@ function PersentaseKehadiran() {
     }
   ]
 
+  if (loadError) return <Notice onRetry={() => loadData()}>{loadError}</Notice>
+
   if (loading) {
     return (
       <Card className="p-6">
@@ -95,7 +109,7 @@ function PersentaseKehadiran() {
         </div>
         <div>
           <CardTitle className="text-lg">Persentase Kehadiran Hari Ini</CardTitle>
-          <CardDescription>Progress presensi real-time</CardDescription>
+          <CardDescription>Ringkasan presensi hari ini</CardDescription>
         </div>
       </CardHeader>
 

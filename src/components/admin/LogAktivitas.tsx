@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { activityAPI } from '../../services/api'
 
 function LogAktivitas() {
   const [allLogs, setAllLogs] = useState([])
   const [filteredLogs, setFilteredLogs] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [filterPeriod, setFilterPeriod] = useState('7') // Default 7 hari
@@ -12,7 +16,7 @@ function LogAktivitas() {
 
   useEffect(() => {
     loadLogs()
-    
+
     // Auto refresh setiap 30 detik
     const interval = setInterval(loadLogs, 30000)
     return () => clearInterval(interval)
@@ -24,15 +28,23 @@ function LogAktivitas() {
   }, [filterPeriod, allLogs])
 
   const loadLogs = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     try {
       setLoading(true)
       const response = await activityAPI.getAll()
-      console.log('Activity logs:', response.data)
+      if (requestId !== loadRequest.current) return
+
       setAllLogs(response.data || [])
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       console.error('Failed to load activity logs:', error)
     } finally {
-      setLoading(false)
+      requestId === loadRequest.current && setLoading(false)
     }
   }
 
@@ -51,7 +63,7 @@ function LogAktivitas() {
       const [datePart] = log.waktu.split(' ')
       const [day, month, year] = datePart.split('-')
       const logDate = new Date(year, month - 1, day)
-      
+
       return logDate >= cutoffDate
     })
 
@@ -88,6 +100,8 @@ function LogAktivitas() {
     )
   }
 
+  if (loadError) return <Notice onRetry={() => loadLogs()}>{loadError}</Notice>
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -103,8 +117,8 @@ function LogAktivitas() {
       {/* Filter Periode */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-gray-700">Tampilkan:</label>
-          <select
+          <label htmlFor="logaktivitas-field-39" className="text-sm font-medium text-gray-700">Tampilkan:</label>
+          <select id="logaktivitas-field-39" aria-label="Tampilkan:"
             value={filterPeriod}
             onChange={(e) => setFilterPeriod(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -141,9 +155,9 @@ function LogAktivitas() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{log.aktivitas}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold
-                      ${log.status.toLowerCase().includes('sukses') || log.status.toLowerCase().includes('hadir') 
-                        ? 'bg-green-100 text-green-800' 
-                        : log.status.toLowerCase().includes('izin') 
+                      ${log.status.toLowerCase().includes('sukses') || log.status.toLowerCase().includes('hadir')
+                        ? 'bg-green-100 text-green-800'
+                        : log.status.toLowerCase().includes('izin')
                         ? 'bg-yellow-100 text-yellow-800'
                         : log.status.toLowerCase().includes('sakit')
                         ? 'bg-red-100 text-red-800'
@@ -157,7 +171,7 @@ function LogAktivitas() {
               )) : (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                    {filterPeriod === '1' ? 'Tidak ada log hari ini' : 
+                    {filterPeriod === '1' ? 'Tidak ada log hari ini' :
                      filterPeriod === '7' ? 'Tidak ada log 7 hari terakhir' :
                      filterPeriod === '30' ? 'Tidak ada log 30 hari terakhir' :
                      'Belum ada log aktivitas'}

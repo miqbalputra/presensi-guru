@@ -158,7 +158,7 @@ function BackupPemulihan() {
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Perlindungan data</p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-normal text-blue-600">Perlindungan data</p>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Backup &amp; Pemulihan</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Buat salinan database yang dapat diverifikasi sebelum dikirim ke Google Drive atau S3 melalui workflow n8n.</p>
         </div>
@@ -175,7 +175,7 @@ function BackupPemulihan() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className="border-blue-100 bg-gradient-to-br from-blue-50 to-white">
+        <Card className="border-blue-100 bg-card">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -192,7 +192,7 @@ function BackupPemulihan() {
           </CardContent>
         </Card>
 
-        <Card className="border-violet-100 bg-gradient-to-br from-violet-50 to-white">
+        <Card className="border-violet-100 bg-card">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>

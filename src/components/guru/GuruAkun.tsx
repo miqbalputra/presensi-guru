@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { User, Mail, Phone, MapPin, Save, Loader2, ShieldCheck, Hash, BadgeCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { guruProfileAPI } from '../../services/api'
 
 function GuruAkun({ user }) {
+  const profileSave = useRef(false)
+  const passwordSave = useRef(false)
+  const [loadError, setLoadError] = useState(false)
+  const [revision, setRevision] = useState(0)
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState<any>({ email: '', noHP: '', alamat: '' })
   const [original, setOriginal] = useState<any>({ email: '', noHP: '', alamat: '' })
@@ -23,6 +28,7 @@ function GuruAkun({ user }) {
     let cancelled = false
     const loadProfile = async () => {
       setLoading(true)
+      setLoadError(false)
       try {
         const res = await guruProfileAPI.getProfile()
         if (cancelled) return
@@ -37,6 +43,7 @@ function GuruAkun({ user }) {
         setOriginal(filled)
       } catch (err) {
         if (!cancelled) {
+          setLoadError(true)
           // Fallback: gunakan data dari props user bila API gagal
           const filled = {
             email: user?.email || '',
@@ -61,7 +68,7 @@ function GuruAkun({ user }) {
     }
     loadProfile()
     return () => { cancelled = true }
-  }, [])
+  }, [revision])
 
   const handleChange = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }))
@@ -92,10 +99,12 @@ function GuruAkun({ user }) {
 
   const handleSave = async (e) => {
     e.preventDefault()
+    if (profileSave.current || loadError) return
     setMessage({ type: '', text: '' })
 
     if (!validate()) return
 
+    profileSave.current = true
     setSaving(true)
     try {
       const res = await guruProfileAPI.updateProfile({
@@ -116,6 +125,7 @@ function GuruAkun({ user }) {
     } catch (err) {
       setMessage({ type: 'error', text: 'Gagal memperbarui profil: ' + err.message })
     } finally {
+      profileSave.current = false
       setSaving(false)
     }
   }
@@ -151,10 +161,12 @@ function GuruAkun({ user }) {
 
   const handleSavePassword = async (e) => {
     e.preventDefault()
+    if (passwordSave.current) return
     setPwMessage({ type: '', text: '' })
 
     if (!validatePassword()) return
 
+    passwordSave.current = true
     setSavingPw(true)
     try {
       const res = await guruProfileAPI.changePassword({
@@ -167,6 +179,7 @@ function GuruAkun({ user }) {
     } catch (err) {
       setPwMessage({ type: 'error', text: 'Gagal mengubah password: ' + err.message })
     } finally {
+      passwordSave.current = false
       setSavingPw(false)
     }
   }
@@ -179,13 +192,15 @@ function GuruAkun({ user }) {
     return (
       <div className="flex min-h-[280px] flex-col items-center justify-center gap-3">
         <div className="relative h-10 w-10">
-          <div className="absolute inset-0 rounded-full border-4 border-indigo-100 dark:border-slate-800" />
-          <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-indigo-600 dark:border-t-indigo-400" />
+          <div className="absolute inset-0 rounded-full border-4 border-blue-100 dark:border-slate-800" />
+          <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-blue-600 dark:border-t-blue-400" />
         </div>
         <p className="text-xs font-medium text-slate-400 dark:text-slate-500">Memuat profil...</p>
       </div>
     )
   }
+
+  if (loadError) return <Notice onRetry={() => setRevision(value => value + 1)}>{message.text}</Notice>
 
   return (
     <div className="grid gap-4 pb-4 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.4fr)]">
@@ -196,7 +211,7 @@ function GuruAkun({ user }) {
             {(profile?.nama || user?.nama || 'G').charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Akun Guru</p>
+            <p className="text-xs font-bold uppercase tracking-normal text-blue-600 dark:text-blue-400">Akun Guru</p>
             <h2 className="truncate text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">
               {profile?.nama || user?.nama || 'Guru'}
             </h2>
@@ -245,12 +260,12 @@ function GuruAkun({ user }) {
             value={form.email}
             onChange={handleChange('email')}
             placeholder="contoh@email.com"
-            className={`w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
+            className={`w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
               errors.email ? 'border-rose-400' : 'border-slate-200 dark:border-slate-700'
             }`}
           />
           {errors.email && <p className="mt-1 text-xs text-rose-500">{errors.email}</p>}
-          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
             Email yang sama dipakai untuk login Google. Pastikan email valid.
           </p>
         </div>
@@ -268,7 +283,7 @@ function GuruAkun({ user }) {
             value={form.noHP}
             onChange={handleChange('noHP')}
             placeholder="08xxxxxxxxxx"
-            className={`w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
+            className={`w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
               errors.noHP ? 'border-rose-400' : 'border-slate-200 dark:border-slate-700'
             }`}
           />
@@ -286,7 +301,7 @@ function GuruAkun({ user }) {
             onChange={handleChange('alamat')}
             placeholder="Jl. Contoh No. 123, Kota..."
             rows={3}
-            className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300"
+            className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300"
           />
         </div>
 
@@ -306,7 +321,7 @@ function GuruAkun({ user }) {
         <button
           type="submit"
           disabled={saving || !hasChanges()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.99] disabled:bg-slate-300 disabled:cursor-not-allowed disabled:text-slate-500 disabled:shadow-none dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 active:bg-blue-800 active:scale-[0.99] disabled:bg-slate-300 disabled:cursor-not-allowed disabled:text-slate-500 disabled:shadow-none dark:bg-blue-500 dark:hover:bg-blue-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
         >
           {saving ? (
             <><Loader2 className="h-4 w-4 animate-spin" /> Menyimpan...</>
@@ -325,7 +340,7 @@ function GuruAkun({ user }) {
       <form onSubmit={handleSavePassword} className="guru-surface space-y-5 p-5 sm:p-6">
         <div>
           <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-800 dark:text-slate-100">
-            <KeyRound className="h-4 w-4 text-indigo-500" /> Keamanan Akun
+            <KeyRound className="h-4 w-4 text-blue-500" /> Keamanan Akun
           </h3>
           <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
             Ubah password Anda untuk menjaga keamanan akun.
@@ -345,11 +360,11 @@ function GuruAkun({ user }) {
               onChange={handlePwChange('passwordLama')}
               autoComplete="current-password"
               placeholder="Masukkan password lama"
-              className={`w-full rounded-xl border bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
+              className={`w-full rounded-xl border bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
                 pwErrors.passwordLama ? 'border-rose-400' : 'border-slate-200 dark:border-slate-700'
               }`}
             />
-            <button type="button" onClick={togglePw('lama')} aria-label={showPw.lama ? 'Sembunyikan password lama' : 'Tampilkan password lama'} aria-pressed={showPw.lama} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:text-slate-300">
+            <button type="button" onClick={togglePw('lama')} aria-label={showPw.lama ? 'Sembunyikan password lama' : 'Tampilkan password lama'} aria-pressed={showPw.lama} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:text-slate-300">
               {showPw.lama ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
@@ -369,11 +384,11 @@ function GuruAkun({ user }) {
               onChange={handlePwChange('passwordBaru')}
               autoComplete="new-password"
               placeholder="Minimal 6 karakter"
-              className={`w-full rounded-xl border bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
+              className={`w-full rounded-xl border bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
                 pwErrors.passwordBaru ? 'border-rose-400' : 'border-slate-200 dark:border-slate-700'
               }`}
             />
-            <button type="button" onClick={togglePw('baru')} aria-label={showPw.baru ? 'Sembunyikan password baru' : 'Tampilkan password baru'} aria-pressed={showPw.baru} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:text-slate-300">
+            <button type="button" onClick={togglePw('baru')} aria-label={showPw.baru ? 'Sembunyikan password baru' : 'Tampilkan password baru'} aria-pressed={showPw.baru} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:text-slate-300">
               {showPw.baru ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
@@ -393,11 +408,11 @@ function GuruAkun({ user }) {
               onChange={handlePwChange('konfirmasiBaru')}
               autoComplete="new-password"
               placeholder="Ketik ulang password baru"
-              className={`w-full rounded-xl border bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
+              className={`w-full rounded-xl border bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
                 pwErrors.konfirmasiBaru ? 'border-rose-400' : 'border-slate-200 dark:border-slate-700'
               }`}
             />
-            <button type="button" onClick={togglePw('konfirmasi')} aria-label={showPw.konfirmasi ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'} aria-pressed={showPw.konfirmasi} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:text-slate-300">
+            <button type="button" onClick={togglePw('konfirmasi')} aria-label={showPw.konfirmasi ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'} aria-pressed={showPw.konfirmasi} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:text-slate-300">
               {showPw.konfirmasi ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
@@ -420,7 +435,7 @@ function GuruAkun({ user }) {
         <button
           type="submit"
           disabled={savingPw || !hasPwChanges()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800 active:bg-slate-950 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800 active:bg-slate-950 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none dark:bg-blue-500 dark:hover:bg-blue-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
         >
           {savingPw ? (
             <><Loader2 className="h-4 w-4 animate-spin" /> Mengubah...</>

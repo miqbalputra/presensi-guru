@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Trash2 } from 'lucide-react'
+import { PageHeader, Notice } from '../ui/page'
 import { settingsAPI, pengaturanHarianAPI } from '../../services/api'
 
 function Pengaturan() {
+  const [section, setSection] = useState('Presensi')
+  const [loadError, setLoadError] = useState('')
   const [settings, setSettings] = useState({
     jam_masuk_normal: '07:20',
     toleransi_terlambat: '15',
@@ -116,15 +119,18 @@ function Pengaturan() {
       jam_pulang_piket_khusus_aktif: !!row.jam_pulang_piket_khusus_aktif,
       keterangan: row.keterangan || '',
     })
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+    setSection('Jadwal')
+    window.setTimeout(() => document.getElementById('daily-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
   }
 
   const loadSettings = async () => {
     try {
       setLoading(true)
+      setLoadError('')
       const response = await settingsAPI.getAll()
       setSettings(response.data)
     } catch (error) {
+      setLoadError(error.message || 'Pengaturan belum dapat dimuat.')
       console.error('Failed to load settings:', error)
       showNotification('Gagal memuat pengaturan: ' + error.message, 'error')
     } finally {
@@ -134,7 +140,7 @@ function Pengaturan() {
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type })
-    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000)
+    // Feedback remains available until dismissed.
   }
 
   const handleSave = async (settingKey, overrideValue = null) => {
@@ -170,10 +176,11 @@ function Pengaturan() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800">Pengaturan Sistem</h1>
-      </div>
-
+<PageHeader title="Pengaturan" description="Kelola aturan presensi dan operasional sekolah." />
+      <div className="section-tabs" aria-label="Bagian pengaturan">{['Presensi', 'Jadwal', 'Lokasi', 'Lanjutan'].map((item) => <button type="button" key={item} aria-pressed={section === item} onClick={() => setSection(item)}>{item}</button>)}</div>
+      {loadError && <Notice onRetry={loadSettings}>{loadError}</Notice>}
+      {notification.show && <Notice tone={notification.type} onDismiss={() => setNotification({ show: false, message: '', type: '' })}>{notification.message}</Notice>}
+<section hidden={section !== 'Jadwal' || !!loadError}>
       {/* Presensi Akhir Pekan */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
         <div className="flex items-start gap-4">
@@ -215,7 +222,7 @@ function Pengaturan() {
                       {settings[item.key] == '1' ? 'Dihitung hari masuk' : 'Libur'}
                     </p>
                   </div>
-                  <button
+                  <button type="button" role="switch" aria-label={item.day + ' · ' + item.group} aria-checked={settings[item.key] == '1'}
                     onClick={() => toggleSetting(item.key)}
                     disabled={saving}
                     className={`relative inline-flex h-8 w-16 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
@@ -235,6 +242,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Presensi' || !!loadError}>
       {/* Visibilitas Tombol Hadir Manual */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
         <div className="flex items-start gap-4">
@@ -246,9 +255,9 @@ function Pengaturan() {
             <p className="text-sm text-gray-600 mb-4">
               Atur apakah tombol "HADIR" manual ditampilkan di halaman guru. Jika dinonaktifkan, guru wajib menggunakan QR Code.
             </p>
-            
+
             <div className="flex items-center gap-4 mb-2">
-              <button
+              <button type="button" role="switch" aria-label="Presensi dengan tombol" aria-checked={settings.button_enabled == '1'}
                 onClick={() => {
                   const newValue = settings.button_enabled == '1' ? '0' : '1'
                   handleChange('button_enabled', newValue)
@@ -270,8 +279,8 @@ function Pengaturan() {
                   {settings.button_enabled == '1' ? 'TOMBOL DITAMPILKAN' : 'TOMBOL DISEMBUNYIKAN'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {settings.button_enabled == '1' 
-                    ? 'Guru masih bisa klik tombol Hadir manual' 
+                  {settings.button_enabled == '1'
+                    ? 'Guru masih bisa klik tombol Hadir manual'
                     : 'Guru wajib scan QR Code untuk presensi (Tombol Hadir hilang)'}
                 </p>
               </div>
@@ -280,6 +289,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Presensi' || !!loadError}>
       {/* Jam Masuk Normal */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
@@ -314,6 +325,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Presensi' || !!loadError}>
       {/* Jam Minimal Presensi Pulang */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
         <div className="flex items-start gap-4">
@@ -349,6 +362,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Jadwal' || !!loadError} id="daily-settings">
       {/* Pengaturan Pulang Harian Khusus (per-tanggal) */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-amber-500">
         <div className="flex items-start gap-4">
@@ -366,8 +381,8 @@ function Pengaturan() {
             <div className="space-y-4">
               {/* Tanggal */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Tanggal</label>
-                <input
+                <label htmlFor="pengaturan-field-60" className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Tanggal</label>
+                <input id="pengaturan-field-60" aria-label="Tanggal"
                   type="date"
                   value={harianForm.tanggal}
                   onChange={(e) => handleHarianChange('tanggal', e.target.value)}
@@ -425,8 +440,8 @@ function Pengaturan() {
 
               {/* Keterangan */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan (opsional)</label>
-                <input
+                <label htmlFor="pengaturan-field-61" className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Keterangan (opsional)</label>
+                <input id="pengaturan-field-61" aria-label="Keterangan (opsional)"
                   type="text"
                   value={harianForm.keterangan}
                   onChange={(e) => handleHarianChange('keterangan', e.target.value)}
@@ -493,6 +508,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Lokasi' || !!loadError}>
       {/* Tracking Lokasi Guru */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
         <div className="flex items-start gap-4">
@@ -506,7 +523,7 @@ function Pengaturan() {
             </p>
 
             <div className="flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
-              <button
+              <button type="button" role="switch" aria-label="Pemantauan lokasi" aria-checked={settings.location_tracking_enabled == '1'}
                 onClick={() => {
                   const newValue = settings.location_tracking_enabled == '1' ? '0' : '1'
                   handleChange('location_tracking_enabled', newValue)
@@ -535,9 +552,9 @@ function Pengaturan() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Interval Tracking (menit)</label>
+                <label htmlFor="pengaturan-field-62" className="block text-sm font-medium text-gray-700 mb-2">Interval Tracking (menit)</label>
                 <div className="flex gap-2">
-                  <input
+                  <input id="pengaturan-field-62" aria-label="Interval Tracking (menit)"
                     type="number"
                     min="5"
                     max="60"
@@ -557,9 +574,9 @@ function Pengaturan() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Batas Akurasi GPS Maksimum (meter)</label>
+                <label htmlFor="pengaturan-field-63" className="block text-sm font-medium text-gray-700 mb-2">Batas Akurasi GPS Maksimum (meter)</label>
                 <div className="flex gap-2">
-                  <input
+                  <input id="pengaturan-field-63" aria-label="Batas Akurasi GPS Maksimum (meter)"
                     type="number"
                     min="20"
                     max="1000"
@@ -582,6 +599,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Jadwal' || !!loadError}>
       {/* Toggle Apel Senin */}
       <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
         <div className="flex items-start gap-4">
@@ -593,9 +612,9 @@ function Pengaturan() {
             <p className="text-sm text-gray-600 mb-4">
               Aktifkan ini jika hari Senin besok ada Apel Pagi. Jika dinonaktifkan (misal saat UAS), batas masuk semua guru akan kembali ke jam normal.
             </p>
-            
+
             <div className="flex items-center gap-4 mb-2">
-              <button
+              <button type="button" role="switch" aria-label="Presensi apel Senin" aria-checked={settings.apel_senin_enabled == '1'}
                 onClick={() => {
                   const newValue = settings.apel_senin_enabled == '1' ? '0' : '1'
                   handleChange('apel_senin_enabled', newValue)
@@ -617,8 +636,8 @@ function Pengaturan() {
                   {settings.apel_senin_enabled == '1' ? 'APEL SENIN AKTIF' : 'APEL SENIN DITIADAKAN'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {settings.apel_senin_enabled == '1' 
-                    ? 'Batas masuk: Piket 06:40, Non-Piket 07:00' 
+                  {settings.apel_senin_enabled == '1'
+                    ? 'Batas masuk: Piket 06:40, Non-Piket 07:00'
                     : 'Batas masuk: Piket 07:00, Non-Piket 07:20'}
                 </p>
               </div>
@@ -627,6 +646,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Lanjutan' || !!loadError}>
       {/* Mode Testing GPS */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
@@ -638,10 +659,10 @@ function Pengaturan() {
             <p className="text-sm text-gray-600 mb-4">
               Aktifkan mode testing untuk menonaktifkan validasi GPS saat presensi hadir. Berguna untuk testing sistem.
             </p>
-            
+
             {/* Toggle Switch */}
             <div className="flex items-center gap-4 mb-4">
-              <button
+              <button type="button" role="switch" aria-label="Mode testing" aria-checked={settings.mode_testing == '1'}
                 onClick={() => {
                   const newValue = settings.mode_testing == '1' ? '0' : '1'
                   handleChange('mode_testing', newValue)
@@ -663,8 +684,8 @@ function Pengaturan() {
                   {settings.mode_testing == '1' ? 'AKTIF (Testing Mode)' : 'NONAKTIF (Produksi)'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {settings.mode_testing == '1' 
-                    ? 'Validasi GPS dinonaktifkan - Guru bisa presensi dari mana saja' 
+                  {settings.mode_testing == '1'
+                    ? 'Validasi GPS dinonaktifkan - Guru bisa presensi dari mana saja'
                     : 'Validasi GPS aktif - Guru harus di dalam radius sekolah'}
                 </p>
               </div>
@@ -696,6 +717,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Presensi' || !!loadError}>
       {/* Terlambat Piket Dianggap Terlambat */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
@@ -707,7 +730,7 @@ function Pengaturan() {
             <p className="text-sm text-gray-600 mb-4">
               Atur apakah guru yang terlambat hadir piket akan dianggap sebagai "Hadir Terlambat" atau hanya mendapat warning saja.
             </p>
-            
+
             {/* Toggle Switch */}
             <div className="flex items-center gap-4 mb-4">
               <button
@@ -732,8 +755,8 @@ function Pengaturan() {
                   {settings.piket_terlambat_adalah_terlambat == '1' ? 'AKTIF - Ubah Status' : 'NONAKTIF - Warning Saja'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {settings.piket_terlambat_adalah_terlambat == '1' 
-                    ? 'Terlambat piket akan mengubah status menjadi "Hadir Terlambat"' 
+                  {settings.piket_terlambat_adalah_terlambat == '1'
+                    ? 'Terlambat piket akan mengubah status menjadi "Hadir Terlambat"'
                     : 'Terlambat piket hanya memberi warning tanpa mengubah status'}
                 </p>
               </div>
@@ -775,8 +798,8 @@ function Pengaturan() {
                     <li>Terlambat masuk: 10 menit (masih dalam toleransi)</li>
                   </ul>
                   <p className="mt-1 font-semibold">
-                    {settings.piket_terlambat_adalah_terlambat === '1' 
-                      ? '→ Status: Hadir Terlambat (karena terlambat piket)' 
+                    {settings.piket_terlambat_adalah_terlambat === '1'
+                      ? '→ Status: Hadir Terlambat (karena terlambat piket)'
                       : '→ Status: Hadir (hanya warning piket)'}
                   </p>
                 </div>
@@ -798,6 +821,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Presensi' || !!loadError}>
       {/* Toleransi Terlambat */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
@@ -837,6 +862,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Lokasi' || !!loadError}>
       {/* Radius GPS */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
@@ -877,6 +904,8 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
+<section hidden={section !== 'Lokasi' || !!loadError}>
       {/* Lokasi Sekolah */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
@@ -922,11 +951,11 @@ function Pengaturan() {
 
             {/* Nama Sekolah */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="pengaturan-field-64" className="block text-sm font-medium text-gray-700 mb-2">
                 Nama Sekolah
               </label>
               <div className="flex items-center gap-4">
-                <input
+                <input id="pengaturan-field-64" aria-label="Nama Sekolah"
                   type="text"
                   value={settings.sekolah_nama}
                   onChange={(e) => handleChange('sekolah_nama', e.target.value)}
@@ -946,11 +975,11 @@ function Pengaturan() {
 
             {/* Latitude */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="pengaturan-field-65" className="block text-sm font-medium text-gray-700 mb-2">
                 Latitude (Garis Lintang)
               </label>
               <div className="flex items-center gap-4">
-                <input
+                <input id="pengaturan-field-65" aria-label="Latitude (Garis Lintang)"
                   type="number"
                   step="0.000001"
                   value={settings.sekolah_latitude}
@@ -974,11 +1003,11 @@ function Pengaturan() {
 
             {/* Longitude */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="pengaturan-field-66" className="block text-sm font-medium text-gray-700 mb-2">
                 Longitude (Garis Bujur)
               </label>
               <div className="flex items-center gap-4">
-                <input
+                <input id="pengaturan-field-66" aria-label="Longitude (Garis Bujur)"
                   type="number"
                   step="0.000001"
                   value={settings.sekolah_longitude}
@@ -1020,6 +1049,7 @@ function Pengaturan() {
         </div>
       </div>
 
+</section>
       {/* Info Box */}
       <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
         <h4 className="font-bold text-blue-800 mb-2">ℹ️ Informasi Penting</h4>
@@ -1033,14 +1063,7 @@ function Pengaturan() {
         </ul>
       </div>
 
-      {/* Notification */}
-      {notification.show && (
-        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in ${
-          notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-        } text-white`}>
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

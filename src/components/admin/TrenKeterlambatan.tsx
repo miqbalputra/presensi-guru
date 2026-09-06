@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid,
   Legend, ReferenceLine, Line
@@ -166,6 +167,9 @@ function TrenKeterlambatan() {
   const [periodeB, setPeriodeB] = useState({ start: addDays(todayStr, -27), end: addDays(todayStr, -14) })
 
   const [allLogs, setAllLogs] = useState<any[]>([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
 
   // Chart data
@@ -177,14 +181,22 @@ function TrenKeterlambatan() {
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+
     try {
       setLoading(true)
       const response = await presensiAPI.getAll()
+      if (requestId !== loadRequest.current) return
+
       setAllLogs(response.data || [])
     } catch (e) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data analitik belum dapat dimuat. Coba perbarui kembali.')
+
       console.error('TrenKeterlambatan: gagal muat data', e)
     } finally {
-      setLoading(false)
+      if (requestId === loadRequest.current) setLoading(false)
     }
   }
 
@@ -228,6 +240,8 @@ function TrenKeterlambatan() {
   const deltaLabel = delta > 0 ? `Meningkat ${Math.abs(delta).toFixed(1)}%` : delta < 0 ? `Menurun ${Math.abs(delta).toFixed(1)}%` : 'Tidak berubah'
 
   // ─── Skeleton ────────────────────────────────────────────────────────────
+  if (loadError) return <Notice onRetry={() => loadData()}>{loadError}</Notice>
+
   if (loading) return (
     <Card className="col-span-full gap-0 p-6">
       <Skeleton className="mb-4 h-6 w-1/3" />
@@ -279,12 +293,12 @@ function TrenKeterlambatan() {
           <span className={`text-xs font-semibold ${mode === 'compare' ? 'text-blue-700' : 'text-gray-700'}`}>
             {mode === 'compare' ? 'Periode A' : 'Periode'}
           </span>
-          <input type="date" value={periodeA.start} max={periodeA.end}
+          <input aria-label="Tanggal awal periode A" type="date" value={periodeA.start} max={periodeA.end}
             onChange={e => setPeriodeA(p => ({ ...p, start: e.target.value }))}
             className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-300 outline-none"
           />
           <span className="text-xs text-gray-400">s/d</span>
-          <input type="date" value={periodeA.end} min={periodeA.start} max={todayStr}
+          <input aria-label="Tanggal akhir periode A" type="date" value={periodeA.end} min={periodeA.start} max={todayStr}
             onChange={e => setPeriodeA(p => ({ ...p, end: e.target.value }))}
             className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-300 outline-none"
           />
@@ -295,12 +309,12 @@ function TrenKeterlambatan() {
           <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl border border-purple-200 bg-purple-50">
             <Calendar className="w-4 h-4 text-purple-500"/>
             <span className="text-xs font-semibold text-purple-700">Periode B</span>
-            <input type="date" value={periodeB.start} max={periodeB.end}
+            <input aria-label="Tanggal awal periode B" type="date" value={periodeB.start} max={periodeB.end}
               onChange={e => setPeriodeB(p => ({ ...p, start: e.target.value }))}
               className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-300 outline-none"
             />
             <span className="text-xs text-gray-400">s/d</span>
-            <input type="date" value={periodeB.end} min={periodeB.start}
+            <input aria-label="Tanggal akhir periode B" type="date" value={periodeB.end} min={periodeB.start}
               onChange={e => setPeriodeB(p => ({ ...p, end: e.target.value }))}
               className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-300 outline-none"
             />
@@ -314,25 +328,25 @@ function TrenKeterlambatan() {
           {/* Stat pills */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
             <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Tepat Waktu</p>
+              <p className="text-xs text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Tepat Waktu</p>
               <p className="text-xl font-bold text-emerald-600">{statsA.hadir}</p>
-              <p className="text-[10px] text-emerald-500 font-bold">{statsA.pctHadir}%</p>
+              <p className="text-xs text-emerald-500 font-bold">{statsA.pctHadir}%</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Terlambat</p>
+              <p className="text-xs text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Terlambat</p>
               <p className="text-xl font-bold text-amber-600">{statsA.terlambat}</p>
-              <p className="text-[10px] text-amber-500 font-bold">{statsA.pctTerlambat}%</p>
+              <p className="text-xs text-amber-500 font-bold">{statsA.pctTerlambat}%</p>
             </div>
             <div className="bg-rose-50 rounded-xl p-3 text-center border border-rose-100">
-              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Tidak Hadir</p>
+              <p className="text-xs text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Tidak Hadir</p>
               <p className="text-xl font-bold text-rose-600">{statsA.tidakHadir}</p>
             </div>
             <div className="bg-indigo-50 rounded-xl p-3 text-center border border-indigo-100">
-              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Avg Masuk</p>
+              <p className="text-xs text-gray-500 mb-0.5 uppercase font-bold tracking-wider">Avg Masuk</p>
               <p className="text-xl font-bold text-indigo-600">{minutesToTime(statsA.avgMins)}</p>
             </div>
             <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-100 hidden sm:block">
-              <p className="text-[10px] text-gray-500 mb-0.5 uppercase font-bold tracking-wider">% Terlambat</p>
+              <p className="text-xs text-gray-500 mb-0.5 uppercase font-bold tracking-wider">% Terlambat</p>
               <p className="text-xl font-bold text-orange-600">{statsA.pctTerlambat}%</p>
             </div>
           </div>
@@ -399,8 +413,8 @@ function TrenKeterlambatan() {
             <div className="border border-blue-200 rounded-xl p-3 bg-blue-50">
               <p className="text-xs font-bold text-blue-700 mb-2">Periode A</p>
               <div className="grid grid-cols-2 gap-1 mb-2">
-                <div><p className="text-[10px] text-gray-500 uppercase">Avg Masuk</p><p className="font-bold text-blue-700">{minutesToTime(statsA.avgMins)}</p></div>
-                <div><p className="text-[10px] text-gray-500 uppercase">Terlambat</p><p className="font-bold text-amber-600">{statsA.pctTerlambat}%</p></div>
+                <div><p className="text-xs text-gray-500 uppercase">Avg Masuk</p><p className="font-bold text-blue-700">{minutesToTime(statsA.avgMins)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase">Terlambat</p><p className="font-bold text-amber-600">{statsA.pctTerlambat}%</p></div>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-1 text-center border-t border-blue-100 pt-2">
                 <div><p className="text-[9px] text-gray-500 uppercase">Tepat</p><p className="font-bold text-emerald-600 text-xs">{statsA.hadir}</p></div>
@@ -412,8 +426,8 @@ function TrenKeterlambatan() {
             <div className="border border-purple-200 rounded-xl p-3 bg-purple-50">
               <p className="text-xs font-bold text-purple-700 mb-2">Periode B</p>
               <div className="grid grid-cols-2 gap-1 mb-2">
-                <div><p className="text-[10px] text-gray-500 uppercase">Avg Masuk</p><p className="font-bold text-purple-700">{minutesToTime(statsB.avgMins)}</p></div>
-                <div><p className="text-[10px] text-gray-500 uppercase">Terlambat</p><p className="font-bold text-amber-600">{statsB.pctTerlambat}%</p></div>
+                <div><p className="text-xs text-gray-500 uppercase">Avg Masuk</p><p className="font-bold text-purple-700">{minutesToTime(statsB.avgMins)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase">Terlambat</p><p className="font-bold text-amber-600">{statsB.pctTerlambat}%</p></div>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-1 text-center border-t border-purple-100 pt-2">
                 <div><p className="text-[9px] text-gray-500 uppercase">Tepat</p><p className="font-bold text-emerald-600 text-xs">{statsB.hadir}</p></div>

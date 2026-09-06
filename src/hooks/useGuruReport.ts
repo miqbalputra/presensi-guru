@@ -41,7 +41,12 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
   const [overrides, setOverrides] = useState<any[]>([])
   const [optionalWorkdays, setOptionalWorkdays] = useState<any[]>([])
   const [workdaysCache, setWorkdaysCache] = useState<Record<string, any>>({})
-  const [loading, setLoading] = useState(true)
+  const [baseLoading, setLoading] = useState(true)
+  const [periodLoading, setPeriodLoading] = useState(true)
+  const [baseError, setBaseError] = useState('')
+  const [periodError, setPeriodError] = useState('')
+  const [revision, setRevision] = useState(0)
+  const retry = useCallback(() => setRevision((value) => value + 1), [])
 
   // ── Load base data (holidays, settings, presensi) ──────────────────────────
   useEffect(() => {
@@ -49,6 +54,7 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
     async function loadBase() {
       try {
         setLoading(true)
+        setBaseError('')
         const presFilters = allGuru ? {} : { user_id: guru?.id }
         const [presensiResponse, holidaysResponse, settingsResponse] = await Promise.all([
           presensiAPI.getAll(presFilters),
@@ -60,6 +66,7 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
         setHolidays(holidaysResponse.data || [])
         setSettings((prev) => ({ ...prev, ...(settingsResponse.data || {}) }))
       } catch (error) {
+        if (!cancelled) setBaseError(error.message || 'Data laporan belum dapat dimuat.')
         console.error('useGuruReport: failed to load base data:', error)
       } finally {
         if (!cancelled) setLoading(false)
@@ -70,7 +77,7 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guru?.id, allGuru])
+  }, [guru?.id, allGuru, revision])
 
   // ── Load period-dependent data (overrides, optional workdays, workdays) ───
   // Untuk guru (allGuru=false): gunakan teacherWorkdaysAPI (singular) yang
@@ -79,7 +86,10 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
   useEffect(() => {
     let cancelled = false
     async function loadPeriod() {
-      if (!startDate || !endDate) return
+      if (!startDate || !endDate) { setPeriodLoading(false); return }
+      setPeriodError('')
+      if (startDate > endDate) { setPeriodError('Tanggal awal tidak boleh melewati tanggal akhir.'); setPeriodLoading(false); return }
+      setPeriodLoading(true)
       try {
         const optionalPromise = optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
 
@@ -132,14 +142,17 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
           setWorkdaysCache(newCache)
         }
       } catch (error) {
+        if (!cancelled) setPeriodError(error.message || 'Hari kerja untuk periode ini belum dapat dimuat.')
         console.error('useGuruReport: failed to load period data:', error)
+      } finally {
+        if (!cancelled) setPeriodLoading(false)
       }
     }
     loadPeriod()
     return () => {
       cancelled = true
     }
-  }, [startDate, endDate, allGuru, guru?.id])
+  }, [startDate, endDate, allGuru, guru?.id, revision])
 
   const getGender = useCallback((g) => g?.jenisKelamin || g?.jenis_kelamin || '', [])
 
@@ -283,7 +296,9 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
   )
 
   return {
-    loading,
+    loading: baseLoading || periodLoading,
+    error: baseError || periodError,
+    retry,
     attendanceLogs,
     holidays,
     settings,

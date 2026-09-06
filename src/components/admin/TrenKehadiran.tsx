@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { TrendingUp } from 'lucide-react'
 import { adminChartsAPI } from '../../services/api'
@@ -13,6 +14,9 @@ const chartConfig = {
 
 function TrenKehadiran() {
   const [chartData, setChartData] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({ avgHadir: 0, avgTidakHadir: 0 })
 
@@ -21,34 +25,44 @@ function TrenKehadiran() {
   }, [])
 
   const loadTrenData = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+
     try {
       setLoading(true)
-      
+
       const response = await adminChartsAPI.getOverview()
+      if (requestId !== loadRequest.current) return
+
       const chartArray = response.data?.trend7Days || []
       setChartData(chartArray)
-      
+
       // Calculate average (hanya hari yang ada data)
       const daysWithData = chartArray.filter(day => day.hadir > 0 || day.tidakHadir > 0)
       const totalDays = daysWithData.length > 0 ? daysWithData.length : 7
-      
+
       const totalHadir = chartArray.reduce((sum, day) => sum + day.hadir, 0)
       const totalTidakHadir = chartArray.reduce((sum, day) => sum + day.tidakHadir, 0)
-      
+
       setStats({
         avgHadir: totalDays > 0 ? Math.round(totalHadir / totalDays) : 0,
         avgTidakHadir: totalDays > 0 ? Math.round(totalTidakHadir / totalDays) : 0
       })
-      
+
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data analitik belum dapat dimuat. Coba perbarui kembali.')
+
       console.error('Failed to load trend data:', error)
       // Set empty data on error
       setChartData([])
       setStats({ avgHadir: 0, avgTidakHadir: 0 })
     } finally {
-      setLoading(false)
+      if (requestId === loadRequest.current) setLoading(false)
     }
   }
+
+  if (loadError) return <Notice onRetry={() => loadTrenData()}>{loadError}</Notice>
 
   if (loading) {
     return (
@@ -72,7 +86,7 @@ function TrenKehadiran() {
             <CardDescription>7 Hari Terakhir</CardDescription>
           </div>
         </div>
-        
+
         {/* Stats Summary */}
         <div className="flex gap-4">
           <div className="text-right">
@@ -105,41 +119,41 @@ function TrenKehadiran() {
                 <stop offset="95%" stopColor="var(--color-tidakHadir)" stopOpacity={0}/>
               </linearGradient>
             </defs>
-            
+
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            
-            <XAxis 
-              dataKey="tanggal" 
+
+            <XAxis
+              dataKey="tanggal"
               stroke="#6b7280"
               style={{ fontSize: '12px' }}
             />
-            
-            <YAxis 
+
+            <YAxis
               stroke="#6b7280"
               style={{ fontSize: '12px' }}
               allowDecimals={false}
               label={{ value: 'Jumlah Guru', angle: -90, position: 'insideLeft', style: { fontSize: '12px', fill: '#6b7280' } }}
             />
-            
+
             <ChartTooltip content={<ChartTooltipContent />} />
-            
+
             {/* Area Hadir */}
-            <Area 
-              type="monotone" 
-              dataKey="hadir" 
+            <Area
+              type="monotone"
+              dataKey="hadir"
               stroke="var(--color-hadir)"
               strokeWidth={2}
-              fill="url(#colorHadir)" 
+              fill="url(#colorHadir)"
               name="Hadir"
             />
-            
+
             {/* Area Tidak Hadir */}
-            <Area 
-              type="monotone" 
-              dataKey="tidakHadir" 
+            <Area
+              type="monotone"
+              dataKey="tidakHadir"
               stroke="var(--color-tidakHadir)"
               strokeWidth={2}
-              fill="url(#colorTidakHadir)" 
+              fill="url(#colorTidakHadir)"
               name="Tidak Hadir"
             />
           </AreaChart>

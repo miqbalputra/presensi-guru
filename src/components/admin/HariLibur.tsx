@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { AppDialog } from '../ui/dialog'
+import { useState, useEffect, useRef } from 'react'
 import { Calendar, CalendarRange, Plus, Edit2, Trash2, AlertCircle, CheckCircle, X } from 'lucide-react'
 import { holidaysAPI, activityAPI } from '../../services/api'
 import { formatDisplayDate } from '../../utils/dateUtils'
 
 function HariLibur({ user }) {
   const [holidays, setHolidays] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [showModal, setShowModal] = useState(false)
@@ -27,14 +32,23 @@ function HariLibur({ user }) {
   }, [selectedYear])
 
   const loadHolidays = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     setLoading(true)
     try {
       const response = await holidaysAPI.getAll({ year: selectedYear })
+      if (requestId !== loadRequest.current) return
+
       setHolidays(response.data || [])
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       setMessage({ type: 'error', text: 'Gagal memuat data hari libur' })
     }
-    setLoading(false)
+    requestId === loadRequest.current && setLoading(false)
   }
 
   const handleAdd = () => {
@@ -89,7 +103,7 @@ function HariLibur({ user }) {
     setLoading(true)
     try {
       await holidaysAPI.delete(id)
-      
+
       // Log activity
       await activityAPI.create({
         user: user.nama,
@@ -141,7 +155,7 @@ function HariLibur({ user }) {
       setLoading(false)
       return
     }
-    
+
     if (!formData.tanggal || !formData.nama) {
       setMessage({ type: 'error', text: 'Tanggal dan nama harus diisi' })
       return
@@ -151,7 +165,7 @@ function HariLibur({ user }) {
     try {
       if (modalMode === 'add') {
         await holidaysAPI.create(formData)
-        
+
         // Log activity
         await activityAPI.create({
           user: user.nama,
@@ -162,7 +176,7 @@ function HariLibur({ user }) {
         setMessage({ type: 'success', text: 'Hari libur berhasil ditambahkan' })
       } else {
         await holidaysAPI.update(formData)
-        
+
         // Log activity
         await activityAPI.create({
           user: user.nama,
@@ -203,6 +217,8 @@ function HariLibur({ user }) {
   for (let i = 2024; i <= 2030; i++) {
     years.push(i)
   }
+
+  if (loadError) return <Notice onRetry={() => loadHolidays()}>{loadError}</Notice>
 
   return (
     <div className="space-y-6">
@@ -254,8 +270,8 @@ function HariLibur({ user }) {
       {/* Filter Year */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex items-center gap-4">
-          <label className="text-gray-700 font-medium">Filter Tahun:</label>
-          <select
+          <label htmlFor="harilibur-field-26" className="text-gray-700 font-medium">Filter Tahun:</label>
+          <select id="harilibur-field-26" aria-label="Filter Tahun:"
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -366,23 +382,19 @@ function HariLibur({ user }) {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">
-              {modalMode === 'add' && 'Tambah Hari Libur'}
-              {modalMode === 'edit' && 'Edit Hari Libur'}
-              {modalMode === 'bulk' && 'Tambah Rentang Hari Libur'}
-            </h3>
-            
+        <AppDialog open={true} onOpenChange={(open) => { if (!open) setShowModal(false) }} title={modalMode === 'bulk' ? 'Tambah rentang hari libur' : modalMode === 'edit' ? 'Edit hari libur' : 'Tambah hari libur'} busy={loading}>
+<fieldset disabled={loading} className="min-w-0">
+{message.type === 'error' && <Notice>{message.text}</Notice>}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {modalMode === 'bulk' ? (
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="harilibur-field-27" className="block text-sm font-medium text-gray-700 mb-1">
                         Tanggal Awal <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <input id="harilibur-field-27" aria-label="Tanggal Awal"
                         type="date"
                         value={formData.startDate}
                         onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
@@ -391,10 +403,10 @@ function HariLibur({ user }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="harilibur-field-28" className="block text-sm font-medium text-gray-700 mb-1">
                         Tanggal Akhir <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <input id="harilibur-field-28" aria-label="Tanggal Akhir"
                         type="date"
                         value={formData.endDate}
                         onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
@@ -411,10 +423,10 @@ function HariLibur({ user }) {
                 </>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="harilibur-field-29" className="block text-sm font-medium text-gray-700 mb-1">
                     Tanggal <span className="text-red-500">*</span>
                   </label>
-                  <input
+                  <input id="harilibur-field-29" aria-label="Tanggal"
                     type="date"
                     value={formData.tanggal}
                     onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
@@ -425,10 +437,10 @@ function HariLibur({ user }) {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="harilibur-field-30" className="block text-sm font-medium text-gray-700 mb-1">
                   Nama Libur <span className="text-red-500">*</span>
                 </label>
-                <input
+                <input id="harilibur-field-30" aria-label="Nama Libur"
                   type="text"
                   value={formData.nama}
                   onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
@@ -439,10 +451,10 @@ function HariLibur({ user }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="harilibur-field-31" className="block text-sm font-medium text-gray-700 mb-1">
                   Jenis Libur <span className="text-red-500">*</span>
                 </label>
-                <select
+                <select id="harilibur-field-31" aria-label="Jenis Libur"
                   value={formData.jenis}
                   onChange={(e) => setFormData({ ...formData, jenis: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -455,10 +467,10 @@ function HariLibur({ user }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="harilibur-field-32" className="block text-sm font-medium text-gray-700 mb-1">
                   Keterangan (Opsional)
                 </label>
-                <textarea
+                <textarea id="harilibur-field-32" aria-label="Keterangan (Opsional)"
                   value={formData.keterangan}
                   onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                   placeholder="Keterangan tambahan..."
@@ -478,20 +490,20 @@ function HariLibur({ user }) {
                   />
                   <span className="text-sm font-semibold text-blue-800">Guru Tetap Masuk (Event/Rapat)</span>
                 </label>
-                
+
                 {formData.isWorkday == 1 && (
                   <div className="pl-7 space-y-2">
-                    <label className="block text-xs font-medium text-blue-700">
+                    <label htmlFor="harilibur-field-33" className="block text-xs font-medium text-blue-700">
                       Jam Masuk Khusus (Contoh: 07:30)
                     </label>
-                    <input
+                    <input id="harilibur-field-33" aria-label="Jam Masuk Khusus (Contoh: 07:30)"
                       type="time"
                       value={formData.jamMasukKhusus}
                       onChange={(e) => setFormData({ ...formData, jamMasukKhusus: e.target.value })}
                       className="w-full px-3 py-1.5 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
                       required={formData.isWorkday == 1}
                     />
-                    <p className="text-[10px] text-blue-600 italic">
+                    <p className="text-xs text-blue-600 italic">
                       * Jadwal piket rutin akan diabaikan pada hari ini.
                     </p>
                   </div>
@@ -517,8 +529,8 @@ function HariLibur({ user }) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+
+</fieldset></AppDialog>
       )}
     </div>
   )

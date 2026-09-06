@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { notify } from '../ui/toast'
+import { useState, useEffect, useRef } from 'react'
 import { Save, Edit2, Trash2, Plus } from 'lucide-react'
 import { formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { guruAPI, presensiAPI } from '../../services/api'
 
 function EditPresensi({ user }) {
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const isReadOnly = user?.role === 'kepala_sekolah'
   const [dataGuru, setDataGuru] = useState<any[]>([])
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([])
@@ -34,7 +37,7 @@ function EditPresensi({ user }) {
         guruAPI.getAll(),
         presensiAPI.getAll()
       ])
-      
+
       setDataGuru(guruResponse.data)
       setAttendanceLogs(presensiResponse.data)
     } catch (error) {
@@ -52,11 +55,17 @@ function EditPresensi({ user }) {
 
   const showNotification = (message) => {
     setNotification({ show: true, message })
-    setTimeout(() => setNotification({ show: false, message: '' }), 3000)
+    notify(message, message.startsWith('Gagal') ? 'error' : 'success')
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+
+
 
     const currentTime = formatTimeForDB()
 
@@ -142,14 +151,16 @@ function EditPresensi({ user }) {
 
       // Reload data from API
       await loadData()
-      
+
       resetForm()
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000)
+
     } catch (error) {
       console.error('Failed to save presensi:', error)
       setMessage({ type: 'error', text: 'Gagal menyimpan data: ' + error.message })
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000)
+
     }
+
+    } finally { savingRef.current = false; setSaving(false) }
   }
 
   const resetForm = () => {
@@ -193,17 +204,17 @@ function EditPresensi({ user }) {
 
     try {
       await presensiAPI.delete(log.id)
-      
+
       // Reload data from API
       await loadData()
-      
+
       setMessage({ type: 'success', text: 'Presensi berhasil dihapus!' })
       showNotification('Data berhasil dihapus!')
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000)
+
     } catch (error) {
       console.error('Failed to delete presensi:', error)
       setMessage({ type: 'error', text: 'Gagal menghapus data: ' + error.message })
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000)
+
     }
   }
 
@@ -269,10 +280,10 @@ function EditPresensi({ user }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="editpresensi-field-9" className="block text-sm font-medium text-gray-700 mb-2">
                   Pilih Guru
                 </label>
-                <select
+                <select id="editpresensi-field-9" aria-label="Pilih Guru"
                   value={formData.guruId}
                   onChange={(e) => setFormData({ ...formData, guruId: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -287,10 +298,10 @@ function EditPresensi({ user }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="editpresensi-field-10" className="block text-sm font-medium text-gray-700 mb-2">
                   Tanggal
                 </label>
-                <input
+                <input id="editpresensi-field-10" aria-label="Tanggal"
                   type="date"
                   value={formData.tanggal}
                   onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
@@ -301,10 +312,10 @@ function EditPresensi({ user }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="editpresensi-field-11" className="block text-sm font-medium text-gray-700 mb-2">
                   Status
                 </label>
-                <select
+                <select id="editpresensi-field-11" aria-label="Status"
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -321,10 +332,10 @@ function EditPresensi({ user }) {
               {(formData.status === 'hadir' || formData.status === 'hadir_terlambat' || formData.status === 'hadir_izin_terlambat') && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="editpresensi-field-12" className="block text-sm font-medium text-gray-700 mb-2">
                       Jam Masuk (Opsional)
                     </label>
-                    <input
+                    <input id="editpresensi-field-12" aria-label="Jam Masuk (Opsional)"
                       type="time"
                       value={formData.jamMasuk}
                       onChange={(e) => setFormData({ ...formData, jamMasuk: e.target.value })}
@@ -333,10 +344,10 @@ function EditPresensi({ user }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="editpresensi-field-13" className="block text-sm font-medium text-gray-700 mb-2">
                       Jam Pulang (Opsional)
                     </label>
-                    <input
+                    <input id="editpresensi-field-13" aria-label="Jam Pulang (Opsional)"
                       type="time"
                       value={formData.jamPulang}
                       onChange={(e) => setFormData({ ...formData, jamPulang: e.target.value })}
@@ -349,10 +360,10 @@ function EditPresensi({ user }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="editpresensi-field-14" className="block text-sm font-medium text-gray-700 mb-2">
                 Keterangan
               </label>
-              <textarea
+              <textarea id="editpresensi-field-14" aria-label="Keterangan"
                 value={formData.keterangan}
                 onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -370,7 +381,7 @@ function EditPresensi({ user }) {
             )}
 
             <button
-              type="submit"
+              type="submit" disabled={saving || loading || !!loadError}
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
             >
               {editingLog ? <Save className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
@@ -386,8 +397,8 @@ function EditPresensi({ user }) {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-lg font-semibold text-gray-800">Daftar Presensi</h2>
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Filter Tanggal:</label>
-              <input
+              <label htmlFor="editpresensi-field-15" className="text-sm font-medium text-gray-700">Filter Tanggal:</label>
+              <input id="editpresensi-field-15" aria-label="Filter Tanggal:"
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
@@ -416,8 +427,8 @@ function EditPresensi({ user }) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.nama}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{log.tanggal}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {log.status === 'izin' && log.jamIzin ? log.jamIzin : 
-                     log.status === 'sakit' && log.jamSakit ? log.jamSakit : 
+                    {log.status === 'izin' && log.jamIzin ? log.jamIzin :
+                     log.status === 'sakit' && log.jamSakit ? log.jamSakit :
                      log.jamMasuk}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{log.jamPulang || '-'}</td>
@@ -468,11 +479,7 @@ function EditPresensi({ user }) {
       </div>
 
       {/* Notification */}
-      {notification.show && (
-        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

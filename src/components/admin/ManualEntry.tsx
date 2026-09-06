@@ -1,10 +1,17 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { AppDialog } from '../ui/dialog'
+import { useState, useEffect, useRef } from 'react'
 import { UserPlus, Calendar, Clock, FileText, CheckCircle, AlertCircle, X, Search } from 'lucide-react'
 import { manualEntryAPI } from '../../services/api'
 
 function ManualEntry() {
     const [gurus, setGurus] = useState([])
-    const [loading, setLoading] = useState(true)
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
+  const [loading, setLoading] = useState(true)
+    const submitRef = useRef(false)
+    const [validation, setValidation] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [message, setMessage] = useState({ type: '', text: '' })
     const [showModal, setShowModal] = useState(false)
@@ -26,15 +33,24 @@ function ManualEntry() {
     }, [])
 
     const loadGurus = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
         try {
             const response = await manualEntryAPI.getGurus()
+      if (requestId !== loadRequest.current) return
+
             if (response.success) {
                 setGurus(response.data)
             }
         } catch (err) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
             setMessage({ type: 'error', text: 'Gagal memuat daftar guru' })
         } finally {
-            setLoading(false)
+            requestId === loadRequest.current && setLoading(false)
         }
     }
 
@@ -51,6 +67,8 @@ function ManualEntry() {
 
     const handleSubmit = async (e) => {
         e.preventDefault()
+        if (submitRef.current) return
+        setValidation(true)
 
         if (!formData.user_id) {
             setMessage({ type: 'error', text: 'Pilih guru terlebih dahulu' })
@@ -62,6 +80,7 @@ function ManualEntry() {
             return
         }
 
+        submitRef.current = true
         setSubmitting(true)
         setMessage({ type: '', text: '' })
 
@@ -79,10 +98,12 @@ function ManualEntry() {
                     reason: ''
                 })
                 setSelectedGuru(null)
+                setValidation(false)
             }
         } catch (err) {
             setMessage({ type: 'error', text: err.message || 'Gagal menyimpan presensi manual' })
         } finally {
+            submitRef.current = false
             setSubmitting(false)
         }
     }
@@ -103,18 +124,20 @@ function ManualEntry() {
         )
     }
 
-    return (
+    if (loadError) return <Notice onRetry={() => loadGurus()}>{loadError}</Notice>
+
+  return (
         <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white">
+                <div className="border-b border-border p-6 text-foreground">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <div className="w-12 h-12 bg-blue-50 text-blue-700 rounded-xl flex items-center justify-center">
                             <UserPlus className="w-6 h-6" />
                         </div>
                         <div>
                             <h2 className="text-xl font-bold">Presensi Manual</h2>
-                            <p className="text-orange-100">Input presensi manual untuk kondisi darurat</p>
+                            <p className="text-muted-foreground">Input presensi manual untuk kondisi darurat</p>
                         </div>
                     </div>
                 </div>
@@ -147,6 +170,7 @@ function ManualEntry() {
                         </div>
                     )}
 
+                    {validation && !formData.user_id && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">Pilih guru terlebih dahulu.</p>}
                     {/* Select Guru */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -154,7 +178,7 @@ function ManualEntry() {
                         </label>
                         <button
                             type="button"
-                            onClick={() => setShowModal(true)}
+                            aria-label="Pilih guru" aria-invalid={validation && !formData.user_id} onClick={() => setShowModal(true)}
                             className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-left hover:border-blue-400 hover:bg-blue-50 transition-colors"
                         >
                             {selectedGuru ? (
@@ -179,11 +203,11 @@ function ManualEntry() {
                     {/* Date & Time */}
                     <div className="grid md:grid-cols-3 gap-4">
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            <label htmlFor="manualentry-field-48" className="block text-sm font-semibold text-gray-700 mb-2">
                                 <Calendar className="w-4 h-4 inline mr-1" />
                                 Tanggal <span className="text-red-500">*</span>
                             </label>
-                            <input
+                            <input id="manualentry-field-48" aria-label="Tanggal"
                                 type="date"
                                 value={formData.tanggal}
                                 onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
@@ -192,11 +216,11 @@ function ManualEntry() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            <label htmlFor="manualentry-field-49" className="block text-sm font-semibold text-gray-700 mb-2">
                                 <Clock className="w-4 h-4 inline mr-1" />
                                 Jam Masuk
                             </label>
-                            <input
+                            <input id="manualentry-field-49" aria-label="Jam Masuk"
                                 type="time"
                                 value={formData.jam_masuk}
                                 onChange={(e) => setFormData(prev => ({ ...prev, jam_masuk: e.target.value }))}
@@ -204,11 +228,11 @@ function ManualEntry() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            <label htmlFor="manualentry-field-50" className="block text-sm font-semibold text-gray-700 mb-2">
                                 <Clock className="w-4 h-4 inline mr-1" />
                                 Jam Pulang
                             </label>
-                            <input
+                            <input id="manualentry-field-50" aria-label="Jam Pulang"
                                 type="time"
                                 value={formData.jam_pulang}
                                 onChange={(e) => setFormData(prev => ({ ...prev, jam_pulang: e.target.value }))}
@@ -242,11 +266,11 @@ function ManualEntry() {
 
                     {/* Reason */}
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        <label htmlFor="manualentry-field-51" className="block text-sm font-semibold text-gray-700 mb-2">
                             <FileText className="w-4 h-4 inline mr-1" />
                             Alasan Presensi Manual <span className="text-red-500">*</span>
                         </label>
-                        <textarea
+                        <textarea id="manualentry-field-51" aria-label="Alasan Presensi Manual"
                             value={formData.reason}
                             onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
                             placeholder="Contoh: HP guru rusak, GPS tidak berfungsi, dll..."
@@ -256,11 +280,12 @@ function ManualEntry() {
                         />
                     </div>
 
+                    {validation && !formData.reason.trim() && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">Alasan presensi manual wajib diisi.</p>}
                     {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={submitting || !formData.user_id}
-                        className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-bold text-lg hover:from-orange-600 hover:to-red-600 disabled:from-gray-400 disabled:to-gray-500 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 disabled:bg-slate-400 transition-all flex items-center justify-center gap-2"
                     >
                         {submitting ? (
                             <>
@@ -279,17 +304,9 @@ function ManualEntry() {
 
             {/* Guru Selection Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-                        <div className="p-4 border-b flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-gray-800">Pilih Guru</h3>
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
+                <AppDialog open={true} onOpenChange={(open) => { if (!open) setShowModal(false) }} title="Pilih guru" busy={submitting}>
+<fieldset disabled={submitting} className="min-w-0">
+
 
                         {/* Search */}
                         <div className="p-4 border-b">
@@ -319,7 +336,7 @@ function ManualEntry() {
                                             onClick={() => handleSelectGuru(guru)}
                                             className="w-full p-3 flex items-center gap-3 hover:bg-blue-50 rounded-lg transition-colors text-left"
                                         >
-                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+                                            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
                                                 <span className="text-white font-bold">{guru.nama.charAt(0)}</span>
                                             </div>
                                             <div>
@@ -331,8 +348,8 @@ function ManualEntry() {
                                 </div>
                             )}
                         </div>
-                    </div>
-                </div>
+
+</fieldset></AppDialog>
             )}
         </div>
     )

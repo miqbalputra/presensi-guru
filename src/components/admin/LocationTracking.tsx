@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Notice, PageLoading } from '../ui/page'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { AlertCircle, Clock, MapPin, Navigation, RefreshCw, Users } from 'lucide-react'
 import { locationTrackingAPI } from '../../services/api'
 import { formatDateForInput } from '../../utils/dateUtils'
@@ -99,6 +100,10 @@ function formatNearestPin(point, pins) {
 }
 
 function LocationTracking() {
+  const latestRequest = useRef(0)
+  const historyRequest = useRef(0)
+  useEffect(() => () => { latestRequest.current++; historyRequest.current++ }, [])
+
   const [date, setDate] = useState(formatDateForInput(new Date()))
   const [items, setItems] = useState([])
   const [settings, setSettings] = useState<Record<string, any>>({})
@@ -118,10 +123,14 @@ function LocationTracking() {
   const trackedCount = items.filter(item => item.track_id).length
 
   const loadLatest = async () => {
+    const request = ++latestRequest.current
+
     try {
       setLoading(true)
       setError('')
       const response = await locationTrackingAPI.getLatest(date)
+      if (request !== latestRequest.current) return
+
       const nextItems = response.data?.items || []
       setItems(nextItems)
       setSettings(response.data?.settings || {})
@@ -131,23 +140,35 @@ function LocationTracking() {
         return nextItems.find(item => item.track_id)?.user_id || nextItems[0]?.user_id || null
       })
     } catch (err) {
+      if (request !== latestRequest.current) return
+
       setError(err.message)
     } finally {
+      if (request === latestRequest.current) {
       setLoading(false)
+    }
     }
   }
 
   const loadHistory = async (userId = selectedItem?.user_id) => {
+    const request = ++historyRequest.current
+
     if (!userId) return
     try {
       setHistoryLoading(true)
       const response = await locationTrackingAPI.getHistory(userId, date, 300)
+      if (request !== historyRequest.current) return
+
       setHistory(response.data || [])
     } catch (err) {
+      if (request !== historyRequest.current) return
+
       setError(err.message)
       setHistory([])
     } finally {
+      if (request === historyRequest.current) {
       setHistoryLoading(false)
+    }
     }
   }
 
@@ -178,7 +199,7 @@ function LocationTracking() {
           <p className="text-sm text-gray-500 mt-1">Pantau titik lokasi terakhir guru yang sedang hadir.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          <input
+          <input aria-label="Tanggal pemantauan"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -195,6 +216,7 @@ function LocationTracking() {
         </div>
       </div>
 
+      {loading && <PageLoading />}
       {error && (
         <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
           <AlertCircle className="w-4 h-4" />
@@ -202,7 +224,7 @@ function LocationTracking() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div hidden={loading || !!error}><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center gap-3">
             <Users className="w-8 h-8 text-blue-600" />
@@ -272,7 +294,7 @@ function LocationTracking() {
                           </p>
                         )}
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         item.track_id ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
                       }`}>
                         {item.track_id ? `${Math.round(parseFloat(item.accuracy_meters || 0))}m` : 'kosong'}
@@ -371,7 +393,7 @@ function LocationTracking() {
             </div>
           </div>
         </div>
-      </div>
+      </div></div>
     </div>
   )
 }

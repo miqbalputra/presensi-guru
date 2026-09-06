@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, Component, Suspense, lazy } from 'react'
 import { Download, X } from 'lucide-react'
 import { authAPI } from './services/api'
 import Login from './pages/Login'
+import { ToastViewport, notify } from './components/ui/toast'
 
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const GuruDashboard = lazy(() => import('./pages/GuruDashboard'))
@@ -69,6 +70,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 function App() {
   const [user, setUser] = useState(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
   const inactivityTimerRef = useRef(null)
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
@@ -154,7 +156,7 @@ function App() {
       }
     }
 
-    syncSession()
+    void syncSession().finally(() => setSessionLoading(false))
 
     // PWA Logic: Catch install prompt
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -182,7 +184,7 @@ function App() {
       // Set timer baru
       inactivityTimerRef.current = setTimeout(() => {
         handleLogout()
-        alert('Sesi Anda telah berakhir karena tidak ada aktivitas selama 30 menit. Silakan login kembali.')
+        notify('Sesi Anda telah berakhir karena tidak ada aktivitas selama 30 menit. Silakan masuk kembali.')
       }, INACTIVITY_TIMEOUT)
     }
 
@@ -219,58 +221,37 @@ function App() {
     setShowInstallPrompt(false);
   }
 
+  const installBanner = showInstallPrompt && deferredPrompt ? (
+    <aside className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4" aria-label="Pasang aplikasi">
+      <div className="flex items-center gap-3"><Download className="h-5 w-5 text-primary" aria-hidden="true" /><div><p className="text-sm font-semibold">Pasang GeoPresensi</p><p className="text-xs text-muted-foreground">Buka langsung dari layar utama perangkat.</p></div></div>
+      <div className="flex items-center gap-2"><button onClick={handleInstallClick} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Pasang</button><button aria-label="Tutup ajakan pemasangan" onClick={() => setShowInstallPrompt(false)} className="ui-icon-button"><X className="h-5 w-5" /></button></div>
+    </aside>
+  ) : null
+
   return (
     <ErrorBoundary>
       <Router>
+        <ToastViewport />
         <Suspense fallback={<PageLoading />}>
-          <Routes>
+          {sessionLoading ? <PageLoading /> : <Routes>
             <Route path="/login" element={
               user ? <Navigate to={user.role === 'guru' ? '/guru' : '/admin'} /> : <Login onLogin={handleLogin} />
             } />
             <Route path="/admin/*" element={
               user && (user.role === 'admin' || user.role === 'kepala_sekolah') ?
-              <AdminDashboard user={user} onLogout={handleLogout} /> :
+              <AdminDashboard user={user} onLogout={handleLogout} installBanner={installBanner} /> :
               <Navigate to="/login" />
             } />
             <Route path="/guru/*" element={
               user && user.role === 'guru' ?
-              <GuruDashboard user={user} onLogout={handleLogout} /> :
+              <GuruDashboard user={user} onLogout={handleLogout} installBanner={installBanner} /> :
               <Navigate to="/login" />
             } />
             <Route path="/" element={<Navigate to="/login" />} />
-          </Routes>
+          </Routes>}
         </Suspense>
 
-        {/* PWA Install Popup */}
-        {showInstallPrompt && (
-          <div className="fixed bottom-20 left-4 right-4 z-50 animate-bounce">
-            <div className="bg-white rounded-2xl shadow-2xl p-4 flex items-center justify-between border-2 border-blue-500">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <Download className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-800 text-sm">Pasang Geo-Presensi GQ</h4>
-                  <p className="text-xs text-gray-500">Akses lebih cepat & mudah!</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleInstallClick}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
-                >
-                  PASANG
-                </button>
-                <button
-                  onClick={() => setShowInstallPrompt(false)}
-                  className="p-1 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+
       </Router>
     </ErrorBoundary>
   )

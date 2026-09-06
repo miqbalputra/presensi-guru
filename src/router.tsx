@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 
 const RouterContext = createContext(null)
@@ -33,14 +33,14 @@ export function Router({ children }: RouterProps) {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
-  const navigate = (to: string, options: NavigateOptions = {}) => {
+  const navigate = useCallback((to: string, options: NavigateOptions = {}) => {
     const next = normalizePath(to)
     if (options.replace) window.history.replaceState({}, '', next)
-    else window.history.pushState({}, '', next)
+    else if (next !== normalizePath(window.location.pathname)) window.history.pushState({}, '', next)
     setPathname(next)
-  }
+  }, [])
 
-  const value = useMemo(() => ({ pathname, navigate }), [pathname])
+  const value = useMemo(() => ({ pathname, navigate }), [pathname, navigate])
   return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>
 }
 

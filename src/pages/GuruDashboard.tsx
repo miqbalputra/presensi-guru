@@ -9,11 +9,12 @@ import {
   LogOut,
   Moon,
   School,
-  ShieldCheck,
   Sun,
   UserCog,
   Users,
 } from 'lucide-react'
+import { useLocation, useNavigate } from '../router'
+import { useTheme, readPreference as readStorage, savePreference } from '../hooks/useTheme'
 import GuruHome from '../components/guru/GuruHome'
 import GuruAkun from '../components/guru/GuruAkun'
 
@@ -21,47 +22,23 @@ const GuruRiwayat = lazy(() => import('../components/guru/GuruRiwayat'))
 const GuruStatus = lazy(() => import('../components/guru/GuruStatus'))
 const GuruStatistik = lazy(() => import('../components/guru/GuruStatistik'))
 
-function readStorage(key: string, fallback: string) {
-  try {
-    return localStorage.getItem(key) || fallback
-  } catch {
-    return fallback
-  }
-}
-
 function TabLoading() {
   return (
     <div className="flex min-h-[280px] items-center justify-center">
       <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400" />
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" />
         Memuat halaman...
       </div>
     </div>
   )
 }
 
-function useTheme() {
-  const [theme, setTheme] = useState(() => readStorage('gq-theme', 'light'))
-
-  useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle('dark', theme === 'dark')
-    try {
-      localStorage.setItem('gq-theme', theme)
-    } catch {
-      // Ignore storage errors; the theme still applies for the current session.
-    }
-  }, [theme])
-
-  return {
-    theme,
-    toggle: () => setTheme((current) => current === 'dark' ? 'light' : 'dark'),
-  }
-}
-
-function GuruDashboard({ user, onLogout }) {
+function GuruDashboard({ user, onLogout, installBanner }) {
   const { theme, toggle } = useTheme()
-  const [activeTab, setActiveTab] = useState(() => readStorage('lastGuruTab', 'home'))
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const activeTab = pathname.split('/')[2] || 'home'
+  const setActiveTab = (tab: string) => navigate(tab === 'home' ? '/guru' : '/guru/' + tab)
   // Start with descriptive labels visible on desktop. The earlier icon-only
   // preference is reset once because it made the menu hard to scan.
   const [sidebarOpen, setSidebarOpen] = useState(() => readStorage('guru-sidebar-expanded-v2', '1') === '1')
@@ -69,9 +46,9 @@ function GuruDashboard({ user, onLogout }) {
   const tabs = [
     { id: 'home', label: 'Beranda', icon: Home },
     { id: 'riwayat', label: 'Riwayat', icon: History },
-    { id: 'status', label: 'Status', icon: Users },
+    { id: 'status', label: 'Rekan', icon: Users },
     { id: 'statistik', label: 'Statistik', icon: BarChart3 },
-    { id: 'akun', label: 'Akun Guru', icon: UserCog },
+    { id: 'akun', label: 'Akun', icon: UserCog },
   ]
 
   const firstName = (user?.nama || 'Guru').split(' ')[0]
@@ -84,11 +61,12 @@ function GuruDashboard({ user, onLogout }) {
   }).format(new Date())
 
   useEffect(() => {
-    localStorage.setItem('lastGuruTab', activeTab)
-  }, [activeTab])
+    if (!['home', 'riwayat', 'status', 'statistik', 'akun'].includes(activeTab)) navigate('/guru', { replace: true })
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [activeTab, navigate])
 
   useEffect(() => {
-    localStorage.setItem('guru-sidebar-expanded-v2', sidebarOpen ? '1' : '0')
+    savePreference('guru-sidebar-expanded-v2', sidebarOpen ? '1' : '0')
   }, [sidebarOpen])
 
   useEffect(() => {
@@ -113,11 +91,11 @@ function GuruDashboard({ user, onLogout }) {
         title={!sidebarOpen ? tab.label : undefined}
         className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
           isActive
-            ? 'bg-blue-600 text-white shadow-sm'
-            : 'text-slate-400 hover:bg-white/10 hover:text-white'
+            ? 'bg-accent text-accent-foreground'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         } ${!sidebarOpen ? 'justify-center px-2' : ''}`}
       >
-        <tab.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-blue-100' : 'text-slate-400'}`} aria-hidden="true" />
+        <tab.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-accent-foreground' : 'text-slate-400'}`} aria-hidden="true" />
         <span className={sidebarOpen ? 'truncate' : 'sr-only'}>{tab.label}</span>
       </button>
     )
@@ -127,17 +105,17 @@ function GuruDashboard({ user, onLogout }) {
     <div className="academy-dashboard guru-dashboard min-h-screen text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <a href="#guru-main-content" className="guru-skip-link">Lewati ke konten utama</a>
 
-      <aside className={`academy-sidebar fixed inset-y-0 left-0 z-50 hidden flex-col border-r border-white/10 transition-[width] duration-200 lg:flex ${sidebarOpen ? 'w-64' : 'w-[4.5rem]'}`} aria-label="Navigasi guru">
-        <div className={`flex h-16 items-center border-b border-white/10 ${sidebarOpen ? 'justify-between px-4' : 'justify-center'}`}>
-          <button type="button" onClick={() => setActiveTab('home')} className={`flex items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${!sidebarOpen ? 'justify-center' : ''}`} title="Beranda">
+      <aside className={`academy-sidebar fixed inset-y-0 left-0 z-50 hidden flex-col border-r border-border transition-[width] duration-200 lg:flex ${sidebarOpen ? 'w-64' : 'w-[4.5rem]'}`} aria-label="Navigasi guru">
+        <div className={`flex h-16 items-center border-b border-border ${sidebarOpen ? 'justify-between px-4' : 'justify-center'}`}>
+          <button type="button" onClick={() => setActiveTab('home')} className={`flex items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${!sidebarOpen ? 'justify-center' : ''}`} title="Beranda">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/40"><School className="h-5 w-5" aria-hidden="true" /></span>
             <span className={sidebarOpen ? 'min-w-0' : 'sr-only'}>
-              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">Portal Guru</span>
-              <span className="block truncate text-sm font-semibold text-white">Geo-Presensi</span>
+              <span className="block text-xs font-bold uppercase tracking-normal text-primary">Portal Guru</span>
+              <span className="block truncate text-sm font-semibold text-foreground">Geo-Presensi</span>
             </span>
           </button>
           {sidebarOpen && (
-            <button type="button" onClick={() => setSidebarOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="Ciutkan sidebar" title="Ciutkan sidebar (Ctrl+B)">
+            <button type="button" onClick={() => setSidebarOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="Ciutkan sidebar" title="Ciutkan sidebar (Ctrl+B)">
               <ChevronLeft className="h-4 w-4" />
             </button>
           )}
@@ -146,27 +124,27 @@ function GuruDashboard({ user, onLogout }) {
         <div className="flex min-h-0 flex-1 flex-col justify-between p-3">
           <div className="space-y-6">
             <div>
-              <p className={`mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 ${!sidebarOpen ? 'sr-only' : ''}`}>Presensi</p>
+              <p className={`mb-2 px-3 text-xs font-bold uppercase tracking-normal text-slate-500 ${!sidebarOpen ? 'sr-only' : ''}`}>Presensi</p>
               <div className="space-y-1">{tabs.slice(0, 4).map(renderNavItem)}</div>
             </div>
             <div>
-              <p className={`mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 ${!sidebarOpen ? 'sr-only' : ''}`}>Akun</p>
+              <p className={`mb-2 px-3 text-xs font-bold uppercase tracking-normal text-slate-500 ${!sidebarOpen ? 'sr-only' : ''}`}>Akun</p>
               <div className="space-y-1">{tabs.slice(4).map(renderNavItem)}</div>
             </div>
           </div>
           {!sidebarOpen && (
-            <button type="button" onClick={() => setSidebarOpen(true)} className="flex h-10 w-full items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="Lebarkan sidebar" title="Lebarkan sidebar (Ctrl+B)">
+            <button type="button" onClick={() => setSidebarOpen(true)} className="flex h-10 w-full items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="Lebarkan sidebar" title="Lebarkan sidebar (Ctrl+B)">
               <ChevronRight className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        <div className={`border-t border-white/10 p-3 ${!sidebarOpen ? 'flex justify-center' : ''}`}>
+        <div className={`border-t border-border p-3 ${!sidebarOpen ? 'flex justify-center' : ''}`}>
           <div className={`flex items-center gap-3 ${!sidebarOpen ? 'justify-center' : ''}`}>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-blue-100">{avatarInitial}</span>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">{avatarInitial}</span>
             <div className={sidebarOpen ? 'min-w-0' : 'sr-only'}>
-              <p className="truncate text-xs font-semibold text-white">{user?.nama || 'Guru'}</p>
-              <p className="truncate text-[11px] text-slate-400">{user?.username || 'Akun guru'}</p>
+              <p className="truncate text-xs font-semibold text-foreground">{user?.nama || 'Guru'}</p>
+              <p className="truncate text-xs text-slate-400">{user?.username || 'Akun guru'}</p>
             </div>
           </div>
         </div>
@@ -178,33 +156,26 @@ function GuruDashboard({ user, onLogout }) {
             <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{activeTabLabel}</p>
-                <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Assalamu'alaikum, <span className="text-indigo-700 dark:text-indigo-300">{firstName}</span></h1>
+                <h1 className="truncate text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">GeoPresensi</h1>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 sm:flex">
-                <CalendarDays className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" aria-hidden="true" />
+                <CalendarDays className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" aria-hidden="true" />
                 <span>{todayLabel}</span>
               </div>
-              <span className="hidden items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300 sm:inline-flex"><ShieldCheck className="h-3 w-3" aria-hidden="true" /> Aman</span>
-              <button type="button" onClick={toggle} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-amber-400" title={theme === 'dark' ? 'Mode terang' : 'Mode gelap'} aria-label={theme === 'dark' ? 'Mode terang' : 'Mode gelap'}>
+              <button type="button" onClick={toggle} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-amber-400" title={theme === 'dark' ? 'Mode terang' : 'Mode gelap'} aria-label={theme === 'dark' ? 'Mode terang' : 'Mode gelap'}>
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
-              <button type="button" onClick={onLogout} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:text-slate-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400" title="Logout" aria-label="Logout">
+              <button type="button" onClick={onLogout} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:text-slate-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400" title="Keluar" aria-label="Keluar">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
           </div>
         </header>
 
-        <main id="guru-main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 pb-24 pt-6 outline-none sm:px-6 lg:px-8 lg:pb-12">
-          <div className="mb-6 hidden items-center justify-between lg:flex">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">Ruang kerja guru</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Kelola presensi dan lihat ringkasan kehadiran Anda.</p>
-            </div>
-            <p className="text-xs text-slate-400 dark:text-slate-500" aria-live="polite">Data tersinkron sesuai akses Anda.</p>
-          </div>
+        <main id="guru-main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 pb-28 pt-4 outline-none sm:px-6 lg:px-8 lg:pb-12">
+          {activeTab === 'akun' && installBanner}
           <div key={activeTab} className="animate-fade-in">
             {activeTab === 'home' && <GuruHome user={user} onChangeTab={setActiveTab} />}
             {activeTab === 'akun' && <GuruAkun user={user} />}
@@ -224,8 +195,8 @@ function GuruDashboard({ user, onLogout }) {
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id
                 return (
-                  <button type="button" key={tab.id} onClick={() => setActiveTab(tab.id)} aria-current={isActive ? 'page' : undefined} className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}>
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400' : ''}`}><tab.icon className="h-[17px] w-[17px]" aria-hidden="true" /></span>
+                  <button type="button" key={tab.id} onClick={() => setActiveTab(tab.id)} aria-current={isActive ? 'page' : undefined} className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}>
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' : ''}`}><tab.icon className="h-[17px] w-[17px]" aria-hidden="true" /></span>
                     <span className="max-w-full truncate">{tab.id === 'akun' ? 'Akun' : tab.label}</span>
                   </button>
                 )

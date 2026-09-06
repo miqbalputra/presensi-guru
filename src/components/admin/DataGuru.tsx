@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { notify } from '../ui/toast'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Edit2, Archive, Download, Upload } from 'lucide-react'
 import { createWorkbook, addJsonSheet, downloadWorkbook, readWorkbookRows } from '../../utils/excelExport'
 import { calculateWorkDuration, formatDate, formatDisplayDate } from '../../utils/dateUtils'
@@ -14,6 +16,9 @@ function DataGuru() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterJK, setFilterJK] = useState('all')
   const [filterJabatan, setFilterJabatan] = useState('all')
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,16 +26,25 @@ function DataGuru() {
   }, [])
 
   const loadDataGuru = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+    setLoading(true)
+
     try {
       setLoading(true)
       const response = await guruAPI.getAll()
+      if (requestId !== loadRequest.current) return
+
       setDataGuru(response.data)
       setFilteredGuru(response.data)
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data belum dapat dimuat. Periksa koneksi lalu coba lagi.')
+
       console.error('Failed to load guru data:', error)
       showNotification('Gagal memuat data guru: ' + error.message)
     } finally {
-      setLoading(false)
+      requestId === loadRequest.current && setLoading(false)
     }
   }
 
@@ -39,7 +53,7 @@ function DataGuru() {
 
     // Filter by search term (nama)
     if (searchTerm) {
-      filtered = filtered.filter(guru => 
+      filtered = filtered.filter(guru =>
         guru.nama.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
@@ -62,7 +76,7 @@ function DataGuru() {
 
   const showNotification = (message) => {
     setNotification({ show: true, message })
-    setTimeout(() => setNotification({ show: false, message: '' }), 3000)
+    notify(message, message.startsWith('Gagal') ? 'error' : 'success')
   }
 
   const resetFilters = () => {
@@ -122,6 +136,7 @@ function DataGuru() {
       loadDataGuru()
     } catch (error) {
       showNotification('Gagal menyimpan data guru: ' + error.message)
+      throw error
     }
   }
 
@@ -137,7 +152,7 @@ function DataGuru() {
       }
       return age + ' tahun'
     }
-    
+
     const exportData = dataGuru.map((guru, index) => ({
       'No': index + 1,
       'ID Guru': guru.idGuru || '-',
@@ -171,7 +186,7 @@ function DataGuru() {
       const importedData = data.map((row, index) => {
         const tglLahir = row['Tanggal Lahir'] || row['tanggal lahir'] || row['Tanggal lahir'] || '';
         let generatedUserPass = `guru${dataGuru.length + index + 1}`;
-        
+
         if (tglLahir) {
           const date = new Date(tglLahir);
           if (!isNaN(date.getTime())) {
@@ -207,13 +222,15 @@ function DataGuru() {
           console.error('Gagal import guru:', guru.nama, err);
         }
       }
-      
+
       showNotification(`${successCount} data guru berhasil diimport!`);
       loadDataGuru();
     }
     reader.readAsBinaryString(file)
     e.target.value = ''
   }
+
+  if (loadError) return <Notice onRetry={() => loadDataGuru()}>{loadError}</Notice>
 
   return (
     <div className="space-y-6">
@@ -257,10 +274,10 @@ function DataGuru() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Search */}
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="dataguru-field-1" className="block text-sm font-medium text-gray-700 mb-2">
               Cari Nama Guru
             </label>
-            <input
+            <input id="dataguru-field-1" aria-label="Cari Nama Guru"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -271,10 +288,10 @@ function DataGuru() {
 
           {/* Filter Jenis Kelamin */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="dataguru-field-2" className="block text-sm font-medium text-gray-700 mb-2">
               Jenis Kelamin
             </label>
-            <select
+            <select id="dataguru-field-2" aria-label="Jenis Kelamin"
               value={filterJK}
               onChange={(e) => setFilterJK(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -287,10 +304,10 @@ function DataGuru() {
 
           {/* Filter Jabatan */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="dataguru-field-3" className="block text-sm font-medium text-gray-700 mb-2">
               Jabatan
             </label>
-            <select
+            <select id="dataguru-field-3" aria-label="Jabatan"
               value={filterJabatan}
               onChange={(e) => setFilterJabatan(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -353,7 +370,7 @@ function DataGuru() {
                   }
                   return age + ' tahun'
                 }
-                
+
                 return (
                 <tr key={guru.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
@@ -413,11 +430,7 @@ function DataGuru() {
       )}
 
       {/* Notification */}
-      {notification.show && (
-        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
-          {notification.message}
-        </div>
-      )}
+
     </div>
   )
 }

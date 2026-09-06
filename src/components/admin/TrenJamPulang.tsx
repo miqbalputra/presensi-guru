@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef } from 'react'
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid,
   Legend, Line
@@ -86,14 +87,17 @@ const CompareTooltip = ({ active, payload, label }: any) => {
 function TrenJamPulang() {
   const todayStr = toDateStr(new Date())
   const [mode, setMode] = useState('trend') // 'trend' | 'compare'
-  
+
   // Periode A
   const [periodeA, setPeriodeA] = useState({ start: addDays(todayStr, -13), end: todayStr })
   // Periode B (mode compare)
   const [periodeB, setPeriodeB] = useState({ start: addDays(todayStr, -27), end: addDays(todayStr, -14) })
-  
+
   const [selectedGuru, setSelectedGuru] = useState('all')
   const [dataGuru, setDataGuru] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
 
   // Chart data
@@ -106,6 +110,9 @@ function TrenJamPulang() {
   useEffect(() => { loadData() }, [periodeA, periodeB, selectedGuru])
 
   const loadData = async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+
     try {
       setLoading(true)
       const response = await adminChartsAPI.getCheckout({
@@ -115,6 +122,8 @@ function TrenJamPulang() {
         endB: periodeB.end,
         userId: selectedGuru
       })
+      if (requestId !== loadRequest.current) return
+
       const data = response.data || {}
       setDataGuru(data.guru || [])
       setChartData(data.periodA?.rows || [])
@@ -123,9 +132,12 @@ function TrenJamPulang() {
       setStatsB(data.periodB?.summary || { normal: 0, early: 0, forgotten: 0, avgMins: null, pctForgotten: '0.0' })
       setCompareData(data.compare || [])
     } catch (e) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data analitik belum dapat dimuat. Coba perbarui kembali.')
+
       console.error('TrenJamPulang: gagal muat data', e)
     } finally {
-      setLoading(false)
+      if (requestId === loadRequest.current) setLoading(false)
     }
   }
 
@@ -135,6 +147,8 @@ function TrenJamPulang() {
   const deltaColor = delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-600' : 'text-gray-500'
   const deltaBg = delta > 0 ? 'bg-red-50 border-red-200' : delta < 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'
   const deltaLabel = delta > 0 ? `Lupa Checkout Naik ${Math.abs(delta).toFixed(1)}%` : delta < 0 ? `Lupa Checkout Turun ${Math.abs(delta).toFixed(1)}%` : 'Stagnan'
+
+  if (loadError) return <Notice onRetry={() => loadData()}>{loadError}</Notice>
 
   if (loading) return (
     <Card className="col-span-full p-6">
@@ -161,7 +175,7 @@ function TrenJamPulang() {
           {/* Guru Filter */}
           <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-200">
             <div className="pl-3 py-1"><Users className="w-4 h-4 text-gray-400"/></div>
-            <select value={selectedGuru} onChange={e => setSelectedGuru(e.target.value)}
+            <select aria-label="Filter guru" value={selectedGuru} onChange={e => setSelectedGuru(e.target.value)}
               className="bg-transparent text-xs font-semibold text-gray-700 py-1.5 pr-3 outline-none min-w-[120px]">
               <option value="all">Semua Guru</option>
               {dataGuru.map(g => (<option key={g.id} value={g.id}>{g.nama}</option>))}
@@ -191,18 +205,18 @@ function TrenJamPulang() {
         <div className={`flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl border ${mode === 'compare' ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
           <Calendar className="w-4 h-4 text-gray-500"/>
           <span className="text-xs font-semibold text-gray-700">{mode === 'compare' ? 'Periode A' : 'Periode'}</span>
-          <input type="date" value={periodeA.start} max={periodeA.end} onChange={e => setPeriodeA(p => ({ ...p, start: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
+          <input aria-label="Tanggal awal periode A" type="date" value={periodeA.start} max={periodeA.end} onChange={e => setPeriodeA(p => ({ ...p, start: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
           <span className="text-xs text-gray-400">s/d</span>
-          <input type="date" value={periodeA.end} min={periodeA.start} max={todayStr} onChange={e => setPeriodeA(p => ({ ...p, end: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
+          <input aria-label="Tanggal akhir periode A" type="date" value={periodeA.end} min={periodeA.start} max={todayStr} onChange={e => setPeriodeA(p => ({ ...p, end: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
         </div>
 
         {mode === 'compare' && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl border border-purple-200 bg-purple-50">
             <Calendar className="w-4 h-4 text-purple-500"/>
             <span className="text-xs font-semibold text-purple-700">Periode B</span>
-            <input type="date" value={periodeB.start} max={periodeB.end} onChange={e => setPeriodeB(p => ({ ...p, start: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
+            <input aria-label="Tanggal awal periode B" type="date" value={periodeB.start} max={periodeB.end} onChange={e => setPeriodeB(p => ({ ...p, start: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
             <span className="text-xs text-gray-400">s/d</span>
-            <input type="date" value={periodeB.end} min={periodeB.start} max={todayStr} onChange={e => setPeriodeB(p => ({ ...p, end: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
+            <input aria-label="Tanggal akhir periode B" type="date" value={periodeB.end} min={periodeB.start} max={todayStr} onChange={e => setPeriodeB(p => ({ ...p, end: e.target.value }))} className="text-xs px-2 py-1 border border-gray-300 rounded-lg bg-white outline-none"/>
           </div>
         )}
       </div>
@@ -212,19 +226,19 @@ function TrenJamPulang() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-              <p className="text-[10px] text-emerald-600 font-black uppercase tracking-wider">Normal</p>
+              <p className="text-xs text-emerald-600 font-black uppercase tracking-wider">Normal</p>
               <p className="text-2xl font-black text-emerald-800">{statsA.normal}</p>
             </div>
             <div className="bg-orange-50 rounded-xl p-3 border border-orange-100">
-              <p className="text-[10px] text-orange-600 font-black uppercase tracking-wider">Pulang Awal</p>
+              <p className="text-xs text-orange-600 font-black uppercase tracking-wider">Pulang Awal</p>
               <p className="text-2xl font-black text-orange-800">{statsA.early}</p>
             </div>
             <div className="bg-rose-50 rounded-xl p-3 border border-rose-100">
-              <p className="text-[10px] text-rose-600 font-black uppercase tracking-wider">Lupa Checkout</p>
+              <p className="text-xs text-rose-600 font-black uppercase tracking-wider">Lupa Checkout</p>
               <p className="text-2xl font-black text-rose-800">{statsA.forgotten}</p>
             </div>
             <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-100">
-              <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider">Rata-rata Pulang</p>
+              <p className="text-xs text-indigo-600 font-black uppercase tracking-wider">Rata-rata Pulang</p>
               <p className="text-2xl font-black text-indigo-800">{minutesToTime(statsA.avgMins)}</p>
             </div>
           </div>
@@ -295,7 +309,7 @@ function TrenJamPulang() {
         </div>
         <div className="overflow-x-auto">
           {earlyReasons.length > 0 ? (
-            <table className="w-full text-[11px]">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="text-gray-400 border-b border-gray-50 text-left uppercase tracking-wider">
                   <th className="py-2">Nama Guru</th><th className="py-2">Tanggal</th><th className="text-center py-2">Jam</th><th className="py-2">Alasan Izin</th>

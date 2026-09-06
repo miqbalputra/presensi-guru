@@ -1,193 +1,83 @@
-import { NavLink } from '../../router'
-import {
-  Activity,
-  Archive,
-  ArchiveRestore,
-  Bot,
-  Calendar,
-  CalendarCheck,
-  CalendarPlus,
-  CalendarX,
-  Download,
-  Edit,
-  LayoutDashboard,
-  LogOut,
-  Map,
-  MapPin,
-  QrCode,
-  PanelLeftClose,
-  PanelLeftOpen,
-  School,
-  Settings,
-  UserPlus,
-  Users,
-  X,
-} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { NavLink, useLocation } from '../../router'
+import { Activity, Archive, ArchiveRestore, BarChart3, Bot, Calendar, CalendarCheck, CalendarPlus, CalendarX, ChevronDown, Download, Edit, LayoutDashboard, LogOut, Map, MapPin, PanelLeftClose, PanelLeftOpen, QrCode, School, Settings, UserPlus, Users, X } from 'lucide-react'
 
 const groups = [
-  {
-    label: 'Workspace',
-    items: [{ path: '/admin', icon: LayoutDashboard, label: 'Dashboard' }],
-  },
-  {
-    label: 'Presensi',
-    items: [
-      { path: '/admin/data-guru', icon: Users, label: 'Data Guru' },
-      { path: '/admin/arsip-guru', icon: Archive, label: 'Arsip Guru' },
-      { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Jadwal Piket' },
-      { path: '/admin/edit-presensi', icon: Edit, label: 'Edit Presensi' },
-      { path: '/admin/download-laporan', icon: Download, label: 'Download Laporan' },
-    ],
-  },
-  {
-    label: 'Operasional',
-    items: [
-      { path: '/admin/hari-libur', icon: Calendar, label: 'Hari Libur' },
-      { path: '/admin/override-weekend', icon: CalendarX, label: 'Override Weekend' },
-      { path: '/admin/hari-kerja-opsional', icon: CalendarPlus, label: 'Hari Kerja Opsional' },
-      { path: '/admin/log-aktivitas', icon: Activity, label: 'Log Aktivitas' },
-    ],
-  },
-  {
-    label: 'Lokasi & Integrasi',
-    items: [
-      { path: '/admin/lokasi-geofence', icon: Map, label: 'Lokasi & Geofence' },
-      { path: '/admin/tracking-lokasi', icon: MapPin, label: 'Tracking Lokasi' },
-      { path: '/admin/qr-code', icon: QrCode, label: 'QR Code Presensi' },
-      { path: '/admin/manual-entry', icon: UserPlus, label: 'Presensi Manual' },
-    ],
-  },
-  {
-    label: 'Sistem',
-    items: [
-      { path: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' },
-      { path: '/admin/backup', icon: ArchiveRestore, label: 'Backup & Pemulihan' },
-      { path: '/admin/ai-agent', icon: Bot, label: 'AI Agent' },
-    ],
-  },
+  { label: 'Utama', items: [
+    { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/admin/download-laporan', icon: Download, label: 'Laporan' },
+    { path: '/admin/analitik', icon: BarChart3, label: 'Analitik' },
+  ] },
+  { label: 'Presensi', items: [
+    { path: '/admin/edit-presensi', icon: Edit, label: 'Koreksi Presensi' },
+    { path: '/admin/manual-entry', icon: UserPlus, label: 'Presensi Manual' },
+    { path: '/admin/qr-code', icon: QrCode, label: 'QR Code' },
+  ] },
+  { label: 'Guru', items: [
+    { path: '/admin/data-guru', icon: Users, label: 'Data Guru' },
+    { path: '/admin/arsip-guru', icon: Archive, label: 'Arsip Guru' },
+    { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Jadwal Piket' },
+  ] },
+  { label: 'Operasional', items: [
+    { path: '/admin/hari-libur', icon: Calendar, label: 'Hari Libur' },
+    { path: '/admin/override-weekend', icon: CalendarX, label: 'Jadwal Akhir Pekan' },
+    { path: '/admin/hari-kerja-opsional', icon: CalendarPlus, label: 'Hari Kerja Opsional' },
+    { path: '/admin/lokasi-geofence', icon: Map, label: 'Lokasi Presensi' },
+    { path: '/admin/tracking-lokasi', icon: MapPin, label: 'Pemantauan Lokasi' },
+  ] },
+  { label: 'Sistem', items: [
+    { path: '/admin/pengaturan', icon: Settings, label: 'Pengaturan' },
+    { path: '/admin/log-aktivitas', icon: Activity, label: 'Log Aktivitas' },
+    { path: '/admin/backup', icon: ArchiveRestore, label: 'Backup & Pemulihan' },
+    { path: '/admin/ai-agent', icon: Bot, label: 'AI Agent' },
+  ] },
 ]
 
-function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollapse }) {
-  const avatarInitial = (user?.nama || 'A').slice(0, 1).toUpperCase()
+export default function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollapse }) {
+  const { pathname } = useLocation()
+  const [expanded, setExpanded] = useState(['Utama', 'Presensi'])
+  useEffect(() => {
+    const current = groups.find((group) => group.items.some((item) => item.path === pathname))
+    if (current) setExpanded((previous) => previous.includes(current.label) ? previous : [...previous, current.label])
+    setIsOpen(false)
+  }, [pathname, setIsOpen])
 
-  return (
-    <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-950/45 lg:hidden"
-          onClick={() => setIsOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      <aside
-        className={`academy-sidebar fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/10 transition-[width,transform] duration-200 ease-out lg:static lg:translate-x-0 ${
-          collapsed ? 'w-72 lg:w-20' : 'w-72'
-        } ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
-        aria-label="Navigasi admin"
-      >
-        <div className={`flex h-16 shrink-0 items-center border-b border-white/10 ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
-          <NavLink
-            to="/admin"
-            end
-            onClick={() => setIsOpen(false)}
-            className={`flex items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${collapsed ? 'justify-center' : ''}`}
-            title="Dashboard"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/40"><School className="h-5 w-5" aria-hidden="true" /></span>
-            <span className={collapsed ? 'sr-only' : 'min-w-0'}>
-              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">Ruang kerja admin</span>
-              <span className="block truncate text-sm font-semibold text-white">Geo-Presensi</span>
-            </span>
-          </NavLink>
-          {!collapsed && (
-            <button
-              type="button"
-              onClick={() => onToggleCollapse()}
-              className="hidden h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:flex"
-              aria-label="Ciutkan sidebar"
-              title="Ciutkan sidebar (Ctrl+B)"
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setIsOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:hidden"
-            aria-label="Tutup menu"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col justify-between p-3">
-          <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" aria-label="Menu utama">
-            {groups.map((group) => (
-              <div key={group.label} className="border-t border-white/10 pt-4 first:border-t-0 first:pt-0">
-                <p className={`mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 ${collapsed ? 'sr-only' : ''}`}>{group.label}</p>
-                <div className="space-y-1">
-                  {group.items.map((item) => (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      end={item.path === '/admin'}
-                      onClick={() => setIsOpen(false)}
-                      aria-label={collapsed ? item.label : undefined}
-                      title={collapsed ? item.label : undefined}
-                      className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
-                        isActive ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/40' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                      } ${collapsed ? 'justify-center px-2' : ''}`}
-                    >
-                      <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden="true" />
-                      <span className={collapsed ? 'sr-only' : 'truncate'}>{item.label}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>
-
-          {collapsed && (
-            <button
-              type="button"
-              onClick={() => onToggleCollapse()}
-              className="mt-4 flex h-10 w-full items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-              aria-label="Lebarkan sidebar"
-              title="Lebarkan sidebar (Ctrl+B)"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        <div className={`shrink-0 border-t border-white/10 p-3 ${collapsed ? 'flex justify-center' : ''}`}>
-          <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-blue-100">{avatarInitial}</span>
-            <div className={collapsed ? 'sr-only' : 'min-w-0'}>
-              <p className="truncate text-xs font-semibold text-white">{user?.nama || 'Admin'}</p>
-              <p className="truncate text-[11px] text-slate-400">{user?.username || 'Akun administrator'}</p>
-            </div>
+  const contents = (compact: boolean, mobile = false) => <>
+    <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+      <NavLink to="/admin" end className="flex min-w-0 items-center gap-3 rounded-lg" title="Dashboard">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"><School className="h-5 w-5" aria-hidden="true" /></span>
+        {!compact && <span className="min-w-0"><span className="block text-sm font-semibold text-foreground">GeoPresensi</span><span className="block text-xs text-muted-foreground">Griya Quran</span></span>}
+      </NavLink>
+      {mobile ? <Dialog.Close className="ui-icon-button" aria-label="Tutup menu"><X className="h-5 w-5" /></Dialog.Close> : !compact && <button type="button" className="ui-icon-button" onClick={onToggleCollapse} aria-label="Ciutkan sidebar"><PanelLeftClose className="h-4 w-4" /></button>}
+    </div>
+    <nav className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3" aria-label="Menu utama">
+      {groups.map((group) => {
+        const open = expanded.includes(group.label)
+        const id = `${mobile ? 'mobile' : 'desktop'}-menu-${group.label}`
+        return <div key={group.label}>
+          {!compact && <button type="button" className="flex min-h-11 w-full items-center justify-between px-3 text-xs font-semibold text-muted-foreground" aria-expanded={open} aria-controls={id} onClick={() => setExpanded((previous) => open ? previous.filter((label) => label !== group.label) : [...previous, group.label])}>{group.label}<ChevronDown className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`} aria-hidden="true" /></button>}
+          <div id={id} hidden={!compact && !open} className="space-y-1">
+            {group.items.map((item) => <NavLink key={item.path} to={item.path} end={item.path === '/admin'} title={compact ? item.label : undefined} aria-label={compact ? item.label : undefined} className={({ isActive }) => `sidebar-link ${compact ? 'justify-center px-0' : ''} ${isActive ? 'is-active' : ''}`}>
+              <item.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" /><span className={compact ? 'sr-only' : 'truncate'}>{item.label}</span>
+            </NavLink>)}
           </div>
-          {!collapsed && (
-            <button
-              type="button"
-              onClick={onLogout}
-              className="mt-3 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition-colors hover:bg-rose-500/15 hover:text-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
-            >
-              <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
-              <span>Keluar</span>
-            </button>
-          )}
-          {collapsed && (
-            <button type="button" onClick={onLogout} className="mt-3 flex h-10 w-full items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/15 hover:text-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400" aria-label="Keluar" title="Keluar">
-              <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
-            </button>
-          )}
         </div>
-      </aside>
-    </>
-  )
-}
+      })}
+    </nav>
+    <div className="shrink-0 space-y-2 border-t border-border p-3">
+      {compact && <button type="button" className="ui-icon-button w-full" onClick={onToggleCollapse} aria-label="Lebarkan sidebar"><PanelLeftOpen className="h-5 w-5" /></button>}
+      {!compact && <div className="flex items-center gap-3 px-2 py-1"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">{(user?.nama || 'A').slice(0, 1).toUpperCase()}</span><div className="min-w-0"><p className="truncate text-sm font-semibold">{user?.nama || 'Admin'}</p><p className="text-xs text-muted-foreground">{user?.role === 'kepala_sekolah' ? 'Kepala sekolah' : 'Administrator'}</p></div></div>}
+      <button type="button" className={`sidebar-link w-full ${compact ? 'justify-center' : ''}`} onClick={onLogout} aria-label="Keluar"><LogOut className="h-[18px] w-[18px]" aria-hidden="true" />{!compact && 'Keluar'}</button>
+    </div>
+  </>
 
-export default Sidebar
+  return <>
+    <aside className={`academy-sidebar hidden h-dvh shrink-0 flex-col border-r border-border lg:flex ${collapsed ? 'w-20' : 'w-64'}`} aria-label="Navigasi admin">{contents(collapsed)}</aside>
+    <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog.Portal><Dialog.Overlay className="ui-dialog-overlay lg:hidden" /><Dialog.Content className="academy-sidebar fixed inset-y-0 left-0 z-[75] flex w-[min(20rem,90vw)] flex-col shadow-xl lg:hidden">
+        <Dialog.Title className="sr-only">Menu admin</Dialog.Title><Dialog.Description className="sr-only">Pilih halaman yang ingin dibuka.</Dialog.Description>{contents(false, true)}
+      </Dialog.Content></Dialog.Portal>
+    </Dialog.Root>
+  </>
+}

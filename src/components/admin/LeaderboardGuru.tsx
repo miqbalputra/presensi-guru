@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Trophy, Award, Star, TrendingUp, Clock, Target, Calendar } from 'lucide-react'
 import { adminChartsAPI } from '../../services/api'
 
@@ -7,6 +8,9 @@ const toDateStr = (d) => d.toISOString().split('T')[0]
 function LeaderboardGuru() {
   const todayStr = toDateStr(new Date())
   const [leaderboardData, setLeaderboardData] = useState([])
+  const loadRequest = useRef(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  useEffect(() => () => { loadRequest.current++ }, [])
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState('month') // week, month, all, custom
 
@@ -15,6 +19,9 @@ function LeaderboardGuru() {
   const [customEnd, setCustomEnd] = useState(todayStr)
 
   const fetchLeaderboard = useCallback(async () => {
+    const requestId = ++loadRequest.current
+    setLoadError(null)
+
     try {
       setLoading(true)
       let response
@@ -24,15 +31,22 @@ function LeaderboardGuru() {
           return
         }
         response = await adminChartsAPI.getLeaderboard('custom', customStart, customEnd)
+      if (requestId !== loadRequest.current) return
+
       } else {
         response = await adminChartsAPI.getLeaderboard(period)
+      if (requestId !== loadRequest.current) return
+
       }
       const payload = response.data
       setLeaderboardData(Array.isArray(payload) ? payload : payload?.items || [])
     } catch (error) {
+      if (requestId !== loadRequest.current) return
+      setLoadError('Data analitik belum dapat dimuat. Coba perbarui kembali.')
+
       console.error('Failed to load leaderboard:', error)
     } finally {
-      setLoading(false)
+      if (requestId === loadRequest.current) setLoading(false)
     }
   }, [period, customStart, customEnd])
 
@@ -111,6 +125,8 @@ function LeaderboardGuru() {
     }
   }
 
+  if (loadError) return <Notice onRetry={() => fetchLeaderboard()}>{loadError}</Notice>
+
   if (loading) {
     return (
       <div className="academy-panel p-6">
@@ -133,12 +149,12 @@ function LeaderboardGuru() {
               <Trophy className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-800">🏆 Leaderboard Guru</h2>
-              <p className="text-sm text-gray-600">Guru Paling Rajin & Disiplin</p>
+              <h2 className="text-xl font-bold text-gray-800">Peringkat Guru</h2>
+              <p className="text-sm text-gray-600">Kehadiran dan kedisiplinan · {getPeriodLabel()}</p>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <select
+            <select aria-label="Periode peringkat"
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
               className="academy-input px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-blue-500"
@@ -152,7 +168,7 @@ function LeaderboardGuru() {
             {period === 'custom' && (
                 <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                 <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <input
+                <input aria-label="Tanggal awal peringkat"
                   type="date"
                   value={customStart}
                   max={customEnd}
@@ -160,7 +176,7 @@ function LeaderboardGuru() {
                   className="academy-input px-1 text-sm"
                 />
                 <span className="text-gray-400 text-xs">s/d</span>
-                <input
+                <input aria-label="Tanggal akhir peringkat"
                   type="date"
                   value={customEnd}
                   min={customStart}
@@ -253,8 +269,8 @@ function LeaderboardGuru() {
                   const BadgeIcon = badge.icon
 
                   return (
-                    <tr 
-                      key={guru.id} 
+                    <tr
+                      key={guru.id}
                       className={`hover:bg-gray-50 transition-colors ${
                         rank <= 3 ? badge.bgColor : ''
                       }`}

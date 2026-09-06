@@ -1,21 +1,30 @@
-import { useState, useEffect, useCallback } from 'react'
+import { Notice } from '../ui/page'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { UserCheck, UserX, FileText, AlertCircle, LogIn, LogOut, RefreshCw, Clock, Users } from 'lucide-react'
 import { statusRekanAPI } from '../../services/api'
 
 function GuruStatus() {
+  const requestRef = useRef(0)
+  const [loadError, setLoadError] = useState('')
   const [statusList, setStatusList] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
 
   const loadStatus = useCallback(async () => {
+    const request = ++requestRef.current
+    setLoadError('')
     try {
       const response = await statusRekanAPI.getToday()
+      if (request !== requestRef.current) return
       setStatusList(response.data?.items || [])
       setLastUpdated(new Date())
     } catch (error) {
+      if (request !== requestRef.current) return
+      setLoadError(error.message || 'Status rekan belum dapat dimuat.')
       console.error('Failed to load status:', error)
     } finally {
+      if (request !== requestRef.current) return
       setLoading(false)
       setRefreshing(false)
     }
@@ -25,7 +34,7 @@ function GuruStatus() {
     loadStatus()
     // Auto refresh setiap 30 detik
     const interval = setInterval(loadStatus, 30000)
-    return () => clearInterval(interval)
+    return () => { clearInterval(interval); requestRef.current++ }
   }, [loadStatus])
 
   const getStatusConfig = (statusFinal) => {
@@ -74,21 +83,21 @@ function GuruStatus() {
         return {
           icon: FileText,
           text: 'Izin',
-          bg: 'bg-orange-50 dark:bg-orange-500/10',
-          border: 'border-orange-200 dark:border-orange-500/20',
-          badge: 'bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300',
-          dot: 'bg-orange-500',
-          iconColor: 'text-orange-600 dark:text-orange-400'
+          bg: 'bg-blue-50 dark:bg-blue-500/10',
+          border: 'border-blue-200 dark:border-blue-500/20',
+          badge: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300',
+          dot: 'bg-blue-500',
+          iconColor: 'text-blue-600 dark:text-blue-400'
         }
       case 'sakit':
         return {
           icon: AlertCircle,
           text: 'Sakit',
-          bg: 'bg-red-50 dark:bg-red-500/10',
-          border: 'border-red-200 dark:border-red-500/20',
-          badge: 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300',
-          dot: 'bg-red-500',
-          iconColor: 'text-red-600 dark:text-red-400'
+          bg: 'bg-rose-50 dark:bg-rose-500/10',
+          border: 'border-rose-200 dark:border-rose-500/20',
+          badge: 'bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300',
+          dot: 'bg-rose-500',
+          iconColor: 'text-rose-600 dark:text-rose-400'
         }
       default:
         return {
@@ -113,11 +122,13 @@ function GuruStatus() {
     belum: statusList.filter(g => g.statusFinal === 'belum').length,
   }
 
+  if (loadError) return <Notice onRetry={loadStatus}>{loadError}</Notice>
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16" aria-live="polite" aria-label="Memuat status rekan guru">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
           <p className="mt-4 text-slate-500 dark:text-slate-400 text-sm">Memuat status rekan...</p>
         </div>
       </div>
@@ -130,7 +141,7 @@ function GuruStatus() {
       <section className="guru-surface p-5 sm:p-6" aria-labelledby="rekan-status-title">
         <div className="relative flex items-center justify-between gap-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-400">Kehadiran hari ini</p>
+          <p className="text-xs font-bold uppercase tracking-normal text-blue-600 dark:text-blue-400">Kehadiran hari ini</p>
           <h2 id="rekan-status-title" className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">Status Rekan Guru</h2>
           {lastUpdated && (
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500" aria-live="polite">
@@ -143,7 +154,7 @@ function GuruStatus() {
           onClick={() => { setRefreshing(true); loadStatus() }}
           disabled={refreshing}
           aria-label="Perbarui status rekan guru"
-          className="flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-50 px-3.5 py-2 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 dark:focus-visible:ring-offset-slate-900"
+          className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-50 px-3.5 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 dark:focus-visible:ring-offset-slate-900"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
           {refreshing ? 'Memuat...' : 'Perbarui'}
@@ -157,13 +168,13 @@ function GuruStatus() {
           { label: 'Hadir', count: summary.hadir, color: 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300' },
           { label: 'Terlambat', count: summary.terlambat, color: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-800 dark:text-yellow-300' },
           { label: 'Pulang', count: summary.pulang, color: 'bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-300' },
-          { label: 'Izin', count: summary.izin, color: 'bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300' },
-          { label: 'Sakit', count: summary.sakit, color: 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300' },
+          { label: 'Izin', count: summary.izin, color: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300' },
+          { label: 'Sakit', count: summary.sakit, color: 'bg-rose-100 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300' },
           { label: 'Belum', count: summary.belum, color: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300' },
         ].map(item => (
           <div key={item.label} className={`${item.color} rounded-xl border border-transparent p-3.5 text-center dark:border-slate-800`}>
             <p className="text-2xl font-black tracking-tight">{item.count}</p>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide leading-tight">{item.label}</p>
+            <p className="mt-0.5 text-xs font-semibold uppercase tracking-wide leading-tight">{item.label}</p>
           </div>
         ))}
       </div>
@@ -199,8 +210,8 @@ function GuruStatus() {
                   guru.statusFinal === 'hadir' ? 'bg-green-500' :
                   guru.statusFinal === 'hadir_terlambat' ? 'bg-yellow-500' :
                   guru.statusFinal === 'sudah_pulang' ? 'bg-purple-500' :
-                  guru.statusFinal === 'izin' ? 'bg-orange-500' :
-                  guru.statusFinal === 'sakit' ? 'bg-red-500' : 'bg-blue-500'
+                  guru.statusFinal === 'izin' ? 'bg-blue-500' :
+                  guru.statusFinal === 'sakit' ? 'bg-rose-500' : 'bg-blue-500'
                 }`}>
                   {guru.nama?.charAt(0)?.toUpperCase() || '?'}
                 </div>
@@ -217,12 +228,12 @@ function GuruStatus() {
                   {guru.statusFinal !== 'belum' && guru.statusFinal !== 'izin' && guru.statusFinal !== 'sakit' && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                       {guru.jamMasuk && guru.jamMasuk !== '-' && (
-                        <p className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        <p className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                           <LogIn className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden="true" /> Masuk: <span className="font-semibold text-slate-700 dark:text-slate-300">{guru.jamMasuk}</span>
                         </p>
                       )}
                       {guru.jamPulang && (
-                        <p className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        <p className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                           <LogOut className="h-3 w-3 text-violet-600 dark:text-violet-400" aria-hidden="true" /> Pulang: <span className="font-semibold text-slate-700 dark:text-slate-300">{guru.jamPulang}</span>
                         </p>
                       )}
@@ -244,7 +255,7 @@ function GuruStatus() {
 
       {/* Auto refresh info */}
       <p className="flex items-center justify-center gap-2 pb-2 text-center text-xs text-slate-400 dark:text-slate-500">
-        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" /> Diperbarui otomatis setiap 30 detik
+        <span className="h-1.5 w-1.5 rounded-full bg-blue-400" aria-hidden="true" /> Diperbarui otomatis setiap 30 detik
       </p>
     </div>
   )
