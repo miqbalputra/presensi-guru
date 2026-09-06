@@ -60,6 +60,7 @@ const server = createServer(async (req, res) => {
       if (scenario === 'sesi-berakhir' && path !== '/v1/config') return failure('Sesi berakhir. Silakan masuk kembali.', 401)
       if (path === '/v1/auth/refresh') return ok({ accessToken: 'local-fixture-token', user })
       if (path === '/v1/auth/me') return ok(user)
+      if (role === 'guru' && ['/v1/operations/optional-workdays', '/v1/operations/weekend-overrides'].includes(path)) return failure('Forbidden', 403)
       if (path === '/v1/activities' && req.method === 'POST') return ok({})
       if (scenario === 'gagal-muat') return failure('Simulasi server tidak dapat dihubungi.')
       if (scenario === 'lambat') await new Promise((done) => setTimeout(done, 1800))

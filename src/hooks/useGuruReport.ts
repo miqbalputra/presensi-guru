@@ -12,11 +12,13 @@ import {
 
 /**
  * useGuruReport — shared report logic used by both Admin "Download Laporan"
- * and Guru "Riwayat" menus so they always show identical data.
+ * and Guru "Statistik" so they always show identical data.
  *
  * Given a teacher (guru) id + date range, it loads all supporting data
  * (holidays, settings, weekend overrides, optional workdays, backend workdays)
- * and computes the same report rows & summary as the admin report.
+ * and computes the same report rows & summary as the admin report. In the
+ * guru context, the server-calculated workday endpoint supplies the restricted
+ * operational calendar data for that teacher.
  *
  * @param {Object}   guru        - guru object ({ id, jenisKelamin, ... }) or null
  * @param {string}   startDate   - yyyy-mm-dd
@@ -91,13 +93,11 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
       if (startDate > endDate) { setPeriodError('Tanggal awal tidak boleh melewati tanggal akhir.'); setPeriodLoading(false); return }
       setPeriodLoading(true)
       try {
-        const optionalPromise = optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate })
-
         if (allGuru) {
           // Admin context: bulk API untuk semua guru + override admin.
           const [overridesResponse, optionalResponse, allResponse] = await Promise.all([
             weekendOverridesAPI.getAll({ start_date: startDate, end_date: endDate }),
-            optionalPromise,
+            optionalWorkdaysAPI.getAll({ start_date: startDate, end_date: endDate }),
             teachersWorkdaysAPI.getAll(startDate, endDate),
           ])
           if (cancelled) return
@@ -116,15 +116,12 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
           }
           setWorkdaysCache(newCache)
         } else {
-          // Guru context: jangan panggil weekendOverridesAPI karena endpoint itu
-          // hanya untuk admin/kepala sekolah. teacherWorkdaysAPI singular sudah
-          // menghitung hari kerja guru termasuk override/optional dari backend.
+          // Guru context hanya memakai kalender hasil perhitungan server untuk
+          // dirinya sendiri. Endpoint optional-workdays dan weekend-overrides
+          // memang dibatasi untuk admin/kepala sekolah.
           const userId = guru?.id
           if (!userId) return
-          const [optionalResponse, workdaysResponse] = await Promise.all([
-            optionalPromise,
-            teacherWorkdaysAPI.getWorkdays(userId, startDate, endDate),
-          ])
+          const workdaysResponse = await teacherWorkdaysAPI.getWorkdays(userId, startDate, endDate)
           if (cancelled) return
 
           const userOverrides = (workdaysResponse.data?.breakdown || [])
@@ -132,10 +129,7 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
             .map((d) => ({ ...d.override, tanggal: d.tanggal, user_id: userId }))
           setOverrides(userOverrides)
 
-          const optionalDates = (optionalResponse.data || []).map((o) => o.tanggal || o)
-          setOptionalWorkdays(
-            optionalDates.length > 0 ? optionalDates : (workdaysResponse.data?.optional_dates || [])
-          )
+          setOptionalWorkdays(workdaysResponse.data?.optional_dates || [])
 
           const newCache: Record<string, any> = {}
           newCache[`${userId}_${startDate}_${endDate}`] = workdaysResponse.data?.workday_dates || []
