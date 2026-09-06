@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Download, FileText, Users, User } from 'lucide-react'
 import { formatDate, formatDateForInput } from '../../utils/dateUtils'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import { autoTable } from 'jspdf-autotable'
 import { createWorkbook, addJsonSheet, downloadWorkbook } from '../../utils/excelExport'
 import { guruAPI, jadwalPiketAPI } from '../../services/api'
 import { useGuruReport } from '../../hooks/useGuruReport'
@@ -114,7 +114,7 @@ function DownloadLaporan() {
       log.keterangan || '-'
     ])
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 40,
       head: [['Tanggal', 'Jam Masuk', 'Jam Pulang', 'Status', 'Keterangan']],
       body: tableData,
@@ -264,7 +264,7 @@ function DownloadLaporan() {
         `${persentase}%`
     ])
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 66,
       head: [['No', 'Nama Guru', 'Jabatan', 'Hari Kerja', 'Hadir', 'Izin', 'Sakit', 'Alfa', '% Hadir']],
       body: tableData,

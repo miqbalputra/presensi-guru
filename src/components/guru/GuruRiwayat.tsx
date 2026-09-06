@@ -6,7 +6,7 @@ import { Download, Calendar, FileText, Inbox } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { formatDate, formatDateForInput } from '../../utils/dateUtils'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import { autoTable } from 'jspdf-autotable'
 import { downloadJsonWorkbook } from '../../utils/excelExport'
 import { teacherAttendanceReportAPI } from '../../services/api'
 
@@ -125,7 +125,7 @@ function GuruRiwayat({ user }) {
         formatStatusLabel(log.status),
         log.keterangan || '-',
       ])
-      doc.autoTable({
+      autoTable(doc, {
         startY: 35,
         head: [['Tanggal', 'Jam Masuk', 'Jam Pulang', 'Status', 'Keterangan']],
         body: tableData,
