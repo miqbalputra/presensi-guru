@@ -3,12 +3,14 @@ import { QrCode, Camera, X, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-
 import { Html5Qrcode } from 'html5-qrcode'
 import { qrScanAPI } from '../../services/api'
 import { getReliableUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
+import { getAttendanceFeedback } from './attendance-feedback'
 
 function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, settings, initialLocation }) {
     const [error, setError] = useState('')
     const [scanning, setScanning] = useState(false)
     const [processing, setProcessing] = useState(false)
     const [successMsg, setSuccessMsg] = useState('') // '' = belum sukses
+    const [successFeedback, setSuccessFeedback] = useState(null)
     const [manualInput, setManualInput] = useState(false)
     const [manualQRData, setManualQRData] = useState('')
     const [location, setLocation] = useState(initialLocation || null)
@@ -24,6 +26,7 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
     const safeSetScanning = useCallback((v) => { if (isMounted.current) setScanning(v) }, [])
     const safeSetProcessing = useCallback((v) => { if (isMounted.current) setProcessing(v) }, [])
     const safeSetSuccessMsg = useCallback((v) => { if (isMounted.current) setSuccessMsg(v) }, [])
+    const safeSetSuccessFeedback = useCallback((v) => { if (isMounted.current) setSuccessFeedback(v) }, [])
     const safeSetLocation = useCallback((v) => { if (isMounted.current) setLocation(v) }, [])
 
     // Helper: schedule timeout dan track agar bisa di-clear saat unmount
@@ -216,8 +219,10 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
             // Berhasil!
             if (!isMounted.current) return // komponen sudah unmount, jangan lakukan apapun
 
+            const feedback = isPulang ? null : getAttendanceFeedback(response?.data?.attendance?.status)
             safeSetProcessing(false)
-            safeSetSuccessMsg(response.message || 'Presensi Berhasil!')
+            safeSetSuccessFeedback(feedback)
+            safeSetSuccessMsg(feedback?.message || response.message || 'Presensi Berhasil!')
 
             // Tampilkan success 1.5 detik lalu panggil onSuccess di parent
             safeTimeout(() => {
@@ -246,7 +251,7 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
             }, 1500)
         }
     }, [location, settings, attendanceStatus, stopScanner, onSuccess,
-        safeSetError, safeSetProcessing, safeSetSuccessMsg, safeSetScanning, safeTimeout])
+        safeSetError, safeSetProcessing, safeSetSuccessFeedback, safeSetSuccessMsg, safeSetScanning, safeTimeout])
 
     const handleManualSubmit = useCallback(() => {
         if (!manualQRData.trim()) return
@@ -254,6 +259,21 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
     }, [manualQRData, handleQRDetected])
 
     const isSuccess = successMsg !== ''
+    const SuccessIcon = successFeedback?.icon || CheckCircle
+    const successSurface = successFeedback?.tone === 'warning'
+        ? 'bg-amber-500'
+        : successFeedback?.tone === 'error'
+        ? 'bg-rose-600'
+        : successFeedback?.tone === 'info'
+        ? 'bg-blue-600'
+        : 'bg-emerald-600'
+    const successIcon = successFeedback?.tone === 'warning'
+        ? 'text-amber-600'
+        : successFeedback?.tone === 'error'
+        ? 'text-rose-600'
+        : successFeedback?.tone === 'info'
+        ? 'text-blue-600'
+        : 'text-emerald-600'
 
     return (
         <div className="fixed inset-0 z-[60] bg-gray-900 flex flex-col items-stretch overflow-hidden font-sans">
@@ -294,11 +314,11 @@ function QRScanner({ onClose, onSuccess, onPiketRestriction, attendanceStatus, s
 
                 {/* SUCCESS SCREEN — full overlay, tidak render ulang parent sampai onSuccess dipanggil */}
                 {isSuccess && (
-                    <div className="absolute inset-0 z-50 bg-green-500 flex flex-col items-center justify-center p-8 text-center">
-                        <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mb-6 shadow-xl transform animate-bounce">
-                            <CheckCircle className="w-14 h-14 text-green-500" />
+                    <div className={`absolute inset-0 z-50 flex flex-col items-center justify-center p-8 text-center ${successSurface}`}>
+                        <div className="mb-6 flex size-24 items-center justify-center rounded-full bg-white shadow-xl">
+                            <SuccessIcon className={`size-14 ${successIcon}`} />
                         </div>
-                        <h2 className="text-white text-3xl font-black mb-2 uppercase tracking-tighter">BERHASIL!</h2>
+                        <h2 className="mb-2 text-3xl font-bold text-white">{successFeedback?.title || 'Berhasil!'}</h2>
                         <p className="text-green-50 text-lg font-medium">{successMsg}</p>
                         <p className="text-green-100 text-sm mt-4 opacity-75">Menutup otomatis...</p>
                     </div>

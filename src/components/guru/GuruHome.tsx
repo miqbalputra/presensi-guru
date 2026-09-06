@@ -10,12 +10,15 @@ import { Button } from '../ui/button'
 import { AppDialog } from '../ui/dialog'
 import { AttendanceStatus } from '../ui/attendance-status'
 import { PageLoading, Notice, EmptyState } from '../ui/page'
+import { AttendanceFeedbackDialog } from './AttendanceFeedbackDialog'
+import { getAttendanceFeedback, type AttendanceFeedback } from './attendance-feedback'
 
 function GuruHome({ user, onChangeTab }) {
   const [todayAttendance, setTodayAttendance] = useState(null)
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
   const [message, setMessage] = useState({ type: '', text: '' })
+  const [attendanceFeedback, setAttendanceFeedback] = useState<AttendanceFeedback | null>(null)
   const [initialError, setInitialError] = useState('')
   const [formError, setFormError] = useState('')
   const [monthlyError, setMonthlyError] = useState('')
@@ -586,16 +589,18 @@ function GuruHome({ user, onChangeTab }) {
         }
       }
 
-      await saveAttendance('hadir', '', location)
+      const result = await saveAttendance('hadir', '', location)
+      if (result.feedback) setAttendanceFeedback(result.feedback)
     } catch (error) {
       // Jika gagal mendapatkan lokasi
       if (TESTING_MODE) {
         // Testing mode: gunakan koordinat sekolah
-        await saveAttendance('hadir', '', {
+        const result = await saveAttendance('hadir', '', {
           latitude: parseFloat(settings.sekolah_latitude),
           longitude: parseFloat(settings.sekolah_longitude),
           accuracy: 0
         })
+        if (result.feedback) setAttendanceFeedback(result.feedback)
       } else {
         // Produksi: tampilkan error
         setMessage({
@@ -625,8 +630,12 @@ function GuruHome({ user, onChangeTab }) {
     setFormError('')
     setMessage({ type: '', text: '' })
     try {
-      const saved = await saveAttendance(modalType, keterangan)
-      if (saved) { setShowModal(false); setKeterangan('') }
+      const result = await saveAttendance(modalType, keterangan)
+      if (result.success) {
+        setShowModal(false)
+        setKeterangan('')
+        if (result.feedback) setAttendanceFeedback(result.feedback)
+      }
     } finally {
       finishAttendanceAction()
     }
@@ -659,19 +668,20 @@ function GuruHome({ user, onChangeTab }) {
 
       const saved = attendance || {}
       let successMessage = response.message || `Presensi ${status} berhasil disimpan!`
-      if (saved.status === 'hadir_terlambat' && saved.keterangan) {
+      const isLate = ['hadir_terlambat', 'hadir_izin_terlambat'].includes(saved.status)
+      if (isLate && saved.keterangan) {
         successMessage += ` (${saved.keterangan})`
       }
 
-      setMessage({ type: saved.status === 'hadir_terlambat' ? 'warning' : 'success', text: successMessage })
+      setMessage({ type: isLate ? 'warning' : 'success', text: successMessage })
       void loadMonthlyStats()
-      return true
+      return { success: true, feedback: getAttendanceFeedback(attendance?.status) }
     } catch (error) {
       setMessage({
         type: 'error',
         text: 'Gagal menyimpan presensi: ' + error.message
       })
-      return false
+      return { success: false, feedback: null }
     }
   }
 
@@ -962,7 +972,7 @@ function GuruHome({ user, onChangeTab }) {
 
     <Card className="gap-4 p-5 sm:p-6" aria-labelledby="attendance-action-title" aria-busy={loading}>
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Presensi hari ini</p>{todayAttendance && <AttendanceStatus status={todayAttendance.status} />}</div>
-      <div><h2 id="attendance-action-title" className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+      <div><h2 id="attendance-action-title" tabIndex={-1} className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">
         {isHoliday ? (holidayInfo?.message || 'Tidak perlu melakukan presensi hari ini.') : checkedOut ? 'Jam masuk dan pulang Anda sudah tersimpan.' : isLeave ? 'Tidak perlu presensi pulang untuk status ini.' : isPresent ? checkoutReady ? 'Catat kepulangan untuk menyelesaikan presensi hari ini.' : 'Presensi pulang tersedia mulai ' + formatPulangThreshold() + ' WIB.' : 'Tekan tombol di bawah saat berada di area sekolah.'}
       </p></div>
       {actionVisible && (actionAllowed ? <Button type="button" size="lg" className="w-full text-base" onClick={() => isPresent ? handlePulang() : handleHadir()} disabled={loading || !checkoutReady}>
@@ -975,7 +985,7 @@ function GuruHome({ user, onChangeTab }) {
       </dl>}
       {todayAttendance?.keterangan && <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Keterangan presensi</summary><p className="whitespace-pre-wrap break-words py-2">{todayAttendance.keterangan}</p></details>}
       {actionVisible && <div className="grid grid-cols-2 gap-3"><Button type="button" variant="outline" disabled={loading} onClick={() => handleIzinSakit('izin')}><FileText aria-hidden="true" />Izin</Button><Button type="button" variant="outline" disabled={loading} onClick={() => handleIzinSakit('sakit')}><AlertCircle aria-hidden="true" />Sakit</Button></div>}
-      {message.text && !showModal && !showPiketModal && !pulangLuarModal && <Notice tone={message.type} onDismiss={() => setMessage({ type: '', text: '' })}>{message.text}</Notice>}
+      {message.text && !showModal && !showPiketModal && !pulangLuarModal && !attendanceFeedback && <Notice tone={message.type} onDismiss={() => setMessage({ type: '', text: '' })}>{message.text}</Notice>}
     </Card>
 
     <Card className="gap-4 p-5">
@@ -1030,6 +1040,7 @@ function GuruHome({ user, onChangeTab }) {
         <Button type="button" variant="ghost" className="w-full" disabled={loading} onClick={() => { setPulangLuarModal(false); setPendingPulang(null) }}>Batal</Button>
       </div>
     </AppDialog>
+    <AttendanceFeedbackDialog feedback={attendanceFeedback} onClose={() => setAttendanceFeedback(null)} />
   </div>
 }
 

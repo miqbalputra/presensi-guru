@@ -3,16 +3,19 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-export function AppDialog({ open, onOpenChange, title, description, busy = false, children, className }: {
+export function AppDialog({ open, onOpenChange, title, description, busy = false, children, className, fallbackFocusId }: {
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description?: string;
-  busy?: boolean; children: ReactNode; className?: string;
+  busy?: boolean; children: ReactNode; className?: string; fallbackFocusId?: string;
 }) {
   const opener = useRef<HTMLElement | null>(null)
   return <Dialog.Root open={open} onOpenChange={(next) => { if (!busy) onOpenChange(next) }}>
     <Dialog.Portal><Dialog.Overlay className="ui-dialog-overlay" />
       <Dialog.Content className={cn('ui-dialog academy-dashboard', className)} aria-busy={busy}
         onOpenAutoFocus={() => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }}
-        onCloseAutoFocus={(event) => { if (opener.current?.isConnected) { event.preventDefault(); opener.current.focus() } }}
+        onCloseAutoFocus={(event) => {
+          const target = opener.current?.isConnected ? opener.current : fallbackFocusId ? document.getElementById(fallbackFocusId) : null
+          if (target instanceof HTMLElement) { event.preventDefault(); target.focus() }
+        }}
         onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}
         onPointerDownOutside={(event) => event.preventDefault()}>
         <div className="flex items-start justify-between gap-4 border-b border-border p-5">

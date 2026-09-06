@@ -16,7 +16,7 @@ const admin = { id: 1, role: 'admin', nama: 'Admin Uji', username: 'admin' }
 const statuses = ['hadir', 'hadir_terlambat', 'izin', 'sakit', 'hadir_izin_terlambat']
 const baseLogs = teachers.slice(0, 29).map((teacher, index) => ({ id: 100 + index, userId: teacher.id, nama: teacher.nama, tanggal: today, status: statuses[index % statuses.length], jamMasuk: '07:15', jamHadir: '07:15', jamIzin: '07:00', jamSakit: '06:50', jamPulang: null, keterangan: index === 0 ? 'Catatan uji panjang untuk memeriksa detail presensi. '.repeat(12) : '', latitude: -5.1477, longitude: 119.4327 }))
 const history = Array.from({ length: 5 }, (_, i) => ({ ...baseLogs[0], id: 200 + i, tanggal: dateAgo(i + 1), jamPulang: '14:30', keterangan: '' }))
-const scenarios = ['normal', 'masuk', 'menunggu', 'selesai', 'izin', 'sakit', 'libur', 'piket', 'gps', 'tombol-nonaktif', 'gagal-muat', 'gagal-simpan', 'lambat', 'kosong', 'balapan-filter', 'sesi-berakhir']
+const scenarios = ['normal', 'terlambat', 'masuk', 'menunggu', 'selesai', 'izin', 'sakit', 'libur', 'piket', 'gps', 'tombol-nonaktif', 'gagal-muat', 'gagal-simpan', 'lambat', 'kosong', 'balapan-filter', 'sesi-berakhir']
 let scenario = 'normal'
 let saved = null
 const requests = []
@@ -68,8 +68,9 @@ const server = createServer(async (req, res) => {
         if (scenario === 'gagal-simpan') return failure('Simulasi penyimpanan gagal. Isian Anda tetap tersedia.')
         if (scenario === 'piket' && req.method === 'PUT' && !payload.izin_pulang_awal) return failure('PIKET_RESTRICTION|16:00', 400)
         await new Promise((done) => setTimeout(done, 800))
-        saved = { ...baseLogs[0], ...payload, id: 100, userId: 3, status: payload.status || attendance()?.status || 'hadir', jamPulang: req.method === 'PUT' ? '14:30' : null }
-        return ok(saved, 'Presensi berhasil disimpan!')
+        const status = scenario === 'terlambat' && req.method === 'POST' && payload.status === 'hadir' ? 'hadir_terlambat' : payload.status || attendance()?.status || 'hadir'
+        saved = { ...baseLogs[0], ...payload, id: 100, userId: 3, status, jamPulang: req.method === 'PUT' ? '14:30' : null }
+        return ok({ attendance: saved }, 'Presensi berhasil disimpan!')
       }
       if (req.method !== 'GET') return failure('Penulisan fixture ini tidak tersedia; tidak ada data yang diubah.', 400)
       const list = scenario === 'kosong' ? [] : [...baseLogs, ...history]
