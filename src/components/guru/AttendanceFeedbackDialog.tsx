@@ -1,5 +1,6 @@
 import { Button } from '../ui/button'
 import { AppDialog } from '../ui/dialog'
+import { Sparkles } from 'lucide-react'
 import type { AttendanceFeedback } from './attendance-feedback'
 
 const toneStyles = {
@@ -14,6 +15,7 @@ export function AttendanceFeedbackDialog({ feedback, onClose }: { feedback: Atte
 
   const Icon = feedback.icon
   const styles = toneStyles[feedback.tone]
+  const isCheckout = feedback.status === 'pulang'
 
   return (
     <AppDialog
@@ -24,10 +26,15 @@ export function AttendanceFeedbackDialog({ feedback, onClose }: { feedback: Atte
       fallbackFocusId="attendance-action-title"
     >
       <div className="space-y-5 text-center">
-        <span className={`mx-auto flex size-16 items-center justify-center rounded-full ${styles.icon}`} aria-hidden="true">
+        {isCheckout ? <div className="relative mx-auto flex size-24 items-center justify-center rounded-3xl border-2 border-emerald-200 bg-emerald-50 shadow-sm dark:border-emerald-400/30 dark:bg-emerald-500/10" aria-hidden="true">
+          <Icon className="size-12 text-emerald-600 dark:text-emerald-300" strokeWidth={2.2} />
+          <span className="absolute -right-2 -top-2 flex size-9 items-center justify-center rounded-full border-2 border-white bg-amber-100 text-amber-600 shadow-sm dark:border-slate-900 dark:bg-amber-400/20 dark:text-amber-300">
+            <Sparkles className="size-5" strokeWidth={2.2} />
+          </span>
+        </div> : <span className={`mx-auto flex size-16 items-center justify-center rounded-full ${styles.icon}`} aria-hidden="true">
           <Icon className="size-8" strokeWidth={2} />
-        </span>
-        <Button type="button" className={`w-full text-base ${styles.button}`} onClick={onClose}>Tutup</Button>
+        </span>}
+        <Button type="button" className={`w-full text-base ${styles.button} ${isCheckout ? 'font-semibold shadow-md' : ''}`} onClick={onClose}>Tutup</Button>
       </div>
     </AppDialog>
   )

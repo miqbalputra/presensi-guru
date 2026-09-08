@@ -1,4 +1,4 @@
-import { BadgeCheck, BriefcaseBusiness, Clock3, Stethoscope, type LucideIcon } from 'lucide-react'
+import { Award, BadgeCheck, BriefcaseBusiness, Clock3, Stethoscope, type LucideIcon } from 'lucide-react'
 
 export type AttendanceFeedbackTone = 'success' | 'warning' | 'error' | 'info'
 
@@ -53,7 +53,7 @@ const checkoutFeedback: AttendanceFeedback = {
   title: 'Presensi pulang tercatat',
   message: "Jazakumullahu khaira katsira atas kerja keras hari ini.\nSemoga Allah ta'ala memberikan balasan pahala terbaik untuk Ustadz/Ustadzah",
   tone: 'success',
-  icon: BadgeCheck,
+  icon: Award,
 }
 
 export function getAttendanceFeedback(status: unknown): AttendanceFeedback | null {
