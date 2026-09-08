@@ -48,6 +48,18 @@ const feedbackByStatus: Record<string, AttendanceFeedback> = {
   },
 }
 
+const checkoutFeedback: AttendanceFeedback = {
+  status: 'pulang',
+  title: 'Presensi pulang tercatat',
+  message: "Jazakumullahu khaira katsira atas kerja keras hari ini.\nSemoga Allah ta'ala memberikan balasan pahala terbaik untuk Ustadz/Ustadzah",
+  tone: 'success',
+  icon: BadgeCheck,
+}
+
 export function getAttendanceFeedback(status: unknown): AttendanceFeedback | null {
   return typeof status === 'string' ? feedbackByStatus[status] || null : null
+}
+
+export function getCheckoutFeedback(): AttendanceFeedback {
+  return checkoutFeedback
 }

@@ -20,7 +20,7 @@ export function AppDialog({ open, onOpenChange, title, description, busy = false
         onPointerDownOutside={(event) => event.preventDefault()}>
         <div className="flex items-start justify-between gap-4 border-b border-border p-5">
           <div><Dialog.Title className="text-lg font-semibold text-foreground">{title}</Dialog.Title>
-            {description ? <Dialog.Description className="mt-1 text-sm text-muted-foreground">{description}</Dialog.Description> : <Dialog.Description className="sr-only">{title}</Dialog.Description>}
+            {description ? <Dialog.Description className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{description}</Dialog.Description> : <Dialog.Description className="sr-only">{title}</Dialog.Description>}
           </div>
           <Dialog.Close disabled={busy} aria-label="Tutup dialog" className="ui-icon-button"><X className="h-5 w-5" /></Dialog.Close>
         </div>

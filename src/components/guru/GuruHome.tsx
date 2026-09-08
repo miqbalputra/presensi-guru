@@ -11,7 +11,7 @@ import { AppDialog } from '../ui/dialog'
 import { AttendanceStatus } from '../ui/attendance-status'
 import { PageLoading, Notice, EmptyState } from '../ui/page'
 import { AttendanceFeedbackDialog } from './AttendanceFeedbackDialog'
-import { getAttendanceFeedback, type AttendanceFeedback } from './attendance-feedback'
+import { getAttendanceFeedback, getCheckoutFeedback, type AttendanceFeedback } from './attendance-feedback'
 
 function GuruHome({ user, onChangeTab }) {
   const [todayAttendance, setTodayAttendance] = useState(null)
@@ -804,6 +804,8 @@ function GuruHome({ user, onChangeTab }) {
       } else {
         await checkTodayAttendance()
       }
+
+      setAttendanceFeedback(getCheckoutFeedback())
 
       setPulangLuarModal(false)
       setPendingPulang(null)
