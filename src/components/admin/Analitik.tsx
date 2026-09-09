@@ -2,7 +2,6 @@ import { lazy, Suspense, useState } from 'react'
 import { PageHeader, PageLoading } from '../ui/page'
 
 const Kehadiran = lazy(() => import('./TrenKehadiran'))
-const Persentase = lazy(() => import('./PersentaseKehadiran'))
 const Keterlambatan = lazy(() => import('./TrenKeterlambatan'))
 const Kepulangan = lazy(() => import('./TrenJamPulang'))
 const Statistik = lazy(() => import('./StatistikLengkap'))
@@ -16,7 +15,7 @@ export default function Analitik() {
     <div className="section-tabs" aria-label="Bagian analitik">{sections.map((item) => <button key={item} type="button" aria-pressed={section === item} onClick={() => setSection(item)}>{item}</button>)}</div>
     <Suspense fallback={<PageLoading />}>
       <section aria-label={section} key={section}>
-        {section === 'Kehadiran' && <div className="grid gap-6 xl:grid-cols-2"><Kehadiran /><Persentase /></div>}
+        {section === 'Kehadiran' && <Kehadiran />}
         {section === 'Keterlambatan' && <Keterlambatan />}
         {section === 'Kepulangan' && <Kepulangan />}
         {section === 'Statistik Lengkap' && <Statistik />}
