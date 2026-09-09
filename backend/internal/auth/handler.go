@@ -45,8 +45,8 @@ type googleLoginRequest struct {
 
 func (h *Handler) RegisterRoutes(api fiber.Router) {
 	auth := api.Group("/auth")
-	auth.Post("/login", limiter.New(limiter.Config{Max: 10, Expiration: 5 * time.Minute, KeyGenerator: func(c *fiber.Ctx) string { return c.IP() }}), h.login)
-	auth.Post("/google", limiter.New(limiter.Config{Max: 20, Expiration: 5 * time.Minute, KeyGenerator: func(c *fiber.Ctx) string { return c.IP() }}), h.googleLogin)
+	auth.Post("/login", limiter.New(limiter.Config{Max: 10, Expiration: 5 * time.Minute, KeyGenerator: func(c *fiber.Ctx) string { return c.IP() }, LimitReached: authRateLimitResponse}), h.login)
+	auth.Post("/google", limiter.New(limiter.Config{Max: 20, Expiration: 5 * time.Minute, KeyGenerator: func(c *fiber.Ctx) string { return c.IP() }, LimitReached: authRateLimitResponse}), h.googleLogin)
 	auth.Post("/refresh", h.refresh)
 	auth.Post("/logout", h.logout)
 	auth.Get("/me", RequireActiveUser(h.db, h.jwt), h.me)
@@ -56,7 +56,11 @@ func (h *Handler) RegisterRoutes(api fiber.Router) {
 // migration usable while their service worker replaces the old asset bundle.
 // It is intentionally limited to the previous auth.php contract.
 func (h *Handler) RegisterLegacyRoutes(app fiber.Router) {
-	app.All("/api/auth.php", limiter.New(limiter.Config{Max: 10, Expiration: 5 * time.Minute, KeyGenerator: func(c *fiber.Ctx) string { return c.IP() }}), h.legacyAuth)
+	app.All("/api/auth.php", limiter.New(limiter.Config{Max: 10, Expiration: 5 * time.Minute, KeyGenerator: func(c *fiber.Ctx) string { return c.IP() }, LimitReached: authRateLimitResponse}), h.legacyAuth)
+}
+
+func authRateLimitResponse(c *fiber.Ctx) error {
+	return httpx.Error(c, fiber.StatusTooManyRequests, "RATE_LIMITED", "Terlalu banyak percobaan login. Silakan tunggu beberapa menit sebelum mencoba lagi.")
 }
 
 func (h *Handler) login(c *fiber.Ctx) error {

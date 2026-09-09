@@ -51,6 +51,20 @@ async function refreshAccessToken() {
   return refreshInFlight
 }
 
+async function readResponseBody(response: Response) {
+  const raw = await response.text()
+  if (!raw) return {}
+
+  try {
+    return JSON.parse(raw)
+  } catch {
+    // Reverse proxies and framework limiters may return a plain-text body
+    // (for example, "Too Many Requests") instead of the normal API envelope.
+    // Keep the original message so the UI can explain the failure cleanly.
+    return { success: false, message: raw.trim() }
+  }
+}
+
 // Helper function untuk fetch dengan error handling
 async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
   const controller = new AbortController()
@@ -80,11 +94,22 @@ async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
       }
     }
 
-    const data = await response.json()
+    const data = await readResponseBody(response)
 
-    if (!data.success) {
+    if (!response.ok || !data.success) {
+      const retryAfter = Number(response.headers.get('Retry-After'))
+      const retryHint = Number.isFinite(retryAfter) && retryAfter > 0
+        ? ` Coba lagi dalam ${Math.ceil(retryAfter / 60)} menit.`
+        : ''
+      const message = response.status === 429
+        ? `Terlalu banyak percobaan. Silakan tunggu sebentar sebelum mencoba login lagi.${retryHint}`
+        : (data.message || `Permintaan gagal (${response.status}).`)
       const reference = data.requestId ? ` (Kode referensi: ${data.requestId})` : ''
-      throw new Error((data.message || 'API request failed') + reference)
+      const error = Object.assign(new Error(message + reference), {
+        status: response.status,
+        code: data.code,
+      })
+      throw error
     }
 
     return data
