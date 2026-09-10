@@ -91,6 +91,7 @@ func TestRESTV1AliasesRequireAuthentication(t *testing.T) {
 		"/api/v1/users",
 		"/api/v1/attendance",
 		"/api/v1/reports/admin-summary",
+		"/api/v1/reports/analytics",
 		"/api/v1/qr/scan",
 		"/api/v1/integrations/hermes",
 		"/api/v1/integrations/n8n/users",

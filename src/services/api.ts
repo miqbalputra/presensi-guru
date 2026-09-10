@@ -70,6 +70,10 @@ async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
   const controller = new AbortController()
   const timeoutMs = options.timeoutMs || 15000
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  const externalSignal = options.signal
+  const abortFromCaller = () => controller.abort()
+  if (externalSignal?.aborted) controller.abort()
+  else externalSignal?.addEventListener('abort', abortFromCaller, { once: true })
 
   try {
     const requestHeaders = new Headers(options.headers)
@@ -78,7 +82,7 @@ async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
       requestHeaders.set('Authorization', `Bearer ${accessToken}`)
     }
 
-    const { timeoutMs: _timeoutMs, _retried, silent: _silent, ...requestOptions } = options
+    const { timeoutMs: _timeoutMs, _retried, silent: _silent, signal: _signal, ...requestOptions } = options
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...requestOptions,
@@ -121,6 +125,7 @@ async function fetchAPI(endpoint: string, options: FetchOptions = {}) {
     throw error
   } finally {
     clearTimeout(timeoutId)
+    externalSignal?.removeEventListener('abort', abortFromCaller)
   }
 }
 
@@ -693,6 +698,22 @@ export const manualEntryAPI = {
     return fetchAPI('/v1/attendance/manual', {
       method: 'POST',
       body: JSON.stringify(data),
+    })
+  },
+}
+
+// Satu sumber data untuk seluruh dashboard Analitik. Endpoint ini hanya
+// membaca laporan; filter tidak mengubah data presensi atau aturan kalender.
+export const adminAnalyticsAPI = {
+  get: async ({ startDate, endDate, tipeGuru = '', userId = '' }, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+    if (tipeGuru) params.set('tipe_guru', tipeGuru)
+    if (userId) params.set('user_id', String(userId))
+    return fetchAPI(`/v1/reports/analytics?${params}`, {
+      method: 'GET',
+      timeoutMs: 15000,
+      signal,
+      silent: true,
     })
   },
 }

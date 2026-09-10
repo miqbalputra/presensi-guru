@@ -16,6 +16,39 @@ const admin = { id: 1, role: 'admin', nama: 'Admin Uji', username: 'admin' }
 const statuses = ['hadir', 'hadir_terlambat', 'izin', 'sakit', 'hadir_izin_terlambat']
 const baseLogs = teachers.slice(0, 29).map((teacher, index) => ({ id: 100 + index, userId: teacher.id, nama: teacher.nama, tanggal: today, status: statuses[index % statuses.length], jamMasuk: '07:15', jamHadir: '07:15', jamIzin: '07:00', jamSakit: '06:50', jamPulang: null, keterangan: index === 0 ? 'Catatan uji panjang untuk memeriksa detail presensi. '.repeat(12) : '', latitude: -5.1477, longitude: 119.4327 }))
 const history = Array.from({ length: 5 }, (_, i) => ({ ...baseLogs[0], id: 200 + i, tanggal: dateAgo(i + 1), jamPulang: '14:30', keterangan: '' }))
+const analyticsFixture = (query) => {
+  const startDate = query.get('start_date') || dateAgo(6)
+  const endDate = query.get('end_date') || today
+  const empty = scenario === 'kosong'
+  const daily = Array.from({ length: 7 }, (_, index) => ({
+    tanggal: dateAgo(6 - index), label: dateAgo(6 - index).slice(5), totalHariKerja: empty ? 0 : 32,
+    hadir: empty ? 0 : 24 + (index % 3), tepatWaktu: empty ? 0 : 19 + (index % 3), terlambat: empty ? 0 : 5,
+    izin: empty ? 0 : index % 2, sakit: empty ? 0 : index === 3 ? 2 : 1, alfa: empty ? 0 : 2,
+    checkoutLengkap: empty ? 0 : 21 + (index % 3), lupaCheckout: empty ? 0 : index === 5 ? 2 : 1, pulangAwal: empty ? 0 : index === 2 ? 1 : 0,
+    rataRataMenitMasuk: empty ? null : 438, rataRataMenitPulang: empty ? null : 818,
+  }))
+  const teacherRows = empty ? [] : teachers.map((teacher, index) => ({
+    id: teacher.id, nama: teacher.nama, jabatan: 'Guru Al-Quran', tipeGuru: teacher.tipeGuru, totalHariKerja: 7,
+    hadir: index % 5 === 0 ? 5 : 7, tepatWaktu: index % 4 === 0 ? 4 : 6, terlambat: index % 4 === 0 ? 1 : 1,
+    izin: index % 5 === 0 ? 1 : 0, sakit: index % 6 === 0 ? 1 : 0, alfa: index % 5 === 0 ? 1 : 0,
+    checkoutLengkap: index % 4 === 0 ? 5 : 7, lupaCheckout: index % 4 === 0 ? 1 : 0, pulangAwal: index % 9 === 0 ? 1 : 0,
+    lemburHari: 0, lemburMenit: 0, persentaseKehadiran: index % 5 === 0 ? 71.4 : 100, persentaseTepatWaktu: index % 4 === 0 ? 80 : 85.7,
+    persentasePulang: index % 4 === 0 ? 80 : 100, rataRataMenitMasuk: 438, rataRataMenitPulang: 818,
+    skor: index % 5 === 0 ? 76 : 92 - (index % 4),
+  })).filter((teacher) => !query.get('tipe_guru') || teacher.tipeGuru === query.get('tipe_guru')).filter((teacher) => !query.get('user_id') || String(teacher.id) === query.get('user_id'))
+  const totalHariKerja = teacherRows.reduce((sum, teacher) => sum + teacher.totalHariKerja, 0)
+  const totalHadir = teacherRows.reduce((sum, teacher) => sum + teacher.hadir, 0)
+  const totalLate = teacherRows.reduce((sum, teacher) => sum + teacher.terlambat, 0)
+  const totalOnTime = teacherRows.reduce((sum, teacher) => sum + teacher.tepatWaktu, 0)
+  const totalIzin = teacherRows.reduce((sum, teacher) => sum + teacher.izin, 0)
+  const totalSakit = teacherRows.reduce((sum, teacher) => sum + teacher.sakit, 0)
+  const totalAlfa = teacherRows.reduce((sum, teacher) => sum + teacher.alfa, 0)
+  const totalCheckout = teacherRows.reduce((sum, teacher) => sum + teacher.checkoutLengkap, 0)
+  const totalMissing = teacherRows.reduce((sum, teacher) => sum + teacher.lupaCheckout, 0)
+  const summary = { totalGuru: teacherRows.length, totalHariKerja, hadir: totalHadir, tepatWaktu: totalOnTime, terlambat: totalLate, izin: totalIzin, sakit: totalSakit, alfa: totalAlfa, checkoutLengkap: totalCheckout, lupaCheckout: totalMissing, pulangAwal: teacherRows.filter((teacher) => teacher.pulangAwal).length, lemburHari: 0, lemburMenit: 0, persentaseKehadiran: totalHariKerja ? totalHadir / totalHariKerja * 100 : 0, persentaseTepatWaktu: totalHadir ? totalOnTime / totalHadir * 100 : 0, persentaseCheckout: totalCheckout + totalMissing ? totalCheckout / (totalCheckout + totalMissing) * 100 : 0, rataRataMenitMasuk: teacherRows.length ? 438 : null, rataRataMenitPulang: teacherRows.length ? 818 : null, distribusiWaktuDatang: { 'Sebelum 07.00': 8, '07.00–07.29': 96, '07.30–07.59': 44, '08.00 atau setelahnya': totalLate } }
+  const example = teacherRows[0] ? { id: 900, userId: teacherRows[0].id, nama: teacherRows[0].nama, tanggal: endDate, status: 'hadir_terlambat', jamMasuk: '08:05', jamPulang: null, keterangan: 'Catatan uji' } : null
+  return { period: { startDate, endDate, totalHari: 7 }, filters: { tipeGuru: query.get('tipe_guru') || '', userId: Number(query.get('user_id') || 0) }, filterOptions: { tipeGuru: ['full_time'], guru: teachers.map((teacher) => ({ id: teacher.id, nama: teacher.nama, tipeGuru: teacher.tipeGuru })) }, summary, today: { ...summary, totalHariKerja: teacherRows.length, hadir: Math.max(0, teacherRows.length - 3), izin: 1, sakit: 1, alfa: 1 }, daily, teachers: teacherRows.sort((a, b) => b.skor - a.skor), details: { terlambatPiket: example ? [example] : [], pulangAwal: example ? [{ ...example, id: 901, status: 'hadir', jamPulang: '12:00', keterangan: 'Izin Pulang Awal Piket | Alasan: uji' }] : [], izinSakit: example ? [{ ...example, id: 902, status: 'izin', jamMasuk: null, keterangan: 'Keperluan keluarga' }] : [], lupaCheckout: example ? [example] : [] }, comparison: { startDate: dateAgo(13), endDate: dateAgo(7), available: !empty, summary: { ...summary, persentaseKehadiran: Math.max(0, summary.persentaseKehadiran - 2.5), terlambat: totalLate + 2, alfa: totalAlfa + 1 } } }
+}
 const scenarios = ['normal', 'terlambat', 'masuk', 'menunggu', 'selesai', 'izin', 'sakit', 'libur', 'piket', 'gps', 'tombol-nonaktif', 'gagal-muat', 'gagal-simpan', 'lambat', 'kosong', 'balapan-filter', 'sesi-berakhir']
 let scenario = 'normal'
 let saved = null
@@ -92,6 +125,10 @@ const server = createServer(async (req, res) => {
       if (path === '/v1/reports/teacher-workdays') return ok({ workday_dates: history.map((x) => x.tanggal), breakdown: [], optional_dates: [] })
       if (path === '/v1/reports/teachers-workdays') return ok({ teachers: Object.fromEntries(teachers.map((x) => [x.id, { user_id: x.id, workday_dates: history.map((row) => row.tanggal) }])), optional_dates: [] })
       if (path === '/v1/reports/charts') return ok({ trend7Days: history.map((x) => ({ tanggal: x.tanggal, name: x.tanggal.slice(5), hadir: 24, tidakHadir: 5 })), todayStats: { hadir: 24, izin: 3, sakit: 2, alfa: 0, belumAbsen: 3, total: 32, persentase: 75 }, guru: teachers, items: [], periodA: { rows: [], reasons: [] }, periodB: { rows: [] } })
+      if (path === '/v1/reports/analytics') {
+        if (scenario === 'balapan-filter') await new Promise((done) => setTimeout(done, url.searchParams.get('start_date') === dateAgo(6) ? 2500 : 150))
+        return ok(analyticsFixture(url.searchParams))
+      }
       if (path === '/v1/location-tracking') return ok({ items: [], points: [], settings: settings() })
       if (path.startsWith('/v1/operations/') || path === '/v1/activities' || path === '/v1/admin/backups' || path === '/v1/admin/restores') return ok([])
       return failure('Fixture belum tersedia: ' + path, 404)

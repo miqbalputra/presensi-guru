@@ -14,6 +14,15 @@ function normalizePath(path) {
   return value.replace(/\/+$/, '') || '/'
 }
 
+function readBrowserLocation() {
+  return { pathname: normalizePath(window.location.pathname), search: window.location.search || '' }
+}
+
+function parseDestination(to: string) {
+  const target = new URL(to, window.location.origin)
+  return { pathname: normalizePath(target.pathname), search: target.search || '' }
+}
+
 function routeMatches(routePath, pathname) {
   const current = normalizePath(pathname)
   const target = normalizePath(routePath)
@@ -25,22 +34,24 @@ function routeMatches(routePath, pathname) {
 }
 
 export function Router({ children }: RouterProps) {
-  const [pathname, setPathname] = useState(() => normalizePath(window.location.pathname))
+  const [location, setLocation] = useState(() => readBrowserLocation())
 
   useEffect(() => {
-    const onPopState = () => setPathname(normalizePath(window.location.pathname))
+    const onPopState = () => setLocation(readBrowserLocation())
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   const navigate = useCallback((to: string, options: NavigateOptions = {}) => {
-    const next = normalizePath(to)
-    if (options.replace) window.history.replaceState({}, '', next)
-    else if (next !== normalizePath(window.location.pathname)) window.history.pushState({}, '', next)
-    setPathname(next)
+    const next = parseDestination(to)
+    const current = readBrowserLocation()
+    const nextURL = `${next.pathname}${next.search}`
+    if (options.replace) window.history.replaceState({}, '', nextURL)
+    else if (next.pathname !== current.pathname || next.search !== current.search) window.history.pushState({}, '', nextURL)
+    setLocation(next)
   }, [])
 
-  const value = useMemo(() => ({ pathname, navigate }), [pathname, navigate])
+  const value = useMemo(() => ({ ...location, navigate }), [location, navigate])
   return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>
 }
 
@@ -48,7 +59,7 @@ export const BrowserRouter = Router
 
 export function useLocation() {
   const context = useContext(RouterContext)
-  return { pathname: context?.pathname || normalizePath(window.location.pathname) }
+  return context ? { pathname: context.pathname, search: context.search || '' } : readBrowserLocation()
 }
 
 export function useNavigate() {
