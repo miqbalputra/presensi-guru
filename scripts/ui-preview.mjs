@@ -52,8 +52,16 @@ const analyticsFixture = (query) => {
 const scenarios = ['normal', 'terlambat', 'masuk', 'menunggu', 'selesai', 'izin', 'sakit', 'libur', 'piket', 'gps', 'tombol-nonaktif', 'gagal-muat', 'gagal-simpan', 'lambat', 'kosong', 'balapan-filter', 'sesi-berakhir']
 let scenario = 'normal'
 let saved = null
+let recalculationApplied = false
 const requests = []
 const settings = () => ({ jam_masuk_normal: '07:20', toleransi_terlambat: '15', radius_gps: '500', sekolah_latitude: '-5.1477', sekolah_longitude: '119.4327', mode_testing: scenario === 'gps' ? '0' : '1', button_enabled: scenario === 'tombol-nonaktif' ? '0' : '1', jam_min_pulang: scenario === 'menunggu' ? '23:59' : '00:00', location_tracking_enabled: '0', apel_senin_enabled: '0', weekend_workday_enabled: '1' })
+const checkInRecalculation = () => {
+  const items = scenario === 'kosong' || recalculationApplied ? [] : [
+    { id: 100, user_id: 3, nama: 'Ahmad Fauzi', jam_masuk: '07:10:00', old_status: 'hadir_terlambat', new_status: 'hadir', target: '07:20:00', target_label: '', changed: true },
+    { id: 101, user_id: 4, nama: 'Siti Aminah', jam_masuk: '07:10:00', old_status: 'hadir', new_status: 'hadir_terlambat', target: '07:00:00', target_label: '(Piket)', changed: true },
+  ]
+  return { date: today, normal_target: '07:20:00', tolerance_minutes: '15', processed: scenario === 'kosong' ? 0 : 12, changed: items.length, unchanged: scenario === 'kosong' ? 0 : 10, skipped_no_time: 0, skipped_no_user: 0, items }
+}
 const attendance = () => saved || (['masuk', 'menunggu', 'piket', 'selesai', 'izin', 'sakit'].includes(scenario) ? { ...baseLogs[0], jamPulang: scenario === 'selesai' ? '14:30' : null, status: ['izin', 'sakit'].includes(scenario) ? scenario : 'hadir' } : null)
 const holiday = () => ({ isWorkday: scenario !== 'libur', isHoliday: scenario === 'libur', isWeekend: false, holidayName: 'Libur sekolah', dayName: 'Minggu' })
 const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
@@ -69,7 +77,7 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/__ui/requests') return ok(requests)
     if (url.pathname === '/__ui/scenario' && req.method === 'POST') {
       if (!scenarios.includes(payload.scenario)) return failure('Unknown scenario', 400)
-      scenario = payload.scenario; saved = null; requests.length = 0
+      scenario = payload.scenario; saved = null; recalculationApplied = false; requests.length = 0
       res.writeHead(303, { Location: '/__ui' }); return res.end()
     }
     if (url.pathname === '/__ui') {
@@ -93,10 +101,19 @@ const server = createServer(async (req, res) => {
       if (scenario === 'sesi-berakhir' && path !== '/v1/config') return failure('Sesi berakhir. Silakan masuk kembali.', 401)
       if (path === '/v1/auth/refresh') return ok({ accessToken: 'local-fixture-token', user })
       if (path === '/v1/auth/me') return ok(user)
-      if (role === 'guru' && ['/v1/operations/optional-workdays', '/v1/operations/weekend-overrides'].includes(path)) return failure('Forbidden', 403)
+      if (role === 'guru' && ['/v1/operations/optional-workdays', '/v1/operations/weekend-overrides', '/v1/operations/today-checkin-recalculation'].includes(path)) return failure('Forbidden', 403)
       if (path === '/v1/activities' && req.method === 'POST') return ok({})
       if (scenario === 'gagal-muat') return failure('Simulasi server tidak dapat dihubungi.')
       if (scenario === 'lambat') await new Promise((done) => setTimeout(done, 1800))
+      if (path === '/v1/operations/today-checkin-recalculation') {
+        if (role !== 'admin') return failure('Forbidden', 403)
+        if (req.method === 'POST') {
+          const before = checkInRecalculation()
+          recalculationApplied = true
+          return ok(before, 'Status masuk hari ini berhasil disesuaikan')
+        }
+        return ok(checkInRecalculation(), 'Pratinjau status masuk hari ini berhasil dimuat')
+      }
       if (path === '/v1/attendance' && req.method !== 'GET') {
         if (scenario === 'gagal-simpan') return failure('Simulasi penyimpanan gagal. Isian Anda tetap tersedia.')
         if (scenario === 'piket' && req.method === 'PUT' && !payload.izin_pulang_awal) return failure('PIKET_RESTRICTION|16:00', 400)

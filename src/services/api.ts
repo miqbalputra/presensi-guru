@@ -702,6 +702,25 @@ export const manualEntryAPI = {
   },
 }
 
+// Recalculate only today's saved check-in statuses after an administrator has
+// corrected the current normal arrival time. The server decides the date and
+// still applies each teacher's active piket target.
+export const todayCheckInRecalculationAPI = {
+  preview: async () => {
+    return fetchAPI('/v1/operations/today-checkin-recalculation', {
+      method: 'GET',
+      timeoutMs: 10000,
+    })
+  },
+
+  apply: async () => {
+    return fetchAPI('/v1/operations/today-checkin-recalculation', {
+      method: 'POST',
+      timeoutMs: 15000,
+    })
+  },
+}
+
 // Satu sumber data untuk seluruh dashboard Analitik. Endpoint ini hanya
 // membaca laporan; filter tidak mengubah data presensi atau aturan kalender.
 export const adminAnalyticsAPI = {
@@ -826,6 +845,7 @@ export default {
   holidaysAPI,
   settingsAPI,
   pengaturanHarianAPI,
+  todayCheckInRecalculationAPI,
   jadwalPiketAPI,
   qrScanAPI,
   qrGenerateAPI,
