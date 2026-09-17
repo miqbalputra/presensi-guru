@@ -51,7 +51,7 @@ func TestGuruCannotReadAdminDirectoryOrActivityLog(t *testing.T) {
 	h := NewHandler(db, cfg, manager)
 	h.RegisterCoreRoutes(app)
 
-	for _, path := range []string{"/api/v1/users", "/api/v1/activities", "/api/v1/operations/today-checkin-recalculation"} {
+	for _, path := range []string{"/api/v1/users", "/api/v1/activities", "/api/v1/operations/checkin-recalculation", "/api/v1/operations/today-checkin-recalculation"} {
 		request := httptest.NewRequest("GET", path, nil)
 		request.Header.Set(fiber.HeaderAuthorization, "Bearer "+token)
 		response, err := app.Test(request)

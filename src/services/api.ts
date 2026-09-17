@@ -702,20 +702,22 @@ export const manualEntryAPI = {
   },
 }
 
-// Recalculate only today's saved check-in statuses after an administrator has
-// corrected the current normal arrival time. The server decides the date and
-// still applies each teacher's active piket target.
+// Recalculate one selected day's saved check-in statuses after an administrator
+// corrected the normal arrival time. The server rejects future dates and still
+// applies each teacher's active piket target for that date.
 export const todayCheckInRecalculationAPI = {
-  preview: async () => {
-    return fetchAPI('/v1/operations/today-checkin-recalculation', {
+  preview: async (date) => {
+    const query = date ? `?date=${encodeURIComponent(date)}` : ''
+    return fetchAPI('/v1/operations/checkin-recalculation' + query, {
       method: 'GET',
       timeoutMs: 10000,
     })
   },
 
-  apply: async () => {
-    return fetchAPI('/v1/operations/today-checkin-recalculation', {
+  apply: async (date) => {
+    return fetchAPI('/v1/operations/checkin-recalculation', {
       method: 'POST',
+      body: JSON.stringify({ date }),
       timeoutMs: 15000,
     })
   },

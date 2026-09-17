@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Trash2, AlertTriangle, RefreshCw, ShieldCheck, ArrowRight } from 'lucide-react'
 import { PageHeader, Notice } from '../ui/page'
 import { settingsAPI, pengaturanHarianAPI, todayCheckInRecalculationAPI } from '../../services/api'
@@ -21,6 +21,8 @@ const latenessNoteChange = (item) => {
   }
   return 'Keterangan terlambat dihapus karena status sudah tepat waktu'
 }
+
+const jakartaToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
 
 function Pengaturan() {
   const [section, setSection] = useState('Presensi')
@@ -54,9 +56,11 @@ function Pengaturan() {
   const [recalculationLoading, setRecalculationLoading] = useState(true)
   const [recalculationApplying, setRecalculationApplying] = useState(false)
   const [recalculationError, setRecalculationError] = useState('')
+  const [recalculationDate, setRecalculationDate] = useState(() => jakartaToday())
+  const recalculationRequest = useRef(0)
 
   // Override jam pulang per-tanggal (pengaturan harian khusus)
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = jakartaToday()
   const [harianForm, setHarianForm] = useState({
     tanggal: todayStr,
     jam_pulang_khusus: '',
@@ -74,28 +78,43 @@ function Pengaturan() {
     loadRecalculationPreview()
   }, [])
 
-  const loadRecalculationPreview = async () => {
+  const loadRecalculationPreview = async (date = recalculationDate) => {
+    const requestID = ++recalculationRequest.current
     try {
       setRecalculationLoading(true)
       setRecalculationError('')
-      const response = await todayCheckInRecalculationAPI.preview()
+      const response = await todayCheckInRecalculationAPI.preview(date)
+      if (requestID !== recalculationRequest.current) return
       setRecalculationPreview(response.data || null)
     } catch (error) {
+      if (requestID !== recalculationRequest.current) return
       setRecalculationError(error.message || 'Pratinjau perbaikan status belum dapat dimuat.')
     } finally {
-      setRecalculationLoading(false)
+      if (requestID === recalculationRequest.current) setRecalculationLoading(false)
     }
   }
 
+  const handleRecalculationDateChange = (date) => {
+    setRecalculationDate(date)
+    setRecalculationPreview(null)
+    if (!date) {
+      recalculationRequest.current += 1
+      setRecalculationLoading(false)
+      setRecalculationError('Pilih tanggal presensi yang ingin diperiksa.')
+      return
+    }
+    loadRecalculationPreview(date)
+  }
+
   const applyTodayCheckInRecalculation = async () => {
-    if (!recalculationPreview?.changed || recalculationApplying) return
+    if (!recalculationPreview?.changed || recalculationApplying || recalculationLoading || recalculationPreview.date !== recalculationDate) return
     const count = recalculationPreview.changed
-    if (!window.confirm(`Sesuaikan status masuk hari ini untuk ${count} presensi? Jam masuk, jam pulang, GPS, izin, sakit, dan catatan tidak akan diubah.`)) return
+    if (!window.confirm(`Sesuaikan status masuk tanggal ${recalculationPreview.date} untuk ${count} presensi? Jam masuk, jam pulang, GPS, izin, sakit, dan catatan manual tidak akan diubah.`)) return
     try {
       setRecalculationApplying(true)
-      const response = await todayCheckInRecalculationAPI.apply()
+      const response = await todayCheckInRecalculationAPI.apply(recalculationDate)
       showNotification(response.message || `${count} status masuk hari ini berhasil disesuaikan.`, 'success')
-      await loadRecalculationPreview()
+      await loadRecalculationPreview(recalculationDate)
     } catch (error) {
       showNotification('Gagal menyesuaikan status masuk: ' + (error.message || 'Silakan coba lagi.'), 'error')
     } finally {
@@ -381,38 +400,52 @@ function Pengaturan() {
 </section>
 <section hidden={section !== 'Presensi' || !!loadError} aria-labelledby="perbaikan-status-masuk">
       <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex gap-3">
             <div className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-amber-100">
               <AlertTriangle className="h-5 w-5 text-amber-700" aria-hidden="true" />
             </div>
             <div>
-              <h3 id="perbaikan-status-masuk" className="text-base font-bold text-slate-900">Perbaiki status masuk hari ini</h3>
+              <h3 id="perbaikan-status-masuk" className="text-base font-bold text-slate-900">Perbaiki status masuk per tanggal</h3>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">
-                Gunakan setelah Jam Masuk Normal diperbaiki. Sistem menilai ulang presensi hadir hari ini dengan jam terbaru dan toleransi saat ini. Guru yang mendapat jadwal piket tetap memakai jam piketnya.
+                Gunakan setelah Jam Masuk Normal diperbaiki. Sistem menilai ulang presensi hadir pada tanggal yang dipilih dengan jam terbaru dan toleransi saat ini. Guru yang mendapat jadwal piket tetap memakai jam piket pada hari tersebut.
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-600">
-                Status hadir/terlambat dan keterangan otomatis “Terlambat … menit” dapat diperbarui. Jam masuk, jam pulang, lokasi GPS, izin, sakit, serta catatan manual tetap utuh.
+                Status hadir/terlambat dan keterangan otomatis “Terlambat … menit” dapat diperbarui. Jam masuk, jam pulang, lokasi GPS, izin, sakit, serta catatan manual tetap utuh. Pengaturan dan jadwal piket aktif saat ini dipakai untuk menghitung ulang tanggal tersebut.
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={loadRecalculationPreview}
-            disabled={recalculationLoading || recalculationApplying}
-            className="inline-flex min-h-11 flex-none items-center justify-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${recalculationLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            Perbarui pratinjau
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+              Tanggal presensi
+              <input
+                type="date"
+                aria-label="Tanggal presensi untuk perbaikan status"
+                value={recalculationDate}
+                max={jakartaToday()}
+                onChange={(event) => handleRecalculationDateChange(event.target.value)}
+                disabled={recalculationApplying}
+                className="min-h-11 rounded-lg border border-amber-300 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => loadRecalculationPreview(recalculationDate)}
+              disabled={recalculationLoading || recalculationApplying}
+              className="inline-flex min-h-11 flex-none items-center justify-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${recalculationLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              Perbarui pratinjau
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 rounded-lg border border-amber-200 bg-white p-4" aria-live="polite">
-          {recalculationLoading && <div className="flex items-center gap-3 text-sm text-slate-600"><RefreshCw className="h-4 w-4 animate-spin text-amber-700" aria-hidden="true" />Memeriksa dampak pengaturan hari ini…</div>}
+          {recalculationLoading && <div className="flex items-center gap-3 text-sm text-slate-600"><RefreshCw className="h-4 w-4 animate-spin text-amber-700" aria-hidden="true" />Memeriksa dampak pengaturan tanggal {recalculationDate}…</div>}
           {!recalculationLoading && recalculationError && (
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-rose-700">
               <span>{recalculationError}</span>
-              <button type="button" onClick={loadRecalculationPreview} className="font-semibold underline underline-offset-2">Coba lagi</button>
+              <button type="button" onClick={() => loadRecalculationPreview(recalculationDate)} className="font-semibold underline underline-offset-2">Coba lagi</button>
             </div>
           )}
           {!recalculationLoading && !recalculationError && recalculationPreview && (
@@ -422,7 +455,7 @@ function Pengaturan() {
                   <p className="text-sm font-semibold text-slate-900">
                     {recalculationPreview.changed > 0
                       ? `${recalculationPreview.changed} dari ${recalculationPreview.processed} presensi hadir perlu disesuaikan.`
-                      : 'Status dan keterangan keterlambatan hari ini sudah sesuai dengan pengaturan terbaru.'}
+                      : 'Status dan keterangan keterlambatan pada tanggal ini sudah sesuai dengan pengaturan terbaru.'}
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
                     Tanggal {recalculationPreview.date} · Jam normal {String(recalculationPreview.normal_target || '-').slice(0, 5)} WIB · Toleransi {recalculationPreview.tolerance_minutes || 15} menit
@@ -431,7 +464,7 @@ function Pengaturan() {
                 <button
                   type="button"
                   onClick={applyTodayCheckInRecalculation}
-                  disabled={!recalculationPreview.changed || recalculationApplying}
+                  disabled={!recalculationPreview.changed || recalculationApplying || recalculationLoading || recalculationPreview.date !== recalculationDate}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {recalculationApplying ? <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
@@ -1191,7 +1224,7 @@ function Pengaturan() {
         <h4 className="font-bold text-blue-800 mb-2">ℹ️ Informasi Penting</h4>
         <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
           <li>Perubahan pengaturan akan langsung berlaku untuk presensi berikutnya</li>
-          <li>Untuk status masa lalu gunakan Koreksi Presensi; perbaikan di atas hanya berlaku untuk status masuk hari ini</li>
+          <li>Perbaikan status masuk hanya berlaku untuk satu tanggal yang dipilih; gunakan Koreksi Presensi untuk perubahan data lainnya</li>
           <li>Pastikan pengaturan sesuai dengan kebijakan sekolah</li>
           <li>Radius GPS terlalu kecil dapat menyebabkan guru kesulitan presensi</li>
           <li>Koordinat GPS harus akurat agar validasi presensi berjalan dengan baik</li>

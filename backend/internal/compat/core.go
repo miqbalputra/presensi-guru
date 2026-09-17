@@ -51,6 +51,9 @@ func (h *Handler) RegisterCoreRoutes(app fiber.Router) {
 	v1.All("/operations/optional-workdays", protected, auth.RequireRoles(admin...), h.optionalWorkdays)
 	v1.All("/operations/weekend-overrides", protected, auth.RequireRoles(admin...), h.weekendOverrides)
 	v1.All("/operations/daily-settings", protected, auth.RequireRoles(admin...), h.pengaturanHarian)
+	v1.Get("/operations/checkin-recalculation", protected, auth.RequireRoles(admin...), h.todayCheckInRecalculation)
+	v1.Post("/operations/checkin-recalculation", protected, auth.RequireRoles(admin...), h.todayCheckInRecalculation)
+	// Kept for the initial UI shipped before the date picker was added.
 	v1.Get("/operations/today-checkin-recalculation", protected, auth.RequireRoles(admin...), h.todayCheckInRecalculation)
 	v1.Post("/operations/today-checkin-recalculation", protected, auth.RequireRoles(admin...), h.todayCheckInRecalculation)
 }

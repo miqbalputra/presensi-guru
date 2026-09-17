@@ -19,10 +19,10 @@ var errTodayCheckInRecalculationStale = errors.New("catatan presensi berubah saa
 
 var generatedLateNotePattern = regexp.MustCompile(`(?i)Terlambat\s+(\d+)\s+menit(?:\s+\(Parah\))?(?:\s+\((?:Piket(?:\s+Apel)?|Apel\s+Senin|Event:\s*[^)]*)\))?`)
 
-// todayCheckInRecalculation lets an administrator correct today's stored
-// arrival statuses after updating the normal check-in time. It deliberately
-// never accepts a date from the client: historical attendance must be changed
-// through the existing correction workflow.
+// todayCheckInRecalculation lets an administrator correct one selected day's
+// stored arrival statuses after updating the normal check-in time. The chosen
+// date must not be in the future, so the action remains bounded to one known
+// attendance day.
 func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 	if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodPost {
 		return fiber.ErrMethodNotAllowed
@@ -36,7 +36,10 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 	}
 
 	location := appLocation(h)
-	date := dateOnly(time.Now().In(location))
+	date, err := checkInRecalculationDate(c, location)
+	if err != nil {
+		return invalid(c, err.Error())
+	}
 	settings, err := settingsMap(h.db)
 	if err != nil {
 		return err
@@ -77,8 +80,8 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 			if err := h.db.Create(&models.ActivityLog{
 				Waktu:     time.Now().In(location),
 				User:      actor.Nama,
-				Aktivitas: "Hitung ulang status masuk hari ini",
-				Status:    strconv.Itoa(preview.Changed) + " presensi disesuaikan",
+				Aktivitas: "Hitung ulang status masuk",
+				Status:    preview.Date + " · " + strconv.Itoa(preview.Changed) + " presensi disesuaikan",
 			}).Error; err != nil {
 				// An unavailable legacy audit table must not roll back the actual fix.
 				log.Printf("today check-in recalculation audit log failed: %v", err)
@@ -86,11 +89,34 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 		}
 	}
 
-	message := "Pratinjau status masuk hari ini berhasil dimuat"
+	message := "Pratinjau status masuk berhasil dimuat"
 	if c.Method() == fiber.MethodPost {
-		message = "Status masuk hari ini berhasil disesuaikan"
+		message = "Status masuk berhasil disesuaikan"
 	}
 	return httpx.Success(c, message, preview)
+}
+
+func checkInRecalculationDate(c *fiber.Ctx, location *time.Location) (time.Time, error) {
+	value := time.Now().In(location).Format("2006-01-02")
+	if c.Method() == fiber.MethodGet {
+		value = c.Query("date", value)
+	} else if strings.TrimSpace(string(c.Body())) != "" {
+		body, err := readJSON(c)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if requested := stringValue(body, "date", "tanggal"); requested != "" {
+			value = requested
+		}
+	}
+	date, err := parseDate(value, location)
+	if err != nil {
+		return time.Time{}, errors.New("format tanggal tidak valid")
+	}
+	if date.After(dateOnly(time.Now().In(location))) {
+		return time.Time{}, errors.New("tanggal perbaikan tidak boleh melewati hari ini")
+	}
+	return dateOnly(date), nil
 }
 
 type todayCheckInRecalculationResponse struct {

@@ -16,7 +16,7 @@ import (
 	"github.com/griyaquran/geopresensi/backend/internal/models"
 )
 
-func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T) {
+func TestCheckInRecalculationSupportsPastDateAndPiketTargets(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "-")+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -28,7 +28,7 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	date := dateOnly(time.Now().In(location))
+	date := dateOnly(time.Now().In(location)).AddDate(0, 0, -1)
 	admin := models.User{Username: "admin-recalculate", Role: "admin", Nama: "Admin Recalculate", TipeGuru: "full_time"}
 	normal := models.User{Username: "normal-recalculate", Role: "guru", Nama: "Guru Normal", TipeGuru: "full_time"}
 	late := models.User{Username: "late-recalculate", Role: "guru", Nama: "Guru Terlambat", TipeGuru: "full_time"}
@@ -81,7 +81,7 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 		return h.todayCheckInRecalculation(c)
 	})
 
-	previewRequest := httptest.NewRequest(fiber.MethodGet, "/preview", nil)
+	previewRequest := httptest.NewRequest(fiber.MethodGet, "/preview?date="+date.Format("2006-01-02"), nil)
 	previewResponse, err := app.Test(previewRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,8 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 		t.Fatalf("preview changed status to %q", before.Status)
 	}
 
-	applyRequest := httptest.NewRequest(fiber.MethodPost, "/apply", nil)
+	applyRequest := httptest.NewRequest(fiber.MethodPost, "/apply", strings.NewReader(`{"date":"`+date.Format("2006-01-02")+`"}`))
+	applyRequest.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 	applyResponse, err := app.Test(applyRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +140,7 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 	assertRecalculatedNote(t, db, rows[2].ID, "Terlambat 10 menit (Piket)")
 	assertRecalculatedNote(t, db, rows[3].ID, "")
 
-	secondPreviewRequest := httptest.NewRequest(fiber.MethodGet, "/preview", nil)
+	secondPreviewRequest := httptest.NewRequest(fiber.MethodGet, "/preview?date="+date.Format("2006-01-02"), nil)
 	secondPreviewResponse, err := app.Test(secondPreviewRequest)
 	if err != nil {
 		t.Fatal(err)
@@ -152,6 +153,15 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 	}
 	if secondPreview.Data.Changed != 0 {
 		t.Fatalf("second preview still reports %d changes", secondPreview.Data.Changed)
+	}
+
+	futureRequest := httptest.NewRequest(fiber.MethodGet, "/preview?date="+dateOnly(time.Now().In(location)).AddDate(0, 0, 1).Format("2006-01-02"), nil)
+	futureResponse, err := app.Test(futureRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if futureResponse.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("future date status = %d, want %d", futureResponse.StatusCode, fiber.StatusBadRequest)
 	}
 }
 
