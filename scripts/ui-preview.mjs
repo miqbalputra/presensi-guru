@@ -57,10 +57,11 @@ const requests = []
 const settings = () => ({ jam_masuk_normal: '07:20', toleransi_terlambat: '15', radius_gps: '500', sekolah_latitude: '-5.1477', sekolah_longitude: '119.4327', mode_testing: scenario === 'gps' ? '0' : '1', button_enabled: scenario === 'tombol-nonaktif' ? '0' : '1', jam_min_pulang: scenario === 'menunggu' ? '23:59' : '00:00', location_tracking_enabled: '0', apel_senin_enabled: '0', weekend_workday_enabled: '1' })
 const checkInRecalculation = () => {
   const items = scenario === 'kosong' || recalculationApplied ? [] : [
-    { id: 100, user_id: 3, nama: 'Ahmad Fauzi', jam_masuk: '07:10:00', old_status: 'hadir_terlambat', new_status: 'hadir', target: '07:20:00', target_label: '', changed: true },
-    { id: 101, user_id: 4, nama: 'Siti Aminah', jam_masuk: '07:10:00', old_status: 'hadir', new_status: 'hadir_terlambat', target: '07:00:00', target_label: '(Piket)', changed: true },
+    { id: 100, user_id: 3, nama: 'Ahmad Fauzi', jam_masuk: '07:10:00', old_status: 'hadir_terlambat', new_status: 'hadir', old_late_minutes: 10, target: '07:20:00', target_label: '', status_changed: true, note_changed: true, changed: true },
+    { id: 101, user_id: 4, nama: 'Siti Aminah', jam_masuk: '07:10:00', old_status: 'hadir', new_status: 'hadir_terlambat', new_late_minutes: 10, target: '07:00:00', target_label: '(Piket)', status_changed: true, note_changed: true, changed: true },
+    { id: 102, user_id: 5, nama: 'Muhammad Ridwan', jam_masuk: '07:40:00', old_status: 'hadir_terlambat', new_status: 'hadir_terlambat', old_late_minutes: 40, new_late_minutes: 20, target: '07:20:00', target_label: '', status_changed: false, note_changed: true, changed: true },
   ]
-  return { date: today, normal_target: '07:20:00', tolerance_minutes: '15', processed: scenario === 'kosong' ? 0 : 12, changed: items.length, unchanged: scenario === 'kosong' ? 0 : 10, skipped_no_time: 0, skipped_no_user: 0, items }
+  return { date: today, normal_target: '07:20:00', tolerance_minutes: '15', processed: scenario === 'kosong' ? 0 : 12, changed: items.length, unchanged: scenario === 'kosong' ? 0 : 9, skipped_no_time: 0, skipped_no_user: 0, items }
 }
 const attendance = () => saved || (['masuk', 'menunggu', 'piket', 'selesai', 'izin', 'sakit'].includes(scenario) ? { ...baseLogs[0], jamPulang: scenario === 'selesai' ? '14:30' : null, status: ['izin', 'sakit'].includes(scenario) ? scenario : 'hadir' } : null)
 const holiday = () => ({ isWorkday: scenario !== 'libur', isHoliday: scenario === 'libur', isWeekend: false, holidayName: 'Libur sekolah', dayName: 'Minggu' })

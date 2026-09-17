@@ -13,6 +13,15 @@ const statusTone = (status) => status === 'hadir'
   ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
   : 'bg-amber-50 text-amber-800 ring-amber-200'
 
+const latenessNoteChange = (item) => {
+  if (!item.note_changed) return ''
+  if (typeof item.new_late_minutes === 'number') {
+    const previous = typeof item.old_late_minutes === 'number' ? `${item.old_late_minutes} menit` : 'belum tercatat'
+    return `Keterangan terlambat: ${previous} → ${item.new_late_minutes} menit`
+  }
+  return 'Keterangan terlambat dihapus karena status sudah tepat waktu'
+}
+
 function Pengaturan() {
   const [section, setSection] = useState('Presensi')
   const [loadError, setLoadError] = useState('')
@@ -383,7 +392,7 @@ function Pengaturan() {
                 Gunakan setelah Jam Masuk Normal diperbaiki. Sistem menilai ulang presensi hadir hari ini dengan jam terbaru dan toleransi saat ini. Guru yang mendapat jadwal piket tetap memakai jam piketnya.
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-600">
-                Hanya status hadir/terlambat yang dapat berubah. Jam masuk, jam pulang, lokasi GPS, izin, sakit, dan catatan presensi tetap utuh.
+                Status hadir/terlambat dan keterangan otomatis “Terlambat … menit” dapat diperbarui. Jam masuk, jam pulang, lokasi GPS, izin, sakit, serta catatan manual tetap utuh.
               </p>
             </div>
           </div>
@@ -413,7 +422,7 @@ function Pengaturan() {
                   <p className="text-sm font-semibold text-slate-900">
                     {recalculationPreview.changed > 0
                       ? `${recalculationPreview.changed} dari ${recalculationPreview.processed} presensi hadir perlu disesuaikan.`
-                      : 'Status presensi hadir hari ini sudah sesuai dengan pengaturan terbaru.'}
+                      : 'Status dan keterangan keterlambatan hari ini sudah sesuai dengan pengaturan terbaru.'}
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
                     Tanggal {recalculationPreview.date} · Jam normal {String(recalculationPreview.normal_target || '-').slice(0, 5)} WIB · Toleransi {recalculationPreview.tolerance_minutes || 15} menit
@@ -441,6 +450,7 @@ function Pengaturan() {
                       <span className="text-slate-600">{String(item.jam_masuk || '-').slice(0, 5)} / {String(item.target || '-').slice(0, 5)} {item.target_label || ''}</span>
                       <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(item.old_status)}`}>{statusLabel(item.old_status)}</span>
                       <span className="inline-flex items-center gap-1.5"><ArrowRight className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" /><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(item.new_status)}`}>{statusLabel(item.new_status)}</span></span>
+                      {item.note_changed && <span className="text-xs leading-5 text-slate-600 sm:col-span-full">{latenessNoteChange(item)}</span>}
                     </div>
                   ))}
                   {recalculationPreview.changed > 8 && <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">Dan {recalculationPreview.changed - 8} presensi lainnya akan disesuaikan.</p>}

@@ -3,6 +3,7 @@ package compat
 import (
 	"errors"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 )
 
 var errTodayCheckInRecalculationStale = errors.New("catatan presensi berubah saat perbaikan diproses")
+
+var generatedLateNotePattern = regexp.MustCompile(`(?i)Terlambat\s+(\d+)\s+menit(?:\s+\(Parah\))?(?:\s+\((?:Piket(?:\s+Apel)?|Apel\s+Senin|Event:\s*[^)]*)\))?`)
 
 // todayCheckInRecalculation lets an administrator correct today's stored
 // arrival statuses after updating the normal check-in time. It deliberately
@@ -52,7 +55,8 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 				result := tx.Model(&models.AttendanceLog{}).
 					Where("id = ?", item.ID).
 					Where("status = ?", item.OldStatus).
-					Update("status", item.NewStatus)
+					Where("COALESCE(keterangan, '') = ?", item.OldKeterangan).
+					Updates(map[string]any{"status": item.NewStatus, "keterangan": pointerString(item.NewKeterangan)})
 				if result.Error != nil {
 					return result.Error
 				}
@@ -102,15 +106,21 @@ type todayCheckInRecalculationResponse struct {
 }
 
 type todayCheckInRecalculationItem struct {
-	ID          uint   `json:"id"`
-	UserID      uint   `json:"user_id"`
-	Nama        string `json:"nama"`
-	JamMasuk    string `json:"jam_masuk"`
-	OldStatus   string `json:"old_status"`
-	NewStatus   string `json:"new_status"`
-	Target      string `json:"target"`
-	TargetLabel string `json:"target_label"`
-	Changed     bool   `json:"changed"`
+	ID             uint   `json:"id"`
+	UserID         uint   `json:"user_id"`
+	Nama           string `json:"nama"`
+	JamMasuk       string `json:"jam_masuk"`
+	OldStatus      string `json:"old_status"`
+	NewStatus      string `json:"new_status"`
+	OldKeterangan  string `json:"old_keterangan"`
+	NewKeterangan  string `json:"new_keterangan"`
+	OldLateMinutes *int   `json:"old_late_minutes,omitempty"`
+	NewLateMinutes *int   `json:"new_late_minutes,omitempty"`
+	Target         string `json:"target"`
+	TargetLabel    string `json:"target_label"`
+	StatusChanged  bool   `json:"status_changed"`
+	NoteChanged    bool   `json:"note_changed"`
+	Changed        bool   `json:"changed"`
 }
 
 func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[string]string) (todayCheckInRecalculationResponse, error) {
@@ -178,18 +188,29 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 			return response, err
 		}
 		checkedInAt := time.Date(date.Year(), date.Month(), date.Day(), minutes/60, minutes%60, 0, 0, date.Location())
-		newStatus, _ := classifyCheckIn(user, checkedInAt, target, targetLabel, response.ToleranceMinutes, "")
-		item := todayCheckInRecalculationItem{
-			ID:          row.ID,
-			UserID:      row.UserID,
-			Nama:        row.Nama,
-			JamMasuk:    normalizeTime(*checkIn),
-			OldStatus:   row.Status,
-			NewStatus:   newStatus,
-			Target:      target,
-			TargetLabel: strings.TrimSpace(targetLabel),
-			Changed:     row.Status != newStatus,
+		newStatus, generatedLateNote := classifyCheckIn(user, checkedInAt, target, targetLabel, response.ToleranceMinutes, "")
+		oldNote := ""
+		if row.Keterangan != nil {
+			oldNote = *row.Keterangan
 		}
+		newNote := recalculatedCheckInNote(oldNote, generatedLateNote, newStatus)
+		item := todayCheckInRecalculationItem{
+			ID:             row.ID,
+			UserID:         row.UserID,
+			Nama:           row.Nama,
+			JamMasuk:       normalizeTime(*checkIn),
+			OldStatus:      row.Status,
+			NewStatus:      newStatus,
+			OldKeterangan:  oldNote,
+			NewKeterangan:  newNote,
+			OldLateMinutes: lateMinutesFromNote(oldNote),
+			NewLateMinutes: lateMinutesFromNote(newNote),
+			Target:         target,
+			TargetLabel:    strings.TrimSpace(targetLabel),
+			StatusChanged:  row.Status != newStatus,
+			NoteChanged:    oldNote != newNote,
+		}
+		item.Changed = item.StatusChanged || item.NoteChanged
 		if item.Nama == "" {
 			item.Nama = user.Nama
 		}
@@ -202,4 +223,47 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 	}
 
 	return response, nil
+}
+
+// recalculatedCheckInNote replaces only the automatic lateness sentence. Any
+// note added manually by an administrator stays in place, including when a
+// record becomes on-time and its automatic delay sentence is removed.
+func recalculatedCheckInNote(current, generated, status string) string {
+	match := generatedLateNotePattern.FindStringIndex(current)
+	if status != "hadir_terlambat" {
+		if match == nil {
+			return current
+		}
+		return joinAttendanceNoteFragments(current[:match[0]], current[match[1]:])
+	}
+	if match == nil {
+		if strings.TrimSpace(current) == "" {
+			return generated
+		}
+		return joinAttendanceNoteFragments(current, generated)
+	}
+	return joinAttendanceNoteFragments(current[:match[0]], generated, current[match[1]:])
+}
+
+func joinAttendanceNoteFragments(parts ...string) string {
+	clean := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.Trim(strings.TrimSpace(part), "| ")
+		if part != "" {
+			clean = append(clean, part)
+		}
+	}
+	return strings.Join(clean, " | ")
+}
+
+func lateMinutesFromNote(note string) *int {
+	match := generatedLateNotePattern.FindStringSubmatch(note)
+	if len(match) < 2 {
+		return nil
+	}
+	minutes, err := strconv.Atoi(match[1])
+	if err != nil {
+		return nil
+	}
+	return &minutes
 }

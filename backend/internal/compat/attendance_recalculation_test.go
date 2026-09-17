@@ -54,11 +54,13 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 	}
 	sevenTen, sevenForty := "07:10:00", "07:40:00"
 	manualNote := "Catatan manual harus tetap utuh"
+	lateNote := "Terlambat 40 menit"
+	legacyLateNote := "Terlambat 10 menit"
 	rows := []models.AttendanceLog{
 		{UserID: normal.ID, Nama: normal.Nama, Tanggal: date, Status: "hadir_terlambat", JamMasuk: &sevenTen, Keterangan: &manualNote},
-		{UserID: late.ID, Nama: late.Nama, Tanggal: date, Status: "hadir_terlambat", JamMasuk: &sevenForty},
+		{UserID: late.ID, Nama: late.Nama, Tanggal: date, Status: "hadir_terlambat", JamMasuk: &sevenForty, Keterangan: &lateNote},
 		{UserID: piket.ID, Nama: piket.Nama, Tanggal: date, Status: "hadir", JamMasuk: &sevenTen},
-		{UserID: legacy.ID, Nama: legacy.Nama, Tanggal: date, Status: "hadir_izin_terlambat", JamMasuk: &sevenTen},
+		{UserID: legacy.ID, Nama: legacy.Nama, Tanggal: date, Status: "hadir_izin_terlambat", JamMasuk: &sevenTen, Keterangan: &legacyLateNote},
 		{UserID: normal.ID, Nama: normal.Nama, Tanggal: date, Status: "izin"},
 	}
 	for index := range rows {
@@ -96,8 +98,11 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 	if preview.Data.Date != date.Format("2006-01-02") || preview.Data.NormalTarget != "07:20:00" {
 		t.Fatalf("unexpected preview period/target: %#v", preview.Data)
 	}
-	if preview.Data.Processed != 4 || preview.Data.Changed != 3 || preview.Data.Unchanged != 1 {
-		t.Fatalf("preview counts = processed %d changed %d unchanged %d, want 4/3/1", preview.Data.Processed, preview.Data.Changed, preview.Data.Unchanged)
+	if preview.Data.Processed != 4 || preview.Data.Changed != 4 || preview.Data.Unchanged != 0 {
+		t.Fatalf("preview counts = processed %d changed %d unchanged %d, want 4/4/0", preview.Data.Processed, preview.Data.Changed, preview.Data.Unchanged)
+	}
+	if !preview.Data.Items[1].NoteChanged || preview.Data.Items[1].StatusChanged || preview.Data.Items[1].NewLateMinutes == nil || *preview.Data.Items[1].NewLateMinutes != 20 {
+		t.Fatalf("late-note preview = %#v, want unchanged status and 20 late minutes", preview.Data.Items[1])
 	}
 	if preview.Data.Items[2].Target != "07:00:00" || preview.Data.Items[2].NewStatus != "hadir_terlambat" {
 		t.Fatalf("piket preview = %#v, want target 07:00 and late", preview.Data.Items[2])
@@ -130,6 +135,9 @@ func TestTodayCheckInRecalculationUsesCurrentNormalAndPiketTargets(t *testing.T)
 	if saved.Keterangan == nil || *saved.Keterangan != manualNote {
 		t.Fatalf("manual note changed to %#v", saved.Keterangan)
 	}
+	assertRecalculatedNote(t, db, rows[1].ID, "Terlambat 20 menit (Parah)")
+	assertRecalculatedNote(t, db, rows[2].ID, "Terlambat 10 menit (Piket)")
+	assertRecalculatedNote(t, db, rows[3].ID, "")
 
 	secondPreviewRequest := httptest.NewRequest(fiber.MethodGet, "/preview", nil)
 	secondPreviewResponse, err := app.Test(secondPreviewRequest)
@@ -155,5 +163,20 @@ func assertRecalculatedStatus(t *testing.T, db *gorm.DB, id uint, want string) {
 	}
 	if record.Status != want {
 		t.Fatalf("record %d status = %q, want %q", id, record.Status, want)
+	}
+}
+
+func assertRecalculatedNote(t *testing.T, db *gorm.DB, id uint, want string) {
+	t.Helper()
+	var record models.AttendanceLog
+	if err := db.First(&record, id).Error; err != nil {
+		t.Fatal(err)
+	}
+	got := ""
+	if record.Keterangan != nil {
+		got = *record.Keterangan
+	}
+	if got != want {
+		t.Fatalf("record %d note = %q, want %q", id, got, want)
 	}
 }
