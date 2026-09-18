@@ -481,12 +481,19 @@ func (h *Handler) statusRekan(c *fiber.Ctx) error {
 		storedStatus := status
 		jamMasuk := "-"
 		var jamPulang any
+		var lateMinutes *int
 		if query.RowsAffected > 0 {
 			status = attendance.Status
 			storedStatus = status
 			status, err = h.derivedAttendanceStatus(teacher, attendance, attendanceDate, settings)
 			if err != nil {
 				return err
+			}
+			if contains([]string{"hadir_terlambat", "hadir_izin_terlambat"}, status) {
+				lateMinutes, err = h.lateMinutesForAttendance(teacher, attendance, attendanceDate, settings)
+				if err != nil {
+					return err
+				}
 			}
 			if attendance.JamMasuk != nil {
 				jamMasuk = *attendance.JamMasuk
@@ -502,7 +509,7 @@ func (h *Handler) statusRekan(c *fiber.Ctx) error {
 		if teacher.Jabatan != nil {
 			_ = json.Unmarshal([]byte(*teacher.Jabatan), &roles)
 		}
-		items = append(items, map[string]any{"id": teacher.ID, "nama": teacher.Nama, "jabatan": roles, "statusFinal": status, "statusAsli": storedStatus, "jamMasuk": jamMasuk, "jamPulang": jamPulang})
+		items = append(items, map[string]any{"id": teacher.ID, "nama": teacher.Nama, "jabatan": roles, "statusFinal": status, "statusAsli": storedStatus, "jamMasuk": jamMasuk, "jamPulang": jamPulang, "lateMinutes": lateMinutes})
 	}
 	return httpx.Success(c, "Status rekan guru berhasil diambil", fiber.Map{"tanggal": date, "items": items})
 }

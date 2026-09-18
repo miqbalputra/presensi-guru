@@ -80,6 +80,38 @@ func classifyCheckIn(user models.User, checkedInAt time.Time, target, targetLabe
 	return "hadir_terlambat", "Terlambat " + strconv.Itoa(lateMinutes) + " menit" + severity + targetLabel
 }
 
+// lateMinutesForAttendance calculates the delay relative to the same effective
+// target used when classifying check-ins. It deliberately returns nil when a
+// check-in time is absent or not later than its target, so the peer-status API
+// never invents a delay for manually corrected records.
+func (h *Handler) lateMinutesForAttendance(user models.User, attendance models.AttendanceLog, date time.Time, settings map[string]string) (*int, error) {
+	checkInTime := attendance.JamMasuk
+	if checkInTime == nil || strings.TrimSpace(*checkInTime) == "" {
+		checkInTime = attendance.JamHadir
+	}
+	if checkInTime == nil || strings.TrimSpace(*checkInTime) == "" {
+		return nil, nil
+	}
+
+	actualMinutes, validActual := timeToMinutes(*checkInTime)
+	if !validActual {
+		return nil, nil
+	}
+	target, _, err := h.checkInTarget(user.ID, date, settings)
+	if err != nil {
+		return nil, err
+	}
+	targetMinutes, validTarget := timeToMinutes(target)
+	if !validTarget {
+		return nil, nil
+	}
+	lateMinutes := actualMinutes - targetMinutes
+	if lateMinutes <= 0 {
+		return nil, nil
+	}
+	return &lateMinutes, nil
+}
+
 // derivedAttendanceStatus restores the effective status for a same-day record
 // that was saved as hadir before timing rules were applied by the API. It is
 // intentionally read-only: administrators' historical/manual corrections stay

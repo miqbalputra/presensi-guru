@@ -23,6 +23,33 @@ func TestClassifyCheckInMarksLateAfterConfiguredTime(t *testing.T) {
 	}
 }
 
+func TestLateMinutesForAttendanceUsesEffectivePiketTarget(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "-")+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	if err := db.AutoMigrate(&models.Holiday{}, &models.JadwalPiket{}); err != nil {
+		t.Fatalf("migrate database: %v", err)
+	}
+	piketTime, checkInTime := "07:00", "07:12"
+	if err := db.Create(&models.JadwalPiket{UserID: 42, Hari: "Selasa", JamPiket: &piketTime, IsActive: true}).Error; err != nil {
+		t.Fatalf("create piket schedule: %v", err)
+	}
+
+	minutes, err := (&Handler{db: db}).lateMinutesForAttendance(
+		models.User{ID: 42},
+		models.AttendanceLog{JamMasuk: &checkInTime},
+		time.Date(2026, time.August, 18, 0, 0, 0, 0, time.UTC),
+		map[string]string{"jam_masuk_normal": "07:20"},
+	)
+	if err != nil {
+		t.Fatalf("calculate late minutes: %v", err)
+	}
+	if minutes == nil || *minutes != 12 {
+		t.Fatalf("late minutes = %v, want 12", minutes)
+	}
+}
+
 func TestClassifyCheckInKeepsLegacyPartTimeException(t *testing.T) {
 	user := models.User{TipeGuru: "partime"}
 	checkedInAt := time.Date(2026, time.August, 14, 8, 0, 0, 0, time.FixedZone("WIB", 7*60*60))

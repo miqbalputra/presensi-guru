@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'attendance_service.php';
 
 requireAuth(['guru']);
 
@@ -16,6 +17,7 @@ try {
             u.id,
             u.nama,
             u.jabatan,
+            u.jenis_kelamin,
             a.status,
             a.jam_masuk,
             a.jam_pulang,
@@ -29,6 +31,7 @@ try {
     ");
     $stmt->execute([$today, $currentUserId]);
     $rows = $stmt->fetchAll();
+    $attendanceSettings = gp_get_settings($pdo, ['jam_masuk_normal', 'apel_senin_enabled']);
 
     $order = [
         'hadir' => 0,
@@ -45,6 +48,23 @@ try {
         $statusFinal = $row['status'] ?: 'belum';
         $jamMasuk = $row['jam_masuk'] ?: ($row['jam_hadir'] ?: '-');
         $jamPulang = $row['jam_pulang'] ?: null;
+        $lateMinutes = null;
+
+        if (in_array($statusFinal, ['hadir_terlambat', 'hadir_izin_terlambat'], true) && $jamMasuk !== '-') {
+            $dateStatus = gpw_get_date_status($pdo, $today, $row['jenis_kelamin'] ?? null, (int)$row['id']);
+            [$checkInTarget] = gp_get_checkin_target(
+                $pdo,
+                (int)$row['id'],
+                $today,
+                $attendanceSettings,
+                $dateStatus['holiday'],
+                $dateStatus['isSpecialWorkday']
+            );
+            $calculatedMinutes = gp_time_to_minutes($jamMasuk) - gp_time_to_minutes($checkInTarget);
+            if ($calculatedMinutes > 0) {
+                $lateMinutes = $calculatedMinutes;
+            }
+        }
 
         if (
             in_array($statusFinal, ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true) &&
@@ -68,6 +88,7 @@ try {
             'statusAsli' => $row['status'] ?: 'belum',
             'jamMasuk' => $jamMasuk,
             'jamPulang' => $jamPulang,
+            'lateMinutes' => $lateMinutes,
             'sortOrder' => $order[$statusFinal] ?? 9
         ];
     }

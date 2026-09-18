@@ -199,6 +199,8 @@ function GuruStatus() {
           {statusList.map((guru) => {
             const cfg = getStatusConfig(guru.statusFinal)
             const Icon = cfg.icon
+            const lateMinutes = Number(guru.lateMinutes)
+            const hasLateMinutes = Number.isFinite(lateMinutes) && lateMinutes > 0
             return (
               <div
                 key={guru.id}
@@ -235,6 +237,11 @@ function GuruStatus() {
                       {guru.jamPulang && (
                         <p className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                           <LogOut className="h-3 w-3 text-violet-600 dark:text-violet-400" aria-hidden="true" /> Pulang: <span className="font-semibold text-slate-700 dark:text-slate-300">{guru.jamPulang}</span>
+                        </p>
+                      )}
+                      {hasLateMinutes && (
+                        <p className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
+                          <Clock className="h-3 w-3" aria-hidden="true" /> Terlambat: <span className="font-semibold">{lateMinutes} menit</span>
                         </p>
                       )}
                     </div>
