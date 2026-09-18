@@ -58,6 +58,24 @@ function formatDate(value?: string) {
   }).format(new Date(`${value}T00:00:00`))
 }
 
+function formatPeriod(startValue?: string, endValue?: string) {
+  if (!startValue || !endValue) return `${formatDate(startValue)} – ${formatDate(endValue)}`
+  const start = new Date(`${startValue}T00:00:00`)
+  const end = new Date(`${endValue}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return `${formatDate(startValue)} – ${formatDate(endValue)}`
+
+  const monthYear = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(end)
+  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+    return `${start.getDate()}–${end.getDate()} ${monthYear}`
+  }
+
+  const shortDate = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' })
+  const endLabel = start.getFullYear() === end.getFullYear()
+    ? `${shortDate.format(end)} ${end.getFullYear()}`
+    : formatDate(endValue)
+  return `${shortDate.format(start)} – ${endLabel}`
+}
+
 function formatScore(value?: number) {
   const score = Number(value)
   return Number.isFinite(score) ? score.toFixed(1) : '0.0'
@@ -113,14 +131,12 @@ function GuruPeringkat({ user }) {
 
   return (
     <div className="space-y-5 pb-2">
-      <section className="guru-surface p-5 sm:p-6" aria-labelledby="guru-ranking-title">
-        <div className="flex items-start justify-between gap-4">
+      <section className="guru-surface p-4 sm:p-6" aria-labelledby="guru-ranking-title">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-normal text-amber-600 dark:text-amber-400">Kedisiplinan presensi</p>
-            <h2 id="guru-ranking-title" className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">Peringkat Bulan Ini</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {formatDate(data?.period?.startDate)} – {formatDate(data?.period?.endDate)}
-            </p>
+            <h2 id="guru-ranking-title" className="mt-1 whitespace-nowrap text-xl font-bold text-slate-800 dark:text-slate-100">Peringkat Bulan Ini</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{formatPeriod(data?.period?.startDate, data?.period?.endDate)}</p>
           </div>
           <button
             type="button"
@@ -143,7 +159,7 @@ function GuruPeringkat({ user }) {
         <section className="guru-surface overflow-hidden" aria-label="Top 10 peringkat kedisiplinan guru">
           <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800 sm:px-6">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Top 10 Guru</h3>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Skor berdasarkan kehadiran, ketepatan waktu, dan kelengkapan checkout.</p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Hadir, tepat waktu, dan checkout.</p>
           </div>
           <div className="space-y-2 p-3 sm:p-4">
             {items.map((item) => {
@@ -153,9 +169,9 @@ function GuruPeringkat({ user }) {
               return (
                 <div
                   key={item.id}
-                  className={`flex items-center gap-3 rounded-xl border p-3.5 transition-colors sm:p-4 ${podium?.card || 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40'} ${isCurrentUser ? 'ring-2 ring-blue-500/60 ring-offset-1 dark:ring-offset-slate-900' : ''}`}
+                  className={`flex items-center gap-3 rounded-xl border p-3 transition-colors sm:p-4 ${podium?.card || 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40'} ${isCurrentUser ? 'ring-2 ring-blue-500/60 ring-offset-1 dark:ring-offset-slate-900' : ''}`}
                 >
-                  <div className={`flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl font-black ${podium?.rank || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`} aria-label={`Peringkat ${rank}`}>
+                  <div className={`flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl font-black ${podium?.rank || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`} aria-label={`Peringkat ${rank}`}>
                     {podium ? <><Trophy className={`h-4 w-4 ${podium.icon}`} aria-hidden="true" /><span className="text-[10px] leading-none">#{rank}</span></> : rank}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -164,15 +180,15 @@ function GuruPeringkat({ user }) {
                       {isCurrentUser && <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">Anda</span>}
                     </div>
                     {item.jabatan && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{formatJabatan(item.jabatan)}</p>}
-                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400 sm:flex sm:flex-wrap sm:gap-x-4">
-                      <span>Hadir <strong className="text-slate-700 dark:text-slate-200">{formatPercent(item.persentaseKehadiran)}</strong></span>
-                      <span>Tepat waktu <strong className="text-slate-700 dark:text-slate-200">{formatPercent(item.persentaseTepatWaktu)}</strong></span>
-                      <span>Checkout <strong className="text-slate-700 dark:text-slate-200">{formatPercent(item.persentasePulang)}</strong></span>
+                    <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                      <span className="min-w-0"><span className="block truncate">Hadir</span><strong className="block whitespace-nowrap text-slate-700 dark:text-slate-200">{formatPercent(item.persentaseKehadiran)}</strong></span>
+                      <span className="min-w-0"><span className="block truncate">Tepat</span><strong className="block whitespace-nowrap text-slate-700 dark:text-slate-200">{formatPercent(item.persentaseTepatWaktu)}</strong></span>
+                      <span className="min-w-0"><span className="block truncate">Checkout</span><strong className="block whitespace-nowrap text-slate-700 dark:text-slate-200">{formatPercent(item.persentasePulang)}</strong></span>
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Skor</p>
-                    <p className="text-lg font-black tabular-nums text-slate-800 dark:text-slate-100">{formatScore(item.skor)}</p>
+                    <p className="text-base font-black tabular-nums text-slate-800 dark:text-slate-100">{formatScore(item.skor)}</p>
                   </div>
                 </div>
               )

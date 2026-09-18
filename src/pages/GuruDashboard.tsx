@@ -194,14 +194,14 @@ function GuruDashboard({ user, onLogout, installBanner }) {
         </main>
 
         <nav aria-label="Navigasi dashboard guru" className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
-          <div className="border-t border-slate-200 bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 dark:border-slate-800 dark:bg-slate-950">
-            <div className="mx-auto flex max-w-md items-center justify-between">
+          <div className="border-t border-slate-200 bg-white px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 dark:border-slate-800 dark:bg-slate-950">
+            <div className="mx-auto grid max-w-md grid-cols-6 gap-0.5">
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id
                 return (
-                  <button type="button" key={tab.id} onClick={() => setActiveTab(tab.id)} aria-current={isActive ? 'page' : undefined} className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}>
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' : ''}`}><tab.icon className="h-[17px] w-[17px]" aria-hidden="true" /></span>
-                    <span className="max-w-full truncate">{tab.id === 'akun' ? 'Akun' : tab.label}</span>
+                  <button type="button" key={tab.id} onClick={() => setActiveTab(tab.id)} aria-current={isActive ? 'page' : undefined} className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0 py-1 text-[10px] font-semibold leading-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:text-xs ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300'}`}>
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${isActive ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' : ''}`}><tab.icon className="h-4 w-4" aria-hidden="true" /></span>
+                    <span className="max-w-full truncate text-center">{tab.id === 'akun' ? 'Akun' : tab.label}</span>
                   </button>
                 )
               })}
