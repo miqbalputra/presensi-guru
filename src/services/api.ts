@@ -519,6 +519,16 @@ export const statusRekanAPI = {
   },
 }
 
+// Guru ranking API - current month's attendance discipline leaderboard
+export const guruRankingAPI = {
+  getMonthly: async () => {
+    return fetchAPI(`/v1/guru/ranking?_t=${Date.now()}`, {
+      method: 'GET',
+      timeoutMs: 10000,
+    })
+  },
+}
+
 // Guru Profile Self-Service API - guru dapat melihat & update data dirinya
 export const guruProfileAPI = {
   getProfile: async () => {

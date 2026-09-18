@@ -10,6 +10,7 @@ import {
   Moon,
   School,
   Sun,
+  Trophy,
   UserCog,
   Users,
 } from 'lucide-react'
@@ -20,6 +21,7 @@ import GuruAkun from '../components/guru/GuruAkun'
 
 const GuruRiwayat = lazy(() => import('../components/guru/GuruRiwayat'))
 const GuruStatus = lazy(() => import('../components/guru/GuruStatus'))
+const GuruPeringkat = lazy(() => import('../components/guru/GuruPeringkat'))
 const GuruStatistik = lazy(() => import('../components/guru/GuruStatistik'))
 
 function TabLoading() {
@@ -47,6 +49,7 @@ function GuruDashboard({ user, onLogout, installBanner }) {
     { id: 'home', label: 'Beranda', icon: Home },
     { id: 'riwayat', label: 'Riwayat', icon: History },
     { id: 'status', label: 'Rekan', icon: Users },
+    { id: 'peringkat', label: 'Peringkat', icon: Trophy },
     { id: 'statistik', label: 'Statistik', icon: BarChart3 },
     { id: 'akun', label: 'Akun', icon: UserCog },
   ]
@@ -61,7 +64,7 @@ function GuruDashboard({ user, onLogout, installBanner }) {
   }).format(new Date())
 
   useEffect(() => {
-    if (!['home', 'riwayat', 'status', 'statistik', 'akun'].includes(activeTab)) navigate('/guru', { replace: true })
+    if (!['home', 'riwayat', 'status', 'peringkat', 'statistik', 'akun'].includes(activeTab)) navigate('/guru', { replace: true })
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [activeTab, navigate])
 
@@ -125,11 +128,11 @@ function GuruDashboard({ user, onLogout, installBanner }) {
           <div className="space-y-6">
             <div>
               <p className={`mb-2 px-3 text-xs font-bold uppercase tracking-normal text-slate-500 ${!sidebarOpen ? 'sr-only' : ''}`}>Presensi</p>
-              <div className="space-y-1">{tabs.slice(0, 4).map(renderNavItem)}</div>
+              <div className="space-y-1">{tabs.slice(0, 5).map(renderNavItem)}</div>
             </div>
             <div>
               <p className={`mb-2 px-3 text-xs font-bold uppercase tracking-normal text-slate-500 ${!sidebarOpen ? 'sr-only' : ''}`}>Akun</p>
-              <div className="space-y-1">{tabs.slice(4).map(renderNavItem)}</div>
+              <div className="space-y-1">{tabs.slice(5).map(renderNavItem)}</div>
             </div>
           </div>
           {!sidebarOpen && (
@@ -183,6 +186,7 @@ function GuruDashboard({ user, onLogout, installBanner }) {
               <Suspense fallback={<TabLoading />}>
                 {activeTab === 'riwayat' && <GuruRiwayat user={user} />}
                 {activeTab === 'status' && <GuruStatus />}
+                {activeTab === 'peringkat' && <GuruPeringkat user={user} />}
                 {activeTab === 'statistik' && <GuruStatistik user={user} />}
               </Suspense>
             )}
