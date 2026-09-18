@@ -240,8 +240,8 @@ function GuruStatus() {
                         </p>
                       )}
                       {hasLateMinutes && (
-                        <p className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
-                          <Clock className="h-3 w-3" aria-hidden="true" /> Terlambat: <span className="font-semibold">{lateMinutes} menit</span>
+                        <p className="flex items-center gap-1 whitespace-nowrap text-xs text-amber-700 dark:text-amber-300">
+                          <Clock className="h-3 w-3 shrink-0" aria-hidden="true" /> Terlambat: <span className="font-semibold whitespace-nowrap">{lateMinutes} menit</span>
                         </p>
                       )}
                     </div>
