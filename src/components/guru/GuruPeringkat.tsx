@@ -18,6 +18,7 @@ type RankingItem = {
   checkoutLengkap: number
   lupaCheckout: number
   lemburMenit: number
+  bonusLembur: number
   totalHariKerja: number
 }
 
@@ -84,6 +85,15 @@ function formatScore(value?: number) {
 function formatPercent(value?: number) {
   const percentage = Number(value)
   return Number.isFinite(percentage) ? `${percentage.toFixed(1)}%` : '0.0%'
+}
+
+function formatOvertimeBonus(value?: number) {
+  const bonus = Number(value)
+  const formatted = new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Number.isFinite(bonus) ? bonus : 0)
+  return `+${formatted} poin`
 }
 
 function formatJabatan(value?: string) {
@@ -159,7 +169,7 @@ function GuruPeringkat({ user }) {
         <section className="guru-surface overflow-hidden" aria-label="Top 10 peringkat kedisiplinan guru">
           <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800 sm:px-6">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Top 10 Guru</h3>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Hadir, tepat waktu, dan checkout.</p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Hadir, tepat waktu, checkout, dan bonus lembur.</p>
           </div>
           <div className="space-y-2 p-3 sm:p-4">
             {items.map((item) => {
@@ -180,10 +190,11 @@ function GuruPeringkat({ user }) {
                       {isCurrentUser && <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">Anda</span>}
                     </div>
                     {item.jabatan && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{formatJabatan(item.jabatan)}</p>}
-                    <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                    <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-500 dark:text-slate-400 sm:grid-cols-4 sm:gap-1.5">
                       <span className="min-w-0"><span className="block truncate">Hadir</span><strong className="block whitespace-nowrap text-slate-700 dark:text-slate-200">{formatPercent(item.persentaseKehadiran)}</strong></span>
                       <span className="min-w-0"><span className="block truncate">Tepat</span><strong className="block whitespace-nowrap text-slate-700 dark:text-slate-200">{formatPercent(item.persentaseTepatWaktu)}</strong></span>
                       <span className="min-w-0"><span className="block truncate">Checkout</span><strong className="block whitespace-nowrap text-slate-700 dark:text-slate-200">{formatPercent(item.persentasePulang)}</strong></span>
+                      <span className="min-w-0"><span className="block truncate">Lembur</span><strong className="block whitespace-nowrap text-amber-700 dark:text-amber-300">{formatOvertimeBonus(item.bonusLembur)}</strong></span>
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
@@ -209,6 +220,10 @@ function GuruPeringkat({ user }) {
               <p className="text-2xl font-black tabular-nums text-blue-700 dark:text-blue-300">#{myRank.rank}</p>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Skor {formatScore(myRank.skor)}</p>
             </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between rounded-lg bg-white/70 px-3 py-2 text-xs dark:bg-slate-900/30">
+            <span className="text-slate-500 dark:text-slate-400">Bonus lembur</span>
+            <strong className="tabular-nums text-amber-700 dark:text-amber-300">{formatOvertimeBonus(myRank.bonusLembur)}</strong>
           </div>
         </section>
       )}

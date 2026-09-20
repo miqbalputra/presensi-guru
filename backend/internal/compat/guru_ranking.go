@@ -31,6 +31,7 @@ func guruRankingItem(teacher analyticsTeacher, rank int) map[string]any {
 		"checkoutLengkap":      teacher.CheckoutLengkap,
 		"lupaCheckout":         teacher.LupaCheckout,
 		"lemburMenit":          teacher.LemburMenit,
+		"bonusLembur":          float64(teacher.LemburMenit) / 60,
 		"totalHariKerja":       teacher.TotalHariKerja,
 	}
 }
