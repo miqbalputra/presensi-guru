@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Users, UserCheck, FileText, AlertCircle, UserX, RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react'
-import { adminSummaryAPI } from '../../services/api'
+import { Users, UserCheck, FileText, AlertCircle, UserX, RefreshCw, Search, ChevronLeft, ChevronRight, CircleCheck, MessageSquareWarning, Clock3 } from 'lucide-react'
+import { adminMonthlyAttendanceConfirmationAPI, adminSummaryAPI } from '../../services/api'
 import { Card } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -18,6 +18,12 @@ function formatTime(value) {
 }
 function arrival(log) { return formatTime(log.status === 'izin' ? log.jamIzin : log.status === 'sakit' ? log.jamSakit : log.jamMasuk) }
 function departure(log) { return String(log.status || '').startsWith('hadir') ? formatTime(log.jamPulang) : '-' }
+function formatConfirmationTime(value) {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(parsed)
+}
 
 export default function DashboardHome() {
   const [period, setPeriod] = useState('today')
@@ -29,6 +35,8 @@ export default function DashboardHome() {
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [detail, setDetail] = useState<any>(null)
+  const [monthlyConfirmation, setMonthlyConfirmation] = useState<any>(null)
+  const [monthlyConfirmationError, setMonthlyConfirmationError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -42,6 +50,15 @@ export default function DashboardHome() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [period, revision])
+
+  useEffect(() => {
+    let cancelled = false
+    setMonthlyConfirmationError('')
+    adminMonthlyAttendanceConfirmationAPI.getSummary()
+      .then((response) => { if (!cancelled) setMonthlyConfirmation(response.data || null) })
+      .catch((failure) => { if (!cancelled) setMonthlyConfirmationError(failure.message || 'Rekap konfirmasi bulanan belum dapat dimuat.') })
+    return () => { cancelled = true }
+  }, [revision])
 
   const current = snapshot?.period === period ? snapshot : null
   const data = current?.data
@@ -71,9 +88,29 @@ export default function DashboardHome() {
     </>} />
     <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground"><p>{periods[period]} · Ringkasan mengikuti periode, pencarian hanya menyaring tabel.</p><p aria-live="polite">{current ? 'Diperbarui ' + current.updated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : loading ? 'Mengambil data terbaru...' : 'Data belum tersedia'}</p></div>
     {error && <Notice onRetry={() => setRevision((value) => value + 1)}>{error}{current && '\nMenampilkan data terakhir yang berhasil dimuat; pembaruan belum berhasil.'}</Notice>}
+    {monthlyConfirmationError && <Notice tone="warning" onRetry={() => setRevision((value) => value + 1)}>{monthlyConfirmationError}</Notice>}
     {!current && loading && <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Memuat ringkasan">{stats.map((stat) => <Skeleton key={stat.label} className="h-28 rounded-xl" />)}</div>}
     {current && <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{stats.map((stat, index) => <Card key={stat.label} className={'gap-3 p-4 ' + (index === 0 ? 'col-span-2 lg:col-span-1' : '')}><div className="flex items-center justify-between gap-2 text-muted-foreground"><p className="text-sm">{stat.label}</p><stat.icon className="h-4 w-4" aria-hidden="true" /></div><p className="flex items-baseline gap-2"><span className="text-3xl font-semibold tabular-nums tracking-tight">{Number(stat.value) || 0}</span><span className="text-xs text-muted-foreground">{stat.unit}</span></p></Card>)}</div>
+      {monthlyConfirmation?.active && <Card className="gap-0 overflow-hidden p-0">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 sm:p-5">
+          <div><h2 className="text-base font-semibold">Konfirmasi rekap penggajian</h2><p className="mt-1 text-xs text-muted-foreground">Rekap {monthlyConfirmation.period?.label || 'bulan sebelumnya'} · Perlu disetujui guru sebelum presensi bulan berjalan.</p></div>
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{monthlyConfirmation.summary?.total || 0} guru</span>
+        </div>
+        <div className="grid gap-px bg-border sm:grid-cols-3">
+          <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><CircleCheck className="h-4 w-4 text-emerald-600" />Sudah setuju</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.confirmed || 0}</p></div>
+          <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><MessageSquareWarning className="h-4 w-4 text-amber-600" />Pengajuan koreksi</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.correctionRequested || 0}</p></div>
+          <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-4 w-4 text-slate-600" />Belum konfirmasi</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.pending || 0}</p></div>
+        </div>
+        <div className="max-h-72 divide-y divide-border overflow-y-auto">
+          {(monthlyConfirmation.items || []).map((teacher) => {
+            const status = teacher.status === 'confirmed' ? 'Sudah setuju' : teacher.status === 'correction_requested' ? 'Mengajukan koreksi' : 'Belum konfirmasi'
+            const time = teacher.status === 'confirmed' ? teacher.confirmedAt : teacher.correctionRequestedAt
+            const tone = teacher.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' : teacher.status === 'correction_requested' ? 'bg-amber-50 text-amber-800' : 'bg-muted text-muted-foreground'
+            return <div key={teacher.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{teacher.nama}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{Array.isArray(teacher.jabatan) ? teacher.jabatan.join(', ') : teacher.jabatan || 'Guru'}</p></div><div className="text-right"><span className={'inline-flex rounded-full px-2.5 py-1 text-xs font-medium ' + tone}>{status}</span>{time && <p className="mt-1 text-xs text-muted-foreground">{formatConfirmationTime(time)}</p>}</div></div>
+          })}
+        </div>
+      </Card>}
       {period === 'today' && missing.length > 0 && <details className="rounded-xl border border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-amber-900 dark:text-amber-200">{missing.length} guru belum presensi hari ini <span className="ml-2 text-xs font-normal">Lihat daftar</span></summary>
         <div className="max-h-60 overflow-y-auto border-t border-amber-200 px-4 dark:border-amber-900">{missing.map((teacher) => <div key={teacher.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-3 last:border-0"><p className="text-sm font-medium">{teacher.nama}</p><span className="text-xs text-muted-foreground">{Array.isArray(teacher.jabatan) ? teacher.jabatan.join(', ') : teacher.jabatan}</span></div>)}</div>

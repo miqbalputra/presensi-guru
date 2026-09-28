@@ -96,6 +96,7 @@ func runSQLite(db *gorm.DB) error {
 		&models.BackupRestoreJob{},
 		&models.MaintenanceState{},
 		&models.BackupUpload{},
+		&models.MonthlyAttendanceConfirmation{},
 	); err != nil {
 		return fmt.Errorf("auto migrate sqlite schema: %w", err)
 	}
@@ -118,6 +119,7 @@ func runSQLite(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_backup_expires ON backup_jobs (expires_at)",
 		"CREATE INDEX IF NOT EXISTS idx_restore_status_created ON backup_restore_jobs (status, created_at)",
 		"CREATE INDEX IF NOT EXISTS idx_backup_upload_expires ON backup_uploads (expires_at)",
+		"CREATE INDEX IF NOT EXISTS idx_monthly_confirmation_period_status ON monthly_attendance_confirmations (period_start, status)",
 	} {
 		if err := db.Exec(statement).Error; err != nil {
 			return fmt.Errorf("create sqlite index: %w", err)

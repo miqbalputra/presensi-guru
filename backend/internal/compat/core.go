@@ -49,6 +49,11 @@ func (h *Handler) RegisterCoreRoutes(app fiber.Router) {
 	v1.All("/guru/home", protected, auth.RequireRoles("guru"), h.guruHome)
 	v1.All("/guru/peers", protected, auth.RequireRoles("guru"), h.statusRekan)
 	v1.Get("/guru/ranking", protected, auth.RequireRoles("guru"), h.guruRanking)
+	v1.Get("/guru/monthly-confirmation", protected, auth.RequireRoles("guru"), h.guruMonthlyConfirmation)
+	v1.Post("/guru/monthly-confirmation/confirm", protected, auth.RequireRoles("guru"), h.confirmMonthlyConfirmation)
+	v1.Post("/guru/monthly-confirmation/correction-request", protected, auth.RequireRoles("guru"), h.requestMonthlyCorrection)
+	v1.Get("/admin/monthly-confirmations", protected, auth.RequireRoles("admin", "kepala_sekolah"), h.adminMonthlyConfirmations)
+	v1.All("/admin/monthly-confirmation-contact", protected, auth.RequireRoles("admin"), h.monthlyConfirmationContact)
 	v1.All("/operations/optional-workdays", protected, auth.RequireRoles(admin...), h.optionalWorkdays)
 	v1.All("/operations/weekend-overrides", protected, auth.RequireRoles(admin...), h.weekendOverrides)
 	v1.All("/operations/daily-settings", protected, auth.RequireRoles(admin...), h.pengaturanHarian)
@@ -331,7 +336,7 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return invalid(c, "User presensi harus diisi")
 	}
 	var user models.User
-	if err := h.db.Select("id, nama, tipe_guru").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
+	if err := h.db.Select("id, nama, tipe_guru, created_at").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
 		return httpx.Error(c, fiber.StatusNotFound, "USER_NOT_FOUND", "Data guru tidak ditemukan")
 	}
 	status := stringValue(body, "status")
@@ -350,6 +355,13 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return invalid(c, "Format tanggal tidak valid")
 	}
 	if claims.Role == "guru" {
+		requiresConfirmation, confirmationErr := h.requiresMonthlyConfirmation(user, monthlyConfirmationNow().In(appLocation(h)))
+		if confirmationErr != nil {
+			return confirmationErr
+		}
+		if requiresConfirmation {
+			return httpx.Error(c, fiber.StatusConflict, "MONTHLY_CONFIRMATION_REQUIRED", "Konfirmasi rekap presensi bulan sebelumnya terlebih dahulu sebelum mengisi presensi bulan ini")
+		}
 		workday, optional, workdayErr := h.isWorkday(user, parsedDate)
 		if workdayErr != nil {
 			return workdayErr

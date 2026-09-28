@@ -18,6 +18,7 @@ import { useLocation, useNavigate } from '../router'
 import { useTheme, readPreference as readStorage, savePreference } from '../hooks/useTheme'
 import GuruHome from '../components/guru/GuruHome'
 import GuruAkun from '../components/guru/GuruAkun'
+import GuruMonthlyConfirmation from '../components/guru/GuruMonthlyConfirmation'
 
 const GuruRiwayat = lazy(() => import('../components/guru/GuruRiwayat'))
 const GuruStatus = lazy(() => import('../components/guru/GuruStatus'))
@@ -192,6 +193,8 @@ function GuruDashboard({ user, onLogout, installBanner }) {
             )}
           </div>
         </main>
+
+        <GuruMonthlyConfirmation />
 
         <nav aria-label="Navigasi dashboard guru" className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
           <div className="border-t border-slate-200 bg-white px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 dark:border-slate-800 dark:bg-slate-950">

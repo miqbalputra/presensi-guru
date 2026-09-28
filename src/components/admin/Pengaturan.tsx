@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Trash2, AlertTriangle, RefreshCw, ShieldCheck, ArrowRight } from 'lucide-react'
+import { Save, Clock, MapPin, Timer, Map, School, ExternalLink, TestTube, CalendarCheck, Trash2, AlertTriangle, RefreshCw, ShieldCheck, ArrowRight, MessageCircle } from 'lucide-react'
 import { PageHeader, Notice } from '../ui/page'
-import { settingsAPI, pengaturanHarianAPI, todayCheckInRecalculationAPI } from '../../services/api'
+import { adminMonthlyAttendanceConfirmationAPI, settingsAPI, pengaturanHarianAPI, todayCheckInRecalculationAPI } from '../../services/api'
 
 const statusLabel = (status) => ({
   hadir: 'Hadir tepat waktu',
@@ -58,6 +58,10 @@ function Pengaturan() {
   const [recalculationError, setRecalculationError] = useState('')
   const [recalculationDate, setRecalculationDate] = useState(() => jakartaToday())
   const recalculationRequest = useRef(0)
+  const [monthlyContact, setMonthlyContact] = useState('')
+  const [monthlyContactLoading, setMonthlyContactLoading] = useState(true)
+  const [monthlyContactSaving, setMonthlyContactSaving] = useState(false)
+  const [monthlyContactError, setMonthlyContactError] = useState('')
 
   // Override jam pulang per-tanggal (pengaturan harian khusus)
   const todayStr = jakartaToday()
@@ -76,7 +80,21 @@ function Pengaturan() {
     loadSettings()
     loadHarian()
     loadRecalculationPreview()
+    loadMonthlyContact()
   }, [])
+
+  const loadMonthlyContact = async () => {
+    try {
+      setMonthlyContactLoading(true)
+      setMonthlyContactError('')
+      const response = await adminMonthlyAttendanceConfirmationAPI.getContact()
+      setMonthlyContact(response.data?.adminPhone || '')
+    } catch (error) {
+      setMonthlyContactError(error.message || 'Nomor WhatsApp admin belum dapat dimuat.')
+    } finally {
+      setMonthlyContactLoading(false)
+    }
+  }
 
   const loadRecalculationPreview = async (date = recalculationDate) => {
     const requestID = ++recalculationRequest.current
@@ -213,6 +231,20 @@ function Pengaturan() {
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type })
     // Feedback remains available until dismissed.
+  }
+
+  const saveMonthlyContact = async () => {
+    try {
+      setMonthlyContactSaving(true)
+      setMonthlyContactError('')
+      const response = await adminMonthlyAttendanceConfirmationAPI.updateContact(monthlyContact)
+      setMonthlyContact(response.data?.adminPhone || '')
+      showNotification('Nomor WhatsApp admin untuk koreksi rekap berhasil disimpan.', 'success')
+    } catch (error) {
+      setMonthlyContactError(error.message || 'Nomor WhatsApp admin gagal disimpan.')
+    } finally {
+      setMonthlyContactSaving(false)
+    }
   }
 
   const handleSave = async (settingKey, overrideValue = null) => {
@@ -817,6 +849,40 @@ function Pengaturan() {
 
 </section>
 <section hidden={section !== 'Lanjutan' || !!loadError}>
+      <div className="mb-6 bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-lg bg-emerald-100">
+            <MessageCircle className="w-6 h-6 text-emerald-700" aria-hidden="true" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">WhatsApp Admin untuk Koreksi Rekap</h3>
+            <p className="text-sm text-gray-600 mb-4">Digunakan saat guru mengajukan koreksi rekap presensi bulanan. Nomor ini memakai kontak admin yang sama dengan integrasi, tanpa mengubah URL atau status integrasinya.</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label htmlFor="monthly-confirmation-admin-phone" className="sr-only">Nomor WhatsApp admin</label>
+              <input
+                id="monthly-confirmation-admin-phone"
+                type="tel"
+                inputMode="tel"
+                value={monthlyContact}
+                onChange={(event) => setMonthlyContact(event.target.value)}
+                placeholder="Contoh: 081234567890"
+                disabled={monthlyContactLoading || monthlyContactSaving}
+                className="w-full flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              />
+              <button
+                type="button"
+                onClick={saveMonthlyContact}
+                disabled={monthlyContactLoading || monthlyContactSaving}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                <Save className="w-4 h-4" aria-hidden="true" />
+                {monthlyContactSaving ? 'Menyimpan...' : 'Simpan nomor'}
+              </button>
+            </div>
+            {monthlyContactError ? <div className="mt-3"><Notice tone="error" onRetry={loadMonthlyContact}>{monthlyContactError}</Notice></div> : <p className="text-xs text-gray-500 mt-2">Masukkan nomor dengan awalan 08 atau kode negara 62. Guru akan diarahkan ke WhatsApp dengan pesan pengajuan yang sudah terisi.</p>}
+          </div>
+        </div>
+      </div>
       {/* Mode Testing GPS */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">

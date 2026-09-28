@@ -760,6 +760,44 @@ export const teacherAttendanceReportAPI = {
   },
 }
 
+// Mandatory monthly payroll-period acknowledgement for teacher accounts.
+export const monthlyAttendanceConfirmationAPI = {
+  getMine: async () => fetchAPI(`/v1/guru/monthly-confirmation?_t=${Date.now()}`, {
+    method: 'GET',
+    timeoutMs: 15000,
+  }),
+
+  confirm: async () => fetchAPI('/v1/guru/monthly-confirmation/confirm', {
+    method: 'POST',
+    body: JSON.stringify({}),
+    timeoutMs: 20000,
+  }),
+
+  requestCorrection: async () => fetchAPI('/v1/guru/monthly-confirmation/correction-request', {
+    method: 'POST',
+    body: JSON.stringify({}),
+    timeoutMs: 10000,
+  }),
+}
+
+export const adminMonthlyAttendanceConfirmationAPI = {
+  getSummary: async () => fetchAPI(`/v1/admin/monthly-confirmations?_t=${Date.now()}`, {
+    method: 'GET',
+    timeoutMs: 10000,
+  }),
+
+  getContact: async () => fetchAPI('/v1/admin/monthly-confirmation-contact', {
+    method: 'GET',
+    timeoutMs: 10000,
+  }),
+
+  updateContact: async (adminPhone) => fetchAPI('/v1/admin/monthly-confirmation-contact', {
+    method: 'PUT',
+    body: JSON.stringify({ adminPhone }),
+    timeoutMs: 10000,
+  }),
+}
+
 // Backup & Pemulihan API (admin only)
 export const backupAPI = {
   list: async (limit = 50) => {
