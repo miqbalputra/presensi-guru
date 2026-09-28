@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Users, UserCheck, FileText, AlertCircle, UserX, RefreshCw, Search, ChevronLeft, ChevronRight, CircleCheck, MessageSquareWarning, Clock3 } from 'lucide-react'
+import { Users, UserCheck, FileText, AlertCircle, UserX, RefreshCw, Search, ChevronLeft, ChevronRight, CircleCheck, MessageCircle, MessageSquareWarning, BellRing, Clock3, Phone } from 'lucide-react'
 import { adminMonthlyAttendanceConfirmationAPI, adminSummaryAPI } from '../../services/api'
 import { Card } from '../ui/card'
 import { Button } from '../ui/button'
@@ -24,6 +24,12 @@ function formatConfirmationTime(value) {
   if (Number.isNaN(parsed.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(parsed)
 }
+function formatConfirmationDeadline(value) {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta', timeZoneName: 'short' }).format(parsed)
+}
 
 export default function DashboardHome() {
   const [period, setPeriod] = useState('today')
@@ -37,6 +43,7 @@ export default function DashboardHome() {
   const [detail, setDetail] = useState<any>(null)
   const [monthlyConfirmation, setMonthlyConfirmation] = useState<any>(null)
   const [monthlyConfirmationError, setMonthlyConfirmationError] = useState('')
+  const [followUpOpen, setFollowUpOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -55,7 +62,12 @@ export default function DashboardHome() {
     let cancelled = false
     setMonthlyConfirmationError('')
     adminMonthlyAttendanceConfirmationAPI.getSummary()
-      .then((response) => { if (!cancelled) setMonthlyConfirmation(response.data || null) })
+      .then((response) => {
+        if (cancelled) return
+        const data = response.data || null
+        setMonthlyConfirmation(data)
+        setFollowUpOpen(Boolean(data?.followUpActive))
+      })
       .catch((failure) => { if (!cancelled) setMonthlyConfirmationError(failure.message || 'Rekap konfirmasi bulanan belum dapat dimuat.') })
     return () => { cancelled = true }
   }, [revision])
@@ -94,8 +106,8 @@ export default function DashboardHome() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{stats.map((stat, index) => <Card key={stat.label} className={'gap-3 p-4 ' + (index === 0 ? 'col-span-2 lg:col-span-1' : '')}><div className="flex items-center justify-between gap-2 text-muted-foreground"><p className="text-sm">{stat.label}</p><stat.icon className="h-4 w-4" aria-hidden="true" /></div><p className="flex items-baseline gap-2"><span className="text-3xl font-semibold tabular-nums tracking-tight">{Number(stat.value) || 0}</span><span className="text-xs text-muted-foreground">{stat.unit}</span></p></Card>)}</div>
       {monthlyConfirmation?.active && <Card className="gap-0 overflow-hidden p-0">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 sm:p-5">
-          <div><h2 className="text-base font-semibold">Konfirmasi rekap penggajian</h2><p className="mt-1 text-xs text-muted-foreground">Rekap {monthlyConfirmation.period?.label || 'bulan sebelumnya'} · Perlu disetujui guru sebelum presensi bulan berjalan.</p></div>
-          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{monthlyConfirmation.summary?.total || 0} guru</span>
+          <div><h2 className="text-base font-semibold">Konfirmasi rekap penggajian</h2><p className="mt-1 text-xs text-muted-foreground">Rekap {monthlyConfirmation.period?.label || 'bulan sebelumnya'} · Pengingat konfirmasi tidak mengunci presensi guru.</p></div>
+          <div className="flex items-center gap-2"><span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{monthlyConfirmation.summary?.total || 0} guru</span>{monthlyConfirmation.followUpActive && <Button type="button" variant="outline" size="sm" onClick={() => setFollowUpOpen(true)}><BellRing className="text-rose-600" aria-hidden="true" />Tindak lanjuti</Button>}</div>
         </div>
         <div className="grid gap-px bg-border sm:grid-cols-3">
           <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><CircleCheck className="h-4 w-4 text-emerald-600" />Sudah setuju</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.confirmed || 0}</p></div>
@@ -111,6 +123,18 @@ export default function DashboardHome() {
           })}
         </div>
       </Card>}
+      <AppDialog open={followUpOpen} onOpenChange={setFollowUpOpen} title="Tindak Lanjut Konfirmasi Rekap" description={`Tenggat ${monthlyConfirmation?.period?.label || 'rekap bulan sebelumnya'} telah lewat pada ${formatConfirmationDeadline(monthlyConfirmation?.deadlineAt)}. Hubungi guru berikut secara pribadi.`} className="max-w-2xl">
+        <div className="space-y-4">
+          <Notice tone="warning">{monthlyConfirmation?.summary?.awaitingConfirmation || 0} guru belum menekan Setuju. Guru dengan pengajuan koreksi tetap perlu menuntaskan konfirmasi setelah datanya diperiksa.</Notice>
+          <div className="max-h-[55vh] divide-y divide-border overflow-y-auto rounded-xl border border-border">
+            {(monthlyConfirmation?.followUpItems || []).map((teacher) => {
+              const correction = teacher.status === 'correction_requested'
+              return <article key={teacher.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0"><p className="truncate text-sm font-semibold">{teacher.nama}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{Array.isArray(teacher.jabatan) ? teacher.jabatan.join(', ') : teacher.jabatan || 'Guru'}</p><p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><Phone className="h-3.5 w-3.5" aria-hidden="true" />{teacher.phone || 'Nomor HP belum tersedia'}</p></div><div className="flex items-center gap-2"><span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + (correction ? 'bg-amber-50 text-amber-800' : 'bg-muted text-muted-foreground')}>{correction ? 'Mengajukan koreksi' : 'Belum konfirmasi'}</span>{teacher.followUpWhatsAppUrl ? <Button type="button" variant="outline" size="sm" asChild><a href={teacher.followUpWhatsAppUrl} target="_blank" rel="noopener noreferrer"><MessageCircle aria-hidden="true" />WhatsApp</a></Button> : null}</div></article>
+            })}
+          </div>
+          <div className="flex justify-end"><Button type="button" variant="outline" onClick={() => setFollowUpOpen(false)}>Tutup</Button></div>
+        </div>
+      </AppDialog>
       {period === 'today' && missing.length > 0 && <details className="rounded-xl border border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-amber-900 dark:text-amber-200">{missing.length} guru belum presensi hari ini <span className="ml-2 text-xs font-normal">Lihat daftar</span></summary>
         <div className="max-h-60 overflow-y-auto border-t border-amber-200 px-4 dark:border-amber-900">{missing.map((teacher) => <div key={teacher.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-3 last:border-0"><p className="text-sm font-medium">{teacher.nama}</p><span className="text-xs text-muted-foreground">{Array.isArray(teacher.jabatan) ? teacher.jabatan.join(', ') : teacher.jabatan}</span></div>)}</div>

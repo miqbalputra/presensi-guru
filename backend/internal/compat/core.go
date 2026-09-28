@@ -336,7 +336,7 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return invalid(c, "User presensi harus diisi")
 	}
 	var user models.User
-	if err := h.db.Select("id, nama, tipe_guru, created_at").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
+	if err := h.db.Select("id, nama, tipe_guru").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
 		return httpx.Error(c, fiber.StatusNotFound, "USER_NOT_FOUND", "Data guru tidak ditemukan")
 	}
 	status := stringValue(body, "status")
@@ -355,13 +355,6 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return invalid(c, "Format tanggal tidak valid")
 	}
 	if claims.Role == "guru" {
-		requiresConfirmation, confirmationErr := h.requiresMonthlyConfirmation(user, monthlyConfirmationNow().In(appLocation(h)))
-		if confirmationErr != nil {
-			return confirmationErr
-		}
-		if requiresConfirmation {
-			return httpx.Error(c, fiber.StatusConflict, "MONTHLY_CONFIRMATION_REQUIRED", "Konfirmasi rekap presensi bulan sebelumnya terlebih dahulu sebelum mengisi presensi bulan ini")
-		}
 		workday, optional, workdayErr := h.isWorkday(user, parsedDate)
 		if workdayErr != nil {
 			return workdayErr

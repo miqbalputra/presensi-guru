@@ -180,6 +180,7 @@ function GuruDashboard({ user, onLogout, installBanner }) {
 
         <main id="guru-main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 pb-28 pt-4 outline-none sm:px-6 lg:px-8 lg:pb-12">
           {activeTab === 'akun' && installBanner}
+          <GuruMonthlyConfirmation />
           <div key={activeTab} className="animate-fade-in">
             {activeTab === 'home' && <GuruHome user={user} onChangeTab={setActiveTab} />}
             {activeTab === 'akun' && <GuruAkun user={user} />}
@@ -193,8 +194,6 @@ function GuruDashboard({ user, onLogout, installBanner }) {
             )}
           </div>
         </main>
-
-        <GuruMonthlyConfirmation />
 
         <nav aria-label="Navigasi dashboard guru" className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
           <div className="border-t border-slate-200 bg-white px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 dark:border-slate-800 dark:bg-slate-950">

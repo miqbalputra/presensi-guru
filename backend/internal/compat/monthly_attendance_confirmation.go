@@ -49,25 +49,14 @@ func monthlyConfirmationPeriodLabel(start time.Time) string {
 	return fmt.Sprintf("%s %d", months[int(start.Month())-1], start.Year())
 }
 
+func monthlyConfirmationDeadline(periodStart time.Time) time.Time {
+	currentMonthStart := time.Date(periodStart.Year(), periodStart.Month(), 1, 0, 0, 0, 0, periodStart.Location()).AddDate(0, 1, 0)
+	return currentMonthStart.AddDate(0, 0, 1).Add(9 * time.Hour)
+}
+
 func monthlyConfirmationPeriodScope(db *gorm.DB, start time.Time) *gorm.DB {
 	start = dateOnly(start)
 	return db.Where("period_start >= ? AND period_start < ?", start, start.AddDate(0, 1, 0))
-}
-
-func (h *Handler) requiresMonthlyConfirmation(user models.User, now time.Time) (bool, error) {
-	start, _, active := monthlyConfirmationTarget(user, now)
-	if !active {
-		return false, nil
-	}
-	var confirmation models.MonthlyAttendanceConfirmation
-	err := monthlyConfirmationPeriodScope(h.db.Where("user_id = ?", user.ID), start).First(&confirmation).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return confirmation.Status != monthlyConfirmationStatusConfirmed, nil
 }
 
 func (h *Handler) findMonthlyConfirmation(userID uint, periodStart time.Time) (*models.MonthlyAttendanceConfirmation, error) {
@@ -164,6 +153,18 @@ func (h *Handler) monthlyCorrectionWhatsAppURL(user models.User, periodStart tim
 	return "https://wa.me/" + phone + "?text=" + url.QueryEscape(message), nil
 }
 
+func monthlyFollowUpWhatsAppURL(user models.User, periodStart time.Time) string {
+	if user.NoHP == nil {
+		return ""
+	}
+	phone := normalizeWhatsAppPhone(*user.NoHP)
+	if phone == "" {
+		return ""
+	}
+	message := fmt.Sprintf("Pengingat Konfirmasi Rekap Presensi\nBulan: %s\n\nAssalamu'alaikum %s, mohon meninjau dan mengonfirmasi rekap presensi bulan sebelumnya melalui aplikasi GeoPresensi. Terima kasih.", monthlyConfirmationPeriodLabel(periodStart), user.Nama)
+	return "https://wa.me/" + phone + "?text=" + url.QueryEscape(message)
+}
+
 func confirmationTimes(confirmation *models.MonthlyAttendanceConfirmation) fiber.Map {
 	if confirmation == nil {
 		return fiber.Map{"status": "pending", "confirmedAt": nil, "correctionRequestedAt": nil}
@@ -178,14 +179,19 @@ func confirmationTimes(confirmation *models.MonthlyAttendanceConfirmation) fiber
 func (h *Handler) monthlyConfirmationPayload(user models.User, now time.Time) (fiber.Map, error) {
 	start, end, active := monthlyConfirmationTarget(user, now)
 	if !active {
-		return fiber.Map{"required": false}, nil
+		return fiber.Map{"required": false, "needsConfirmation": false, "isOverdue": false}, nil
 	}
 	confirmation, err := h.findMonthlyConfirmation(user.ID, start)
 	if err != nil {
 		return nil, err
 	}
+	needsConfirmation := confirmation == nil || confirmation.Status != monthlyConfirmationStatusConfirmed
+	deadline := monthlyConfirmationDeadline(start)
 	payload := fiber.Map{
-		"required": false,
+		"required":          needsConfirmation,
+		"needsConfirmation": needsConfirmation,
+		"deadlineAt":        deadline.Format(time.RFC3339),
+		"isOverdue":         !now.Before(deadline),
 		"period": fiber.Map{
 			"label":     monthlyConfirmationPeriodLabel(start),
 			"startDate": start.Format("2006-01-02"),
@@ -195,7 +201,7 @@ func (h *Handler) monthlyConfirmationPayload(user models.User, now time.Time) (f
 	for key, value := range confirmationTimes(confirmation) {
 		payload[key] = value
 	}
-	if confirmation != nil && confirmation.Status == monthlyConfirmationStatusConfirmed {
+	if !needsConfirmation {
 		return payload, nil
 	}
 
@@ -207,7 +213,6 @@ func (h *Handler) monthlyConfirmationPayload(user models.User, now time.Time) (f
 	if err != nil {
 		return nil, err
 	}
-	payload["required"] = true
 	payload["summary"] = report["summary"]
 	payload["rows"] = report["rows"]
 	payload["correctionWhatsAppUrl"] = correctionURL
@@ -323,7 +328,10 @@ func (h *Handler) requestMonthlyCorrection(c *fiber.Ctx) error {
 	}
 	return httpx.Success(c, "Pengajuan koreksi berhasil dicatat", fiber.Map{
 		"required":              true,
+		"needsConfirmation":     true,
 		"status":                monthlyConfirmationStatusCorrectionRequested,
+		"deadlineAt":            monthlyConfirmationDeadline(start).Format(time.RFC3339),
+		"isOverdue":             !now.Before(monthlyConfirmationDeadline(start)),
 		"correctionWhatsAppUrl": whatsAppURL,
 	})
 }
@@ -347,8 +355,10 @@ func (h *Handler) adminMonthlyConfirmations(c *fiber.Ctx) error {
 		byUserID[confirmation.UserID] = confirmation
 	}
 
+	deadline := monthlyConfirmationDeadline(start)
 	confirmed, corrections := 0, 0
 	items := make([]fiber.Map, 0, len(users))
+	followUpItems := make([]fiber.Map, 0, len(users))
 	for _, user := range users {
 		if _, _, eligible := monthlyConfirmationTarget(user, now); !eligible {
 			continue
@@ -375,22 +385,43 @@ func (h *Handler) adminMonthlyConfirmations(c *fiber.Ctx) error {
 			"confirmedAt":           confirmedAt,
 			"correctionRequestedAt": correctionRequestedAt,
 		})
+		if status != monthlyConfirmationStatusConfirmed {
+			phone := ""
+			if user.NoHP != nil {
+				phone = normalizeWhatsAppPhone(*user.NoHP)
+			}
+			followUpItems = append(followUpItems, fiber.Map{
+				"id":                    user.ID,
+				"nama":                  user.Nama,
+				"jabatan":               user.Jabatan,
+				"status":                status,
+				"phone":                 phone,
+				"followUpWhatsAppUrl":   monthlyFollowUpWhatsAppURL(user, start),
+				"correctionRequestedAt": correctionRequestedAt,
+			})
+		}
 	}
+	isOverdue := !now.Before(deadline)
 
 	return httpx.Success(c, "Ringkasan konfirmasi rekap berhasil diambil", fiber.Map{
-		"active": true,
+		"active":         true,
+		"deadlineAt":     deadline.Format(time.RFC3339),
+		"isOverdue":      isOverdue,
+		"followUpActive": isOverdue && len(followUpItems) > 0,
 		"period": fiber.Map{
 			"label":     monthlyConfirmationPeriodLabel(start),
 			"startDate": start.Format("2006-01-02"),
 			"endDate":   end.Format("2006-01-02"),
 		},
 		"summary": fiber.Map{
-			"total":               len(items),
-			"confirmed":           confirmed,
-			"correctionRequested": corrections,
-			"pending":             len(items) - confirmed - corrections,
+			"total":                len(items),
+			"confirmed":            confirmed,
+			"correctionRequested":  corrections,
+			"pending":              len(items) - confirmed - corrections,
+			"awaitingConfirmation": len(followUpItems),
 		},
-		"items": items,
+		"items":         items,
+		"followUpItems": followUpItems,
 	})
 }
 
