@@ -1,7 +1,7 @@
 import { Notice } from '../ui/page'
 import { useState, useEffect, useRef } from 'react'
-import { User, Mail, Phone, MapPin, Save, Loader2, ShieldCheck, Hash, BadgeCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import { guruProfileAPI } from '../../services/api'
+import { User, Mail, Phone, MapPin, Save, Loader2, ShieldCheck, Hash, BadgeCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2, ClipboardCheck, Clock3, RefreshCw } from 'lucide-react'
+import { guruProfileAPI, monthlyAttendanceConfirmationAPI } from '../../services/api'
 
 function GuruAkun({ user }) {
   const profileSave = useRef(false)
@@ -15,6 +15,10 @@ function GuruAkun({ user }) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [monthlyConfirmation, setMonthlyConfirmation] = useState<any>(null)
+  const [monthlyConfirmationLoading, setMonthlyConfirmationLoading] = useState(true)
+  const [monthlyConfirmationError, setMonthlyConfirmationError] = useState('')
+  const [monthlyConfirmationRevision, setMonthlyConfirmationRevision] = useState(0)
 
   // State untuk ganti password
   const [pwForm, setPwForm] = useState<any>({ passwordLama: '', passwordBaru: '', konfirmasiBaru: '' })
@@ -69,6 +73,33 @@ function GuruAkun({ user }) {
     loadProfile()
     return () => { cancelled = true }
   }, [revision])
+
+  useEffect(() => {
+    let cancelled = false
+    setMonthlyConfirmationLoading(true)
+    setMonthlyConfirmationError('')
+    monthlyAttendanceConfirmationAPI.getMine()
+      .then((response) => {
+        if (!cancelled) setMonthlyConfirmation(response.data || null)
+      })
+      .catch((failure) => {
+        if (!cancelled) setMonthlyConfirmationError(failure.message || 'Status konfirmasi rekap belum dapat dimuat.')
+      })
+      .finally(() => { if (!cancelled) setMonthlyConfirmationLoading(false) })
+    return () => { cancelled = true }
+  }, [monthlyConfirmationRevision])
+
+  useEffect(() => {
+    const handleConfirmationUpdate = (event: any) => {
+      if (event.detail) {
+        setMonthlyConfirmation(event.detail)
+        setMonthlyConfirmationError('')
+        setMonthlyConfirmationLoading(false)
+      }
+    }
+    window.addEventListener('guru-monthly-confirmation-updated', handleConfirmationUpdate)
+    return () => window.removeEventListener('guru-monthly-confirmation-updated', handleConfirmationUpdate)
+  }, [])
 
   const handleChange = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }))
@@ -236,6 +267,29 @@ function GuruAkun({ user }) {
             )}
           </div>
         </div>
+
+        <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50" aria-live="polite">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"><ClipboardCheck className="h-4 w-4" aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100">Konfirmasi Rekap Presensi Bulanan</h3>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{monthlyConfirmation?.period?.label ? `Rekap ${monthlyConfirmation.period.label}` : 'Status konfirmasi rekap Anda'}</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setMonthlyConfirmationRevision((value) => value + 1)} disabled={monthlyConfirmationLoading} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-white hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 dark:hover:bg-slate-700" aria-label="Perbarui status konfirmasi rekap" title="Perbarui status">
+              <RefreshCw className={`h-3.5 w-3.5 ${monthlyConfirmationLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {monthlyConfirmationLoading ? <span className="inline-flex items-center gap-1.5 text-xs text-slate-500"><Clock3 className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />Memuat status...</span> : monthlyConfirmationError ? <span className="text-xs font-medium text-rose-600 dark:text-rose-300">Status belum dapat dimuat. Coba perbarui.</span> : (() => {
+              const status = monthlyConfirmation?.status
+              const label = status === 'confirmed_by_admin' ? 'Dikonfirmasi Admin' : status === 'confirmed' ? 'Disetujui Guru' : status === 'correction_requested' ? 'Mengajukan Koreksi' : monthlyConfirmation?.needsConfirmation || monthlyConfirmation?.required ? 'Menunggu Konfirmasi' : 'Tidak ada konfirmasi tertunda'
+              const tone = status === 'confirmed_by_admin' || status === 'confirmed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : status === 'correction_requested' ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300' : monthlyConfirmation?.needsConfirmation || monthlyConfirmation?.required ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+              return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${tone}`}>{label}</span>
+            })()}
+          </div>
+        </section>
       </div>
 
       {/* Form edit profil */}

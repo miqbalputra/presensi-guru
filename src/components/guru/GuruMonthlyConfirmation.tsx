@@ -122,7 +122,9 @@ export default function GuruMonthlyConfirmation() {
     setActionError('')
     try {
       const response = await monthlyAttendanceConfirmationAPI.confirm()
-      setConfirmation(response.data || { needsConfirmation: false })
+      const updated = response.data || { needsConfirmation: false }
+      setConfirmation(updated)
+      window.dispatchEvent(new CustomEvent('guru-monthly-confirmation-updated', { detail: updated }))
       setDialogOpen(false)
     } catch (failure) {
       setActionError(failure.message || 'Rekap presensi belum dapat disetujui.')
@@ -142,7 +144,9 @@ export default function GuruMonthlyConfirmation() {
     setActionError('')
     try {
       const response = await monthlyAttendanceConfirmationAPI.requestCorrection()
-      setConfirmation((current: any) => ({ ...current, ...(response.data || {}), needsConfirmation: true, required: true }))
+      const updated = { ...confirmation, ...(response.data || {}), needsConfirmation: true, required: true }
+      setConfirmation(updated)
+      window.dispatchEvent(new CustomEvent('guru-monthly-confirmation-updated', { detail: updated }))
       const destination = response.data?.correctionWhatsAppUrl || correctionUrl
       if (popup) {
         popup.opener = null

@@ -12,6 +12,7 @@ type MonthlyAttendanceConfirmation struct {
 	PeriodEnd             time.Time  `gorm:"column:period_end;type:date;not null" json:"periodEnd"`
 	Status                string     `gorm:"column:status;size:32;not null" json:"status"`
 	ConfirmedAt           *time.Time `gorm:"column:confirmed_at" json:"confirmedAt,omitempty"`
+	ConfirmedByAdminID    *uint      `gorm:"column:confirmed_by_admin_id" json:"confirmedByAdminId,omitempty"`
 	CorrectionRequestedAt *time.Time `gorm:"column:correction_requested_at" json:"correctionRequestedAt,omitempty"`
 	Snapshot              *string    `gorm:"column:snapshot;type:longtext" json:"-"`
 	CreatedAt             time.Time  `gorm:"column:created_at;autoCreateTime" json:"createdAt"`

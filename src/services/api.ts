@@ -786,6 +786,12 @@ export const adminMonthlyAttendanceConfirmationAPI = {
     timeoutMs: 10000,
   }),
 
+  confirmForTeacher: async (userId) => fetchAPI(`/v1/admin/monthly-confirmations/${encodeURIComponent(userId)}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+    timeoutMs: 20000,
+  }),
+
   getContact: async () => fetchAPI('/v1/admin/monthly-confirmation-contact', {
     method: 'GET',
     timeoutMs: 10000,

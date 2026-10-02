@@ -44,6 +44,9 @@ export default function DashboardHome() {
   const [monthlyConfirmation, setMonthlyConfirmation] = useState<any>(null)
   const [monthlyConfirmationError, setMonthlyConfirmationError] = useState('')
   const [followUpOpen, setFollowUpOpen] = useState(false)
+  const [adminConfirmationTarget, setAdminConfirmationTarget] = useState<any>(null)
+  const [adminConfirmationBusy, setAdminConfirmationBusy] = useState(false)
+  const [adminConfirmationError, setAdminConfirmationError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -91,6 +94,25 @@ export default function DashboardHome() {
     { label: 'Alfa', value: data?.stats?.alfa, icon: AlertCircle, unit: isDaily ? 'guru' : 'presensi' },
   ]
   const resetPeriod = (value) => { setPeriod(value); setPage(1) }
+  const confirmTeacherAsAdmin = async () => {
+    if (!adminConfirmationTarget || adminConfirmationBusy) return
+    setAdminConfirmationBusy(true)
+    setAdminConfirmationError('')
+    try {
+      await adminMonthlyAttendanceConfirmationAPI.confirmForTeacher(adminConfirmationTarget.id)
+      setAdminConfirmationTarget(null)
+      try {
+        const response = await adminMonthlyAttendanceConfirmationAPI.getSummary()
+        setMonthlyConfirmation(response.data || null)
+      } catch (failure) {
+        setMonthlyConfirmationError(failure.message || 'Konfirmasi tersimpan, tetapi ringkasan belum dapat diperbarui.')
+      }
+    } catch (failure) {
+      setAdminConfirmationError(failure.message || 'Rekap belum berhasil dikonfirmasi.')
+    } finally {
+      setAdminConfirmationBusy(false)
+    }
+  }
 
   return <div className="space-y-5">
     <PageHeader title="Dashboard presensi" description="Ringkasan kehadiran dan catatan operasional sekolah." actions={<>
@@ -109,20 +131,31 @@ export default function DashboardHome() {
           <div><h2 className="text-base font-semibold">Konfirmasi rekap penggajian</h2><p className="mt-1 text-xs text-muted-foreground">Rekap {monthlyConfirmation.period?.label || 'bulan sebelumnya'} · Pengingat konfirmasi tidak mengunci presensi guru.</p></div>
           <div className="flex items-center gap-2"><span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{monthlyConfirmation.summary?.total || 0} guru</span>{monthlyConfirmation.followUpActive && <Button type="button" variant="outline" size="sm" onClick={() => setFollowUpOpen(true)}><BellRing className="text-rose-600" aria-hidden="true" />Tindak lanjuti</Button>}</div>
         </div>
-        <div className="grid gap-px bg-border sm:grid-cols-3">
-          <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><CircleCheck className="h-4 w-4 text-emerald-600" />Sudah setuju</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.confirmed || 0}</p></div>
+        <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
+          <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><CircleCheck className="h-4 w-4 text-emerald-600" />Setuju oleh guru</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.confirmed || 0}</p></div>
+          <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><CircleCheck className="h-4 w-4 text-blue-600" />Dikonfirmasi Admin</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.adminConfirmed || 0}</p></div>
           <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><MessageSquareWarning className="h-4 w-4 text-amber-600" />Pengajuan koreksi</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.correctionRequested || 0}</p></div>
           <div className="bg-background p-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-4 w-4 text-slate-600" />Belum konfirmasi</p><p className="mt-2 text-2xl font-semibold tabular-nums">{monthlyConfirmation.summary?.pending || 0}</p></div>
         </div>
         <div className="max-h-72 divide-y divide-border overflow-y-auto">
           {(monthlyConfirmation.items || []).map((teacher) => {
-            const status = teacher.status === 'confirmed' ? 'Sudah setuju' : teacher.status === 'correction_requested' ? 'Mengajukan koreksi' : 'Belum konfirmasi'
-            const time = teacher.status === 'confirmed' ? teacher.confirmedAt : teacher.correctionRequestedAt
-            const tone = teacher.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' : teacher.status === 'correction_requested' ? 'bg-amber-50 text-amber-800' : 'bg-muted text-muted-foreground'
-            return <div key={teacher.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{teacher.nama}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{Array.isArray(teacher.jabatan) ? teacher.jabatan.join(', ') : teacher.jabatan || 'Guru'}</p></div><div className="text-right"><span className={'inline-flex rounded-full px-2.5 py-1 text-xs font-medium ' + tone}>{status}</span>{time && <p className="mt-1 text-xs text-muted-foreground">{formatConfirmationTime(time)}</p>}</div></div>
+            const isConfirmedByTeacher = teacher.status === 'confirmed'
+            const isConfirmedByAdmin = teacher.status === 'confirmed_by_admin'
+            const isConfirmed = isConfirmedByTeacher || isConfirmedByAdmin
+            const status = isConfirmedByAdmin ? 'Dikonfirmasi Admin' : isConfirmedByTeacher ? 'Sudah setuju' : teacher.status === 'correction_requested' ? 'Mengajukan koreksi' : 'Belum konfirmasi'
+            const time = isConfirmed ? teacher.confirmedAt : teacher.correctionRequestedAt
+            const tone = isConfirmedByAdmin ? 'bg-blue-50 text-blue-700' : isConfirmedByTeacher ? 'bg-emerald-50 text-emerald-700' : teacher.status === 'correction_requested' ? 'bg-amber-50 text-amber-800' : 'bg-muted text-muted-foreground'
+            return <div key={teacher.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{teacher.nama}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{Array.isArray(teacher.jabatan) ? teacher.jabatan.join(', ') : teacher.jabatan || 'Guru'}</p></div><div className="flex flex-wrap items-center justify-end gap-2"><div className="text-right"><span className={'inline-flex rounded-full px-2.5 py-1 text-xs font-medium ' + tone}>{status}</span>{time && <p className="mt-1 text-xs text-muted-foreground">{formatConfirmationTime(time)}</p>}</div>{!isConfirmed && <Button type="button" variant="outline" size="sm" onClick={() => { setAdminConfirmationError(''); setAdminConfirmationTarget(teacher) }}>Konfirmasi</Button>}</div></div>
           })}
         </div>
       </Card>}
+      <AppDialog open={!!adminConfirmationTarget} onOpenChange={(open) => { if (!open && !adminConfirmationBusy) { setAdminConfirmationTarget(null); setAdminConfirmationError('') } }} title="Konfirmasi rekap sebagai admin" description={adminConfirmationTarget ? `Anda akan menyetujui rekap presensi ${monthlyConfirmation?.period?.label || 'bulan sebelumnya'} atas nama ${adminConfirmationTarget.nama}. Snapshot rekap saat ini akan disimpan dan guru tidak perlu menekan Setuju lagi.` : undefined} busy={adminConfirmationBusy}>
+        <div className="space-y-4">
+          {adminConfirmationError && <Notice tone="warning">{adminConfirmationError}</Notice>}
+          <p className="text-sm text-muted-foreground">Pastikan rekap sudah diperiksa atau sudah diklarifikasi dengan guru sebelum dikonfirmasi.</p>
+          <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" disabled={adminConfirmationBusy} onClick={() => setAdminConfirmationTarget(null)}>Batal</Button><Button type="button" disabled={adminConfirmationBusy} onClick={confirmTeacherAsAdmin}>{adminConfirmationBusy ? 'Menyimpan...' : 'Ya, konfirmasi rekap'}</Button></div>
+        </div>
+      </AppDialog>
       <AppDialog open={followUpOpen} onOpenChange={setFollowUpOpen} title="Tindak Lanjut Konfirmasi Rekap" description={`Tenggat ${monthlyConfirmation?.period?.label || 'rekap bulan sebelumnya'} telah lewat pada ${formatConfirmationDeadline(monthlyConfirmation?.deadlineAt)}. Hubungi guru berikut secara pribadi.`} className="max-w-2xl">
         <div className="space-y-4">
           <Notice tone="warning">{monthlyConfirmation?.summary?.awaitingConfirmation || 0} guru belum menekan Setuju. Guru dengan pengajuan koreksi tetap perlu menuntaskan konfirmasi setelah datanya diperiksa.</Notice>

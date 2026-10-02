@@ -53,6 +53,7 @@ func (h *Handler) RegisterCoreRoutes(app fiber.Router) {
 	v1.Post("/guru/monthly-confirmation/confirm", protected, auth.RequireRoles("guru"), h.confirmMonthlyConfirmation)
 	v1.Post("/guru/monthly-confirmation/correction-request", protected, auth.RequireRoles("guru"), h.requestMonthlyCorrection)
 	v1.Get("/admin/monthly-confirmations", protected, auth.RequireRoles("admin", "kepala_sekolah"), h.adminMonthlyConfirmations)
+	v1.Post("/admin/monthly-confirmations/:userId/confirm", protected, auth.RequireRoles("admin", "kepala_sekolah"), h.adminConfirmMonthlyConfirmation)
 	v1.All("/admin/monthly-confirmation-contact", protected, auth.RequireRoles("admin"), h.monthlyConfirmationContact)
 	v1.All("/operations/optional-workdays", protected, auth.RequireRoles(admin...), h.optionalWorkdays)
 	v1.All("/operations/weekend-overrides", protected, auth.RequireRoles(admin...), h.weekendOverrides)

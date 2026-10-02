@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +18,12 @@ import (
 )
 
 const monthlyConfirmationStatusConfirmed = "confirmed"
+const monthlyConfirmationStatusAdminConfirmed = "confirmed_by_admin"
 const monthlyConfirmationStatusCorrectionRequested = "correction_requested"
+
+func monthlyConfirmationIsConfirmed(status string) bool {
+	return status == monthlyConfirmationStatusConfirmed || status == monthlyConfirmationStatusAdminConfirmed
+}
 
 // monthlyConfirmationNow is replaceable in tests so the October 2026 rollout
 // can be exercised without coupling tests to the machine clock.
@@ -167,11 +173,12 @@ func monthlyFollowUpWhatsAppURL(user models.User, periodStart time.Time) string 
 
 func confirmationTimes(confirmation *models.MonthlyAttendanceConfirmation) fiber.Map {
 	if confirmation == nil {
-		return fiber.Map{"status": "pending", "confirmedAt": nil, "correctionRequestedAt": nil}
+		return fiber.Map{"status": "pending", "confirmedAt": nil, "confirmedByAdmin": false, "correctionRequestedAt": nil}
 	}
 	return fiber.Map{
 		"status":                confirmation.Status,
 		"confirmedAt":           confirmation.ConfirmedAt,
+		"confirmedByAdmin":      confirmation.Status == monthlyConfirmationStatusAdminConfirmed,
 		"correctionRequestedAt": confirmation.CorrectionRequestedAt,
 	}
 }
@@ -185,7 +192,7 @@ func (h *Handler) monthlyConfirmationPayload(user models.User, now time.Time) (f
 	if err != nil {
 		return nil, err
 	}
-	needsConfirmation := confirmation == nil || confirmation.Status != monthlyConfirmationStatusConfirmed
+	needsConfirmation := confirmation == nil || !monthlyConfirmationIsConfirmed(confirmation.Status)
 	deadline := monthlyConfirmationDeadline(start)
 	payload := fiber.Map{
 		"required":          needsConfirmation,
@@ -245,7 +252,7 @@ func (h *Handler) confirmMonthlyConfirmation(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	if confirmation != nil && confirmation.Status == monthlyConfirmationStatusConfirmed {
+	if confirmation != nil && monthlyConfirmationIsConfirmed(confirmation.Status) {
 		payload, err := h.monthlyConfirmationPayload(user, now)
 		if err != nil {
 			return err
@@ -303,7 +310,7 @@ func (h *Handler) requestMonthlyCorrection(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	if confirmation != nil && confirmation.Status == monthlyConfirmationStatusConfirmed {
+	if confirmation != nil && monthlyConfirmationIsConfirmed(confirmation.Status) {
 		return httpx.Error(c, fiber.StatusConflict, "MONTHLY_CONFIRMATION_ALREADY_CONFIRMED", "Rekap presensi bulan ini sudah disetujui")
 	}
 	whatsAppURL, err := h.monthlyCorrectionWhatsAppURL(user, start)
@@ -356,7 +363,7 @@ func (h *Handler) adminMonthlyConfirmations(c *fiber.Ctx) error {
 	}
 
 	deadline := monthlyConfirmationDeadline(start)
-	confirmed, corrections := 0, 0
+	confirmed, adminConfirmed, corrections := 0, 0, 0
 	items := make([]fiber.Map, 0, len(users))
 	followUpItems := make([]fiber.Map, 0, len(users))
 	for _, user := range users {
@@ -374,6 +381,8 @@ func (h *Handler) adminMonthlyConfirmations(c *fiber.Ctx) error {
 		switch status {
 		case monthlyConfirmationStatusConfirmed:
 			confirmed++
+		case monthlyConfirmationStatusAdminConfirmed:
+			adminConfirmed++
 		case monthlyConfirmationStatusCorrectionRequested:
 			corrections++
 		}
@@ -383,9 +392,10 @@ func (h *Handler) adminMonthlyConfirmations(c *fiber.Ctx) error {
 			"jabatan":               user.Jabatan,
 			"status":                status,
 			"confirmedAt":           confirmedAt,
+			"confirmedByAdmin":      status == monthlyConfirmationStatusAdminConfirmed,
 			"correctionRequestedAt": correctionRequestedAt,
 		})
-		if status != monthlyConfirmationStatusConfirmed {
+		if !monthlyConfirmationIsConfirmed(status) {
 			phone := ""
 			if user.NoHP != nil {
 				phone = normalizeWhatsAppPhone(*user.NoHP)
@@ -416,12 +426,80 @@ func (h *Handler) adminMonthlyConfirmations(c *fiber.Ctx) error {
 		"summary": fiber.Map{
 			"total":                len(items),
 			"confirmed":            confirmed,
+			"adminConfirmed":       adminConfirmed,
 			"correctionRequested":  corrections,
-			"pending":              len(items) - confirmed - corrections,
+			"pending":              len(items) - confirmed - adminConfirmed - corrections,
 			"awaitingConfirmation": len(followUpItems),
 		},
 		"items":         items,
 		"followUpItems": followUpItems,
+	})
+}
+
+func (h *Handler) adminConfirmMonthlyConfirmation(c *fiber.Ctx) error {
+	admin, err := requireUser(c)
+	if err != nil {
+		return err
+	}
+	userID, err := strconv.ParseUint(strings.TrimSpace(c.Params("userId")), 10, 64)
+	if err != nil || userID == 0 {
+		return httpx.Error(c, fiber.StatusBadRequest, "INVALID_TEACHER_ID", "ID guru tidak valid")
+	}
+
+	now := monthlyConfirmationNow().In(appLocation(h))
+	var teacher models.User
+	if err := h.db.Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&teacher).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return httpx.Error(c, fiber.StatusNotFound, "TEACHER_NOT_FOUND", "Guru aktif tidak ditemukan")
+	} else if err != nil {
+		return err
+	}
+	start, end, eligible := monthlyConfirmationTarget(teacher, now)
+	if !eligible {
+		return httpx.Error(c, fiber.StatusConflict, "MONTHLY_CONFIRMATION_NOT_REQUIRED", "Guru ini tidak memerlukan konfirmasi rekap bulan sebelumnya")
+	}
+	confirmation, err := h.findMonthlyConfirmation(teacher.ID, start)
+	if err != nil {
+		return err
+	}
+	if confirmation != nil && monthlyConfirmationIsConfirmed(confirmation.Status) {
+		return httpx.Success(c, "Rekap sudah dikonfirmasi", fiber.Map{
+			"userId": teacher.ID, "status": confirmation.Status,
+			"confirmedAt":      confirmation.ConfirmedAt,
+			"confirmedByAdmin": confirmation.Status == monthlyConfirmationStatusAdminConfirmed,
+		})
+	}
+
+	report, err := h.buildMonthlyConfirmationReport(teacher, start, end)
+	if err != nil {
+		return err
+	}
+	snapshot, err := json.Marshal(report)
+	if err != nil {
+		return err
+	}
+	confirmedAt := now
+	adminID := admin.ID
+	if confirmation == nil {
+		confirmation = &models.MonthlyAttendanceConfirmation{
+			UserID: teacher.ID, PeriodStart: start, PeriodEnd: end,
+			Status: monthlyConfirmationStatusAdminConfirmed, ConfirmedAt: &confirmedAt,
+			ConfirmedByAdminID: &adminID, Snapshot: pointerString(string(snapshot)),
+		}
+		if err := h.db.Create(confirmation).Error; err != nil {
+			return err
+		}
+	} else if err := h.db.Model(confirmation).Updates(map[string]any{
+		"status":                monthlyConfirmationStatusAdminConfirmed,
+		"confirmed_at":          confirmedAt,
+		"confirmed_by_admin_id": adminID,
+		"snapshot":              string(snapshot),
+	}).Error; err != nil {
+		return err
+	}
+
+	return httpx.Success(c, "Rekap presensi berhasil dikonfirmasi oleh admin", fiber.Map{
+		"userId": teacher.ID, "status": monthlyConfirmationStatusAdminConfirmed,
+		"confirmedAt": confirmedAt, "confirmedByAdmin": true,
 	})
 }
 

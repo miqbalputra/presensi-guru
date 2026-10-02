@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ type monthlyConfirmationTestResponse struct {
 		IsOverdue             bool             `json:"isOverdue"`
 		DeadlineAt            string           `json:"deadlineAt"`
 		Status                string           `json:"status"`
+		ConfirmedByAdmin      bool             `json:"confirmedByAdmin"`
 		CorrectionWhatsAppURL string           `json:"correctionWhatsAppUrl"`
 		Rows                  []map[string]any `json:"rows"`
 		Period                struct {
@@ -43,12 +45,15 @@ type monthlyConfirmationAdminTestResponse struct {
 		FollowUpActive bool `json:"followUpActive"`
 		Summary        struct {
 			Confirmed           int `json:"confirmed"`
+			AdminConfirmed      int `json:"adminConfirmed"`
 			CorrectionRequested int `json:"correctionRequested"`
 			Pending             int `json:"pending"`
 		} `json:"summary"`
 		Items []struct {
-			Nama   string `json:"nama"`
-			Status string `json:"status"`
+			ID               uint   `json:"id"`
+			Nama             string `json:"nama"`
+			Status           string `json:"status"`
+			ConfirmedByAdmin bool   `json:"confirmedByAdmin"`
 		} `json:"items"`
 		FollowUpItems []struct {
 			Nama                string `json:"nama"`
@@ -327,5 +332,87 @@ func TestMonthlyConfirmationReminderKeepsAttendanceAvailableAndTracksFollowUp(t 
 	}
 	if confirmation.Status != monthlyConfirmationStatusConfirmed {
 		t.Fatalf("admin attendance edit changed confirmation status to %q", confirmation.Status)
+	}
+
+	secondTeacher := models.User{
+		Username: "monthly-teacher-second", Role: "guru", Nama: "Guru Kedua", TipeGuru: "full_time",
+		CreatedAt: time.Date(2026, time.September, 1, 8, 0, 0, 0, location),
+	}
+	if err := db.Create(&secondTeacher).Error; err != nil {
+		t.Fatal(err)
+	}
+	adminConfirmPath := "/api/v1/admin/monthly-confirmations/" + strconv.FormatUint(uint64(secondTeacher.ID), 10) + "/confirm"
+	response, err = app.Test(request(http.MethodPost, adminConfirmPath, teacherToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != fiber.StatusForbidden {
+		t.Fatalf("guru admin-confirm status = %d, want %d", response.StatusCode, fiber.StatusForbidden)
+	}
+	response, err = app.Test(request(http.MethodPost, adminConfirmPath, adminToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		response.Body.Close()
+		t.Fatalf("admin-confirm status = %d, want %d", response.StatusCode, http.StatusOK)
+	}
+	var adminConfirmResult struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Status           string `json:"status"`
+			ConfirmedByAdmin bool   `json:"confirmedByAdmin"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&adminConfirmResult); err != nil {
+		response.Body.Close()
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if !adminConfirmResult.Success || adminConfirmResult.Data.Status != monthlyConfirmationStatusAdminConfirmed || !adminConfirmResult.Data.ConfirmedByAdmin {
+		t.Fatalf("admin confirmation result = %+v", adminConfirmResult)
+	}
+
+	adminSummaryResponse, err = app.Test(request(http.MethodGet, "/api/v1/admin/monthly-confirmations", adminToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.NewDecoder(adminSummaryResponse.Body).Decode(&adminSummary); err != nil {
+		adminSummaryResponse.Body.Close()
+		t.Fatal(err)
+	}
+	adminSummaryResponse.Body.Close()
+	if adminSummary.Data.Summary.Confirmed != 1 || adminSummary.Data.Summary.AdminConfirmed != 1 || adminSummary.Data.Summary.Pending != 0 || len(adminSummary.Data.FollowUpItems) != 0 {
+		t.Fatalf("admin-confirmed summary = %+v", adminSummary.Data.Summary)
+	}
+	foundAdminConfirmed := false
+	for _, item := range adminSummary.Data.Items {
+		if item.ID == secondTeacher.ID {
+			foundAdminConfirmed = item.Status == monthlyConfirmationStatusAdminConfirmed && item.ConfirmedByAdmin
+		}
+	}
+	if !foundAdminConfirmed {
+		t.Fatalf("admin-confirmed teacher missing from summary: %+v", adminSummary.Data.Items)
+	}
+
+	var adminConfirmation models.MonthlyAttendanceConfirmation
+	if err := db.Where("user_id = ?", secondTeacher.ID).First(&adminConfirmation).Error; err != nil {
+		t.Fatal(err)
+	}
+	if adminConfirmation.Status != monthlyConfirmationStatusAdminConfirmed || adminConfirmation.ConfirmedByAdminID == nil || *adminConfirmation.ConfirmedByAdminID != admin.ID || adminConfirmation.Snapshot == nil || *adminConfirmation.Snapshot == "" {
+		t.Fatalf("admin confirmation audit was not persisted: %+v", adminConfirmation)
+	}
+	secondTeacherToken, _, err := manager.IssueAccess(secondTeacher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err = app.Test(request(http.MethodGet, "/api/v1/guru/monthly-confirmation", secondTeacherToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload = decode(response)
+	if !payload.Success || payload.Data.Required || payload.Data.NeedsConfirmation || payload.Data.Status != monthlyConfirmationStatusAdminConfirmed || !payload.Data.ConfirmedByAdmin {
+		t.Fatalf("admin confirmation did not clear teacher reminder with the correct status: %+v", payload.Data)
 	}
 }
