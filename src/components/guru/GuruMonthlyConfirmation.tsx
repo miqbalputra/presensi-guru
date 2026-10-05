@@ -79,13 +79,17 @@ function ReminderBanner({ confirmation, onReview }: { confirmation: any; onRevie
   </section>
 }
 
-export default function GuruMonthlyConfirmation() {
+export default function GuruMonthlyConfirmation({ onDialogStateChange }: { onDialogStateChange?: (open: boolean, ready: boolean) => void } = {}) {
   const [confirmation, setConfirmation] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [action, setAction] = useState('')
   const [actionError, setActionError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  useEffect(() => {
+    onDialogStateChange?.(dialogOpen, !loading)
+  }, [dialogOpen, loading, onDialogStateChange])
 
   const loadConfirmation = async () => {
     setLoading(true)

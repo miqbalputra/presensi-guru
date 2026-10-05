@@ -1,4 +1,4 @@
-import { useEffect, useState, Suspense, lazy } from 'react'
+import { useCallback, useEffect, useState, Suspense, lazy } from 'react'
 import {
   BarChart3,
   CalendarDays,
@@ -19,6 +19,7 @@ import { useTheme, readPreference as readStorage, savePreference } from '../hook
 import GuruHome from '../components/guru/GuruHome'
 import GuruAkun from '../components/guru/GuruAkun'
 import GuruMonthlyConfirmation from '../components/guru/GuruMonthlyConfirmation'
+import GuruGmailReminder from '../components/guru/GuruGmailReminder'
 
 const GuruRiwayat = lazy(() => import('../components/guru/GuruRiwayat'))
 const GuruStatus = lazy(() => import('../components/guru/GuruStatus'))
@@ -45,6 +46,10 @@ function GuruDashboard({ user, onLogout, installBanner }) {
   // Start with descriptive labels visible on desktop. The earlier icon-only
   // preference is reset once because it made the menu hard to scan.
   const [sidebarOpen, setSidebarOpen] = useState(() => readStorage('guru-sidebar-expanded-v2', '1') === '1')
+  const [monthlyDialogState, setMonthlyDialogState] = useState({ open: false, ready: false })
+  const handleMonthlyDialogStateChange = useCallback((open: boolean, ready: boolean) => {
+    setMonthlyDialogState({ open, ready })
+  }, [])
 
   const tabs = [
     { id: 'home', label: 'Beranda', icon: Home },
@@ -180,7 +185,8 @@ function GuruDashboard({ user, onLogout, installBanner }) {
 
         <main id="guru-main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 pb-28 pt-4 outline-none sm:px-6 lg:px-8 lg:pb-12">
           {activeTab === 'akun' && installBanner}
-          <GuruMonthlyConfirmation />
+          <GuruMonthlyConfirmation onDialogStateChange={handleMonthlyDialogStateChange} />
+          <GuruGmailReminder user={user} activeTab={activeTab} blocked={!monthlyDialogState.ready || monthlyDialogState.open} />
           <div key={activeTab} className="animate-fade-in">
             {activeTab === 'home' && <GuruHome user={user} onChangeTab={setActiveTab} />}
             {activeTab === 'akun' && <GuruAkun user={user} />}

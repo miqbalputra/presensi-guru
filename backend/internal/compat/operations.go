@@ -368,10 +368,14 @@ func (h *Handler) guruProfile(c *fiber.Ctx) error {
 		return invalid(c, err.Error())
 	}
 	if c.Method() == fiber.MethodPut {
-		email := stringValue(body, "email")
-		if email != "" {
-			if _, err := mail.ParseAddress(email); err != nil {
-				return invalid(c, "Format email tidak valid")
+		email := strings.TrimSpace(stringValue(body, "email"))
+		if user.Role == "guru" && email != "" {
+			currentEmail := ""
+			if user.Email != nil {
+				currentEmail = strings.TrimSpace(*user.Email)
+			}
+			if email != currentEmail && !isGmailAddress(email) {
+				return invalid(c, "Gunakan alamat Gmail yang valid dan berakhiran @gmail.com")
 			}
 		}
 		updates := map[string]any{"email": pointerString(email), "no_hp": pointerString(stringValue(body, "noHP", "no_hp")), "alamat": pointerString(stringValue(body, "alamat"))}
@@ -397,6 +401,15 @@ func (h *Handler) guruProfile(c *fiber.Ctx) error {
 		return httpx.Success(c, "Password berhasil diubah", nil)
 	}
 	return fiber.ErrMethodNotAllowed
+}
+
+func isGmailAddress(email string) bool {
+	parsed, err := mail.ParseAddress(email)
+	if err != nil || parsed.Address != email {
+		return false
+	}
+	at := strings.LastIndexByte(parsed.Address, '@')
+	return at > 0 && strings.EqualFold(parsed.Address[at+1:], "gmail.com")
 }
 
 func (h *Handler) guruHome(c *fiber.Ctx) error {

@@ -2,6 +2,7 @@ import { Notice } from '../ui/page'
 import { useState, useEffect, useRef } from 'react'
 import { User, Mail, Phone, MapPin, Save, Loader2, ShieldCheck, Hash, BadgeCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2, ClipboardCheck, Clock3, RefreshCw } from 'lucide-react'
 import { guruProfileAPI, monthlyAttendanceConfirmationAPI } from '../../services/api'
+import { isGmailAddress } from '../../utils/email'
 
 function GuruAkun({ user }) {
   const profileSave = useRef(false)
@@ -110,8 +111,8 @@ function GuruAkun({ user }) {
   const validate = () => {
     const errs: Record<string, string> = {}
     const email = form.email.trim()
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errs.email = 'Format email tidak valid.'
+    if (email && email !== String(original.email || '').trim() && !isGmailAddress(email)) {
+      errs.email = 'Gunakan alamat Gmail yang valid dan berakhiran @gmail.com.'
     }
     if (form.noHP && form.noHP.length > 20) {
       errs.noHP = 'Nomor HP maksimal 20 karakter.'
@@ -122,7 +123,7 @@ function GuruAkun({ user }) {
 
   const hasChanges = () => {
     return (
-      form.email.trim() !== original.email ||
+      form.email.trim() !== String(original.email || '').trim() ||
       form.noHP.trim() !== original.noHP ||
       form.alamat.trim() !== original.alamat
     )
@@ -313,14 +314,14 @@ function GuruAkun({ user }) {
             autoComplete="email"
             value={form.email}
             onChange={handleChange('email')}
-            placeholder="contoh@email.com"
+            placeholder="nama@gmail.com"
             className={`w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-600 placeholder:text-slate-300 ${
               errors.email ? 'border-rose-400' : 'border-slate-200 dark:border-slate-700'
             }`}
           />
           {errors.email && <p className="mt-1 text-xs text-rose-500">{errors.email}</p>}
           <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-            Email yang sama dipakai untuk login Google. Pastikan email valid.
+            Email ini digunakan untuk mendukung akses melalui Google. Gunakan alamat yang berakhiran @gmail.com.
           </p>
         </div>
 
