@@ -157,6 +157,7 @@ function DataGuru() {
       'No': index + 1,
       'ID Guru': guru.idGuru || '-',
       'Nama': guru.nama,
+      'Email': guru.email || '-',
       'Tanggal Lahir': guru.tanggalLahir || '-',
       'Umur': calculateAge(guru.tanggalLahir),
       'Jenis Kelamin': guru.jenisKelamin,
@@ -344,6 +345,7 @@ function DataGuru() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Guru</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal Lahir</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Umur</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis Kelamin</th>
@@ -376,6 +378,7 @@ function DataGuru() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{guru.idGuru || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{guru.nama}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.email || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDisplayDate(guru.tanggalLahir)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{calculateAge(guru.tanggalLahir)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.jenisKelamin}</td>
