@@ -337,29 +337,50 @@ function DataGuru() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2.5">
+          <p className="text-xs font-medium text-gray-500">Geser tabel ke samping untuk melihat semua kolom.</p>
+          <p className="text-xs text-gray-400">Alamat dan jabatan lengkap tersedia saat diarahkan.</p>
+        </div>
+        <div className="overflow-x-auto overscroll-x-contain">
+          <table className="w-full min-w-[1906px] table-fixed text-left">
+            <colgroup>
+              <col className="w-12" />
+              <col className="w-[90px]" />
+              <col className="w-[170px]" />
+              <col className="w-[210px]" />
+              <col className="w-[120px]" />
+              <col className="w-20" />
+              <col className="w-[110px]" />
+              <col className="w-[210px]" />
+              <col className="w-[135px]" />
+              <col className="w-[180px]" />
+              <col className="w-[135px]" />
+              <col className="w-[110px]" />
+              <col className="w-[120px]" />
+              <col className="w-[100px]" />
+              <col className="w-[88px]" />
+            </colgroup>
+            <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-600">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Guru</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal Lahir</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Umur</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis Kelamin</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Alamat</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No HP</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jabatan</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal Bertugas</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lama Bertugas</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                <th className="whitespace-nowrap px-3 py-3.5">No</th>
+                <th className="whitespace-nowrap px-3 py-3.5">ID Guru</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Nama</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Email</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Tanggal Lahir</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Umur</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Jenis Kelamin</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Alamat</th>
+                <th className="whitespace-nowrap px-3 py-3.5">No HP</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Jabatan</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Tanggal Bertugas</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Lama Bertugas</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Username</th>
+                <th className="whitespace-nowrap px-3 py-3.5">Password</th>
+                <th className="whitespace-nowrap px-3 py-3.5 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
               {filteredGuru.length > 0 ? filteredGuru.map((guru, index) => {
                 const calculateAge = (birthDate) => {
                   if (!birthDate) return '-'
@@ -374,37 +395,40 @@ function DataGuru() {
                 }
 
                 return (
-                <tr key={guru.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{guru.idGuru || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{guru.nama}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.email || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDisplayDate(guru.tanggalLahir)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{calculateAge(guru.tanggalLahir)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.jenisKelamin}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{guru.alamat}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.noHP || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan}
+                <tr key={guru.id} className="transition-colors odd:bg-white even:bg-gray-50/40 hover:bg-blue-50/70">
+                  <td className="whitespace-nowrap px-3 py-3 tabular-nums text-gray-500">{index + 1}</td>
+                  <td className="truncate whitespace-nowrap px-3 py-3 font-medium text-blue-700" title={guru.idGuru || '-'}>{guru.idGuru || '-'}</td>
+                  <td className="truncate whitespace-nowrap px-3 py-3 font-medium text-gray-900" title={guru.nama}>{guru.nama}</td>
+                  <td className="truncate whitespace-nowrap px-3 py-3 text-gray-600" title={guru.email || ''}>{guru.email || '-'}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-gray-600">{formatDisplayDate(guru.tanggalLahir)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-gray-600">{calculateAge(guru.tanggalLahir)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-gray-600">{guru.jenisKelamin || '-'}</td>
+                  <td className="truncate whitespace-nowrap px-3 py-3 text-gray-600" title={guru.alamat || '-'}>{guru.alamat || '-'}</td>
+                  <td className="truncate whitespace-nowrap px-3 py-3 text-gray-600" title={guru.noHP || '-'}>{guru.noHP || '-'}</td>
+                  <td className="truncate whitespace-nowrap px-3 py-3 text-gray-600" title={Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan || '-'}>
+                    {Array.isArray(guru.jabatan) ? guru.jabatan.join(', ') : guru.jabatan || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDisplayDate(guru.tanggalBertugas)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="whitespace-nowrap px-3 py-3 text-gray-600">{formatDisplayDate(guru.tanggalBertugas)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-gray-600">
                     {calculateWorkDuration(guru.tanggalBertugas)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{guru.username}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{'•'.repeat(guru.password?.length || 8)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex gap-2">
+                  <td className="truncate whitespace-nowrap px-3 py-3 text-gray-600" title={guru.username}>{guru.username}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-gray-400">{'•'.repeat(guru.password?.length || 8)}</td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex justify-center gap-1">
                       <button
                         onClick={() => handleEdit(guru)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="rounded-md p-2 text-blue-600 transition-colors hover:bg-blue-100 hover:text-blue-800"
+                        title="Edit data guru"
+                        aria-label={`Edit data ${guru.nama}`}
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleArchive(guru)}
-                        className="text-orange-600 hover:text-orange-800"
+                        className="rounded-md p-2 text-orange-600 transition-colors hover:bg-orange-100 hover:text-orange-800"
                         title="Arsipkan Guru"
+                        aria-label={`Arsipkan ${guru.nama}`}
                       >
                         <Archive className="w-4 h-4" />
                       </button>
@@ -414,7 +438,7 @@ function DataGuru() {
                 )
               }) : (
                 <tr>
-                  <td colSpan={14} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={15} className="px-6 py-10 text-center text-gray-500">
                     Tidak ada data guru yang sesuai dengan filter
                   </td>
                 </tr>
