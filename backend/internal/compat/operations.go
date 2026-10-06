@@ -412,6 +412,17 @@ func isGmailAddress(email string) bool {
 	return at > 0 && strings.EqualFold(parsed.Address[at+1:], "gmail.com")
 }
 
+func (h *Handler) requireTeacherGmail(c *fiber.Ctx, userID uint) error {
+	var user models.User
+	if err := h.db.Select("id, email").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
+		return err
+	}
+	if user.Email == nil || !isGmailAddress(strings.TrimSpace(*user.Email)) {
+		return httpx.Error(c, fiber.StatusForbidden, "GMAIL_REQUIRED", "Sebelum melakukan presensi, mohon lengkapi Gmail aktif berakhiran @gmail.com melalui menu Akun.")
+	}
+	return nil
+}
+
 func (h *Handler) guruHome(c *fiber.Ctx) error {
 	user, err := requireUser(c)
 	if err != nil {

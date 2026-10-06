@@ -22,7 +22,7 @@ function removeDismissedUntil(key: string) {
   try { window.localStorage.removeItem(key) } catch { /* local storage may be unavailable */ }
 }
 
-export default function GuruGmailReminder({ user, activeTab, blocked = false }: { user: any; activeTab: string; blocked?: boolean }) {
+export default function GuruGmailReminder({ user, activeTab, blocked = false, onGmailStatusChange }: { user: any; activeTab: string; blocked?: boolean; onGmailStatusChange?: (complete: boolean) => void }) {
   const accountId = user?.id ?? user?.user_id ?? user?.username
   const storageKey = accountId ? `guru-gmail-reminder-dismissed-until:${accountId}` : ''
   const [profile, setProfile] = useState<any>(null)
@@ -32,26 +32,30 @@ export default function GuruGmailReminder({ user, activeTab, blocked = false }: 
   const [error, setError] = useState('')
   const [refreshVersion, setRefreshVersion] = useState(0)
   const timerRef = useRef<number | null>(null)
+  const profileCheckRef = useRef(0)
 
   useEffect(() => {
     let active = true
+    const checkId = ++profileCheckRef.current
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
 
     const checkProfile = async () => {
       try {
         const response = await guruProfileAPI.getProfile()
-        if (!active) return
+        if (!active || checkId !== profileCheckRef.current) return
         const data = response.data || {}
         const currentEmail = String(data.email || '').trim()
         setProfile(data)
         setEmail(currentEmail)
 
         if (isGmailAddress(currentEmail)) {
+          onGmailStatusChange?.(true)
           removeDismissedUntil(storageKey)
           setOpen(false)
           return
         }
 
+        onGmailStatusChange?.(false)
         const dismissedUntil = readDismissedUntil(storageKey)
         if (dismissedUntil > Date.now()) {
           setOpen(false)
@@ -74,7 +78,7 @@ export default function GuruGmailReminder({ user, activeTab, blocked = false }: 
       active = false
       if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     }
-  }, [storageKey, activeTab, refreshVersion])
+  }, [storageKey, activeTab, refreshVersion, onGmailStatusChange])
 
   const dismiss = () => {
     const dismissedUntil = Date.now() + ONE_HOUR_MS
@@ -108,9 +112,11 @@ export default function GuruGmailReminder({ user, activeTab, blocked = false }: 
         noHP: profile?.noHP ?? profile?.no_hp ?? '',
         alamat: profile?.alamat ?? '',
       })
+      profileCheckRef.current += 1
       removeDismissedUntil(storageKey)
       setProfile((current) => ({ ...current, email: normalizedEmail }))
       setEmail(normalizedEmail)
+      onGmailStatusChange?.(true)
       setOpen(false)
       if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     } catch (failure) {

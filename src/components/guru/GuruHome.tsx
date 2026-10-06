@@ -13,7 +13,7 @@ import { PageLoading, Notice, EmptyState } from '../ui/page'
 import { AttendanceFeedbackDialog } from './AttendanceFeedbackDialog'
 import { getAttendanceFeedback, getCheckoutFeedback, type AttendanceFeedback } from './attendance-feedback'
 
-function GuruHome({ user, onChangeTab }) {
+function GuruHome({ user, onChangeTab, gmailComplete = false }) {
   const [todayAttendance, setTodayAttendance] = useState(null)
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
@@ -556,6 +556,10 @@ function GuruHome({ user, onChangeTab }) {
   }
 
   const startAttendanceAction = () => {
+    if (!gmailComplete) {
+      setMessage({ type: 'error', text: 'Lengkapi Gmail aktif berakhiran @gmail.com di menu Akun sebelum melakukan presensi.' })
+      return false
+    }
     if (attendanceActionRef.current) return false
     attendanceActionRef.current = true
     setLoading(true)
@@ -977,16 +981,20 @@ function GuruHome({ user, onChangeTab }) {
       <div><h2 id="attendance-action-title" tabIndex={-1} className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">
         {isHoliday ? (holidayInfo?.message || 'Tidak perlu melakukan presensi hari ini.') : checkedOut ? 'Jam masuk dan pulang Anda sudah tersimpan.' : isLeave ? 'Tidak perlu presensi pulang untuk status ini.' : isPresent ? checkoutReady ? 'Catat kepulangan untuk menyelesaikan presensi hari ini.' : 'Presensi pulang tersedia mulai ' + formatPulangThreshold() + ' WIB.' : 'Tekan tombol di bawah saat berada di area sekolah.'}
       </p></div>
-      {actionVisible && (actionAllowed ? <Button type="button" size="lg" className={`w-full text-base ${isPresent ? 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500' : ''}`} onClick={() => isPresent ? handlePulang() : handleHadir()} disabled={loading || !checkoutReady}>
+      {!gmailComplete && <div role="status" className="flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-sm font-semibold">Gmail diperlukan untuk presensi</p><p className="mt-1 text-xs leading-5 text-amber-900/80 dark:text-amber-100/80">Mohon lengkapi Gmail aktif berakhiran <strong>@gmail.com</strong> melalui menu Akun agar dapat melakukan presensi masuk, izin/sakit, dan pulang.</p></div>
+        <Button type="button" variant="outline" className="shrink-0 border-amber-400 bg-white text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-100 dark:hover:bg-amber-950" onClick={() => onChangeTab?.('akun')}>Lengkapi Gmail</Button>
+      </div>}
+      {actionVisible && (actionAllowed ? <Button type="button" size="lg" className={`w-full text-base ${isPresent ? 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500' : ''}`} onClick={() => isPresent ? handlePulang() : handleHadir()} disabled={loading || !checkoutReady || !gmailComplete}>
         {loading ? <RefreshCw className="animate-spin" aria-hidden="true" /> : isPresent ? <LogOut aria-hidden="true" /> : <CheckCircle aria-hidden="true" />}
-        {loading ? 'Memproses presensi...' : isPresent ? checkoutReady ? 'Presensi pulang' : 'Pulang mulai ' + formatPulangThreshold() + ' WIB' : 'Presensi masuk'}
+        {loading ? 'Memproses presensi...' : !gmailComplete ? 'Lengkapi Gmail untuk presensi' : isPresent ? checkoutReady ? 'Presensi pulang' : 'Pulang mulai ' + formatPulangThreshold() + ' WIB' : 'Presensi masuk'}
       </Button> : <Notice tone="warning">Presensi tombol sedang dinonaktifkan. Hubungi administrator untuk metode presensi yang ditetapkan sekolah.</Notice>)}
       {todayAttendance && <dl className="grid grid-cols-2 gap-4 rounded-lg bg-muted/60 p-3">
         <div><dt className="text-xs text-muted-foreground">{isLeave ? 'Waktu laporan' : 'Jam masuk'}</dt><dd className="mt-1 text-base font-semibold tabular-nums">{time(isLeave ? (todayAttendance.jamIzin || todayAttendance.jam_izin || todayAttendance.jamSakit || todayAttendance.jam_sakit) : (todayAttendance.jamMasuk || todayAttendance.jam_masuk || todayAttendance.jamHadir || todayAttendance.jam_hadir))}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Jam pulang</dt><dd className="mt-1 text-base font-semibold tabular-nums">{isLeave ? 'Tidak diperlukan' : time(todayAttendance.jamPulang || todayAttendance.jam_pulang)}</dd></div>
       </dl>}
       {todayAttendance?.keterangan && <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Keterangan presensi</summary><p className="whitespace-pre-wrap break-words py-2">{todayAttendance.keterangan}</p></details>}
-      {actionVisible && <div className="grid grid-cols-2 gap-3"><Button type="button" variant="outline" disabled={loading} onClick={() => handleIzinSakit('izin')}><FileText aria-hidden="true" />Izin</Button><Button type="button" variant="outline" disabled={loading} onClick={() => handleIzinSakit('sakit')}><AlertCircle aria-hidden="true" />Sakit</Button></div>}
+      {actionVisible && <div className="grid grid-cols-2 gap-3"><Button type="button" variant="outline" disabled={loading || !gmailComplete} onClick={() => handleIzinSakit('izin')}><FileText aria-hidden="true" />Izin</Button><Button type="button" variant="outline" disabled={loading || !gmailComplete} onClick={() => handleIzinSakit('sakit')}><AlertCircle aria-hidden="true" />Sakit</Button></div>}
       {message.text && !showModal && !showPiketModal && !pulangLuarModal && !attendanceFeedback && <Notice tone={message.type} onDismiss={() => setMessage({ type: '', text: '' })}>{message.text}</Notice>}
     </Card>
 

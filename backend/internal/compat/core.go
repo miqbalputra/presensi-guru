@@ -337,8 +337,11 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return invalid(c, "User presensi harus diisi")
 	}
 	var user models.User
-	if err := h.db.Select("id, nama, tipe_guru").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
+	if err := h.db.Select("id, nama, tipe_guru, email").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
 		return httpx.Error(c, fiber.StatusNotFound, "USER_NOT_FOUND", "Data guru tidak ditemukan")
+	}
+	if claims.Role == "guru" && (user.Email == nil || !isGmailAddress(strings.TrimSpace(*user.Email))) {
+		return httpx.Error(c, fiber.StatusForbidden, "GMAIL_REQUIRED", "Sebelum melakukan presensi, mohon lengkapi Gmail aktif berakhiran @gmail.com melalui menu Akun.")
 	}
 	status := stringValue(body, "status")
 	if status == "" {
@@ -457,6 +460,9 @@ func (h *Handler) updateAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return fiber.ErrForbidden
 	}
 	if claims.Role == "guru" {
+		if err := h.requireTeacherGmail(c, claims.UserID); err != nil {
+			return err
+		}
 		if record.JamPulang != nil && strings.TrimSpace(*record.JamPulang) != "" {
 			return httpx.Error(c, fiber.StatusConflict, "ATTENDANCE_COMPLETED", "Presensi pulang hari ini sudah tercatat")
 		}

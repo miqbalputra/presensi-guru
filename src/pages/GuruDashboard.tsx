@@ -47,8 +47,12 @@ function GuruDashboard({ user, onLogout, installBanner }) {
   // preference is reset once because it made the menu hard to scan.
   const [sidebarOpen, setSidebarOpen] = useState(() => readStorage('guru-sidebar-expanded-v2', '1') === '1')
   const [monthlyDialogState, setMonthlyDialogState] = useState({ open: false, ready: false })
+  const [gmailComplete, setGmailComplete] = useState(false)
   const handleMonthlyDialogStateChange = useCallback((open: boolean, ready: boolean) => {
     setMonthlyDialogState({ open, ready })
+  }, [])
+  const handleGmailStatusChange = useCallback((complete: boolean) => {
+    setGmailComplete(complete)
   }, [])
 
   const tabs = [
@@ -186,10 +190,10 @@ function GuruDashboard({ user, onLogout, installBanner }) {
         <main id="guru-main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 pb-28 pt-4 outline-none sm:px-6 lg:px-8 lg:pb-12">
           {activeTab === 'akun' && installBanner}
           <GuruMonthlyConfirmation onDialogStateChange={handleMonthlyDialogStateChange} />
-          <GuruGmailReminder user={user} activeTab={activeTab} blocked={!monthlyDialogState.ready || monthlyDialogState.open} />
+          <GuruGmailReminder user={user} activeTab={activeTab} blocked={!monthlyDialogState.ready || monthlyDialogState.open} onGmailStatusChange={handleGmailStatusChange} />
           <div key={activeTab} className="animate-fade-in">
-            {activeTab === 'home' && <GuruHome user={user} onChangeTab={setActiveTab} />}
-            {activeTab === 'akun' && <GuruAkun user={user} />}
+            {activeTab === 'home' && <GuruHome user={user} onChangeTab={setActiveTab} gmailComplete={gmailComplete} />}
+            {activeTab === 'akun' && <GuruAkun user={user} onGmailStatusChange={handleGmailStatusChange} />}
             {activeTab !== 'home' && activeTab !== 'akun' && (
               <Suspense fallback={<TabLoading />}>
                 {activeTab === 'riwayat' && <GuruRiwayat user={user} />}

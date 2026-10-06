@@ -4,7 +4,7 @@ import { User, Mail, Phone, MapPin, Save, Loader2, ShieldCheck, Hash, BadgeCheck
 import { guruProfileAPI, monthlyAttendanceConfirmationAPI } from '../../services/api'
 import { isGmailAddress } from '../../utils/email'
 
-function GuruAkun({ user }) {
+function GuruAkun({ user, onGmailStatusChange }) {
   const profileSave = useRef(false)
   const passwordSave = useRef(false)
   const [loadError, setLoadError] = useState(false)
@@ -139,20 +139,24 @@ function GuruAkun({ user }) {
     profileSave.current = true
     setSaving(true)
     try {
-      const res = await guruProfileAPI.updateProfile({
+      const submitted = {
         email: form.email.trim(),
         noHP: form.noHP.trim(),
         alamat: form.alamat.trim(),
+      }
+      const res = await guruProfileAPI.updateProfile({
+        ...submitted,
       })
       const data = res.data || {}
       const filled = {
-        email: data.email || '',
-        noHP: data.noHP || data.no_hp || '',
-        alamat: data.alamat || '',
+        email: data.email ?? submitted.email,
+        noHP: data.noHP ?? data.no_hp ?? submitted.noHP,
+        alamat: data.alamat ?? submitted.alamat,
       }
       setProfile(prev => ({ ...prev, ...data }))
       setForm(filled)
       setOriginal(filled)
+      onGmailStatusChange?.(isGmailAddress(filled.email))
       setMessage({ type: 'success', text: res.message || 'Profil berhasil diperbarui.' })
     } catch (err) {
       setMessage({ type: 'error', text: 'Gagal memperbarui profil: ' + err.message })

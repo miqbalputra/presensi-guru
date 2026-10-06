@@ -153,6 +153,9 @@ func (h *Handler) qrScan(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	if err := h.requireTeacherGmail(c, claims.UserID); err != nil {
+		return err
+	}
 	var attendance models.AttendanceLog
 	query := h.db.Where("user_id = ? AND tanggal = ?", claims.UserID, today(h)).First(&attendance)
 	if query.Error == nil {
