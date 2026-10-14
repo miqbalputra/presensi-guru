@@ -48,6 +48,8 @@ type Config struct {
 	GowaWebhookURL             string
 	GowaUsername               string
 	GowaPassword               string
+	TelegramBotToken           string
+	TelegramChatID             string
 	AllowPrivateWebhookTargets bool
 	BackupDir                  string
 	BackupJobTimeout           time.Duration
@@ -100,6 +102,8 @@ func Load() (Config, error) {
 		GowaWebhookURL:             os.Getenv("GOWA_WEBHOOK_URL"),
 		GowaUsername:               os.Getenv("GOWA_USERNAME"),
 		GowaPassword:               os.Getenv("GOWA_PASSWORD"),
+		TelegramBotToken:           strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")),
+		TelegramChatID:             strings.TrimSpace(os.Getenv("TELEGRAM_CHAT_ID")),
 		AllowPrivateWebhookTargets: envBool("ALLOW_PRIVATE_WEBHOOK_TARGETS", false),
 		BackupDir:                  env("BACKUP_DIR", "./data/backups"),
 		BackupJobTimeout:           envDuration("BACKUP_JOB_TIMEOUT", 30*time.Minute),
@@ -152,6 +156,16 @@ func Load() (Config, error) {
 	gowaConfigured := c.GowaWebhookURL != "" || c.GowaUsername != "" || c.GowaPassword != ""
 	if gowaConfigured && (c.GowaWebhookURL == "" || c.GowaUsername == "" || c.GowaPassword == "") {
 		return Config{}, fmt.Errorf("GOWA_WEBHOOK_URL, GOWA_USERNAME, dan GOWA_PASSWORD harus diisi bersama")
+	}
+	telegramChatIDs := 0
+	for _, chatID := range strings.Split(c.TelegramChatID, ",") {
+		if strings.TrimSpace(chatID) != "" {
+			telegramChatIDs++
+		}
+	}
+	telegramConfigured := c.TelegramBotToken != "" || telegramChatIDs > 0
+	if telegramConfigured && (c.TelegramBotToken == "" || telegramChatIDs == 0) {
+		return Config{}, fmt.Errorf("TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID harus diisi bersama")
 	}
 	if c.JWTSecret == "" {
 		c.JWTSecret = "development-only-change-this-secret-before-production"

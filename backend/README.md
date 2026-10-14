@@ -44,6 +44,10 @@ Buka `http://localhost:8080`. Database dibuat di `data/geopresensi-local.db` dan
 
 Endpoint kompatibilitas fitur berada di `/api/*.php` selama masa migrasi frontend.
 
+## Notifikasi pengajuan revisi ke Telegram
+
+Notifikasi Telegram bersifat opsional. Untuk mengaktifkannya, buat bot melalui `@BotFather`. Setiap akun penerima perlu membuka chat bot dan mengirim `/start`, lalu ambil masing-masing `message.chat.id` dari update bot. Atur `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` pada environment backend; keduanya harus diisi bersama. Beberapa chat ID ditulis dipisahkan koma, misalnya `TELEGRAM_CHAT_ID=123456789,987654321`. Simpan token sebagai secret server dan jangan masukkan ke frontend. Setiap pengajuan revisi presensi baru akan dikirim ke semua chat tersebut; kegagalan mengirim ke satu chat tidak menghentikan pengiriman ke chat lainnya dan tidak membatalkan pengajuan. Pengiriman menggunakan metode [`sendMessage`](https://core.telegram.org/bots/api#sendmessage) Bot API.
+
 ## Keamanan lokal
 
 - Jangan menggunakan `JWT_SECRET` development di staging/production.

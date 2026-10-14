@@ -3,6 +3,7 @@ package compat
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -200,6 +201,9 @@ func (h *Handler) createTeacherAttendanceRevision(c *fiber.Ctx) error {
 	items, err := h.attendanceRevisionPayloads([]models.AttendanceRevisionRequest{request}, false)
 	if err != nil {
 		return err
+	}
+	if err := h.sendAttendanceRevisionTelegramNotification(user, request); err != nil {
+		log.Printf("Telegram notification failed for attendance revision %d: %v", request.ID, err)
 	}
 	return httpx.Success(c, "Pengajuan revisi berhasil dikirim", items[0])
 }
