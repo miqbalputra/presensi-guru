@@ -313,6 +313,10 @@ func (h *Handler) leaderboardChart(c *fiber.Ctx) error {
 	if err := h.db.Where("tanggal BETWEEN ? AND ?", start.Format("2006-01-02"), end.Format("2006-01-02")).Find(&logs).Error; err != nil {
 		return err
 	}
+	approvedLupaCounts, err := h.approvedLupaRevisionCounts(users, start, end)
+	if err != nil {
+		return err
+	}
 	logsByUserDate := map[string]models.AttendanceLog{}
 	for _, log := range logs {
 		logsByUserDate[fmt.Sprintf("%d:%s", log.UserID, log.Tanggal.Format("2006-01-02"))] = log
@@ -329,6 +333,7 @@ func (h *Handler) leaderboardChart(c *fiber.Ctx) error {
 	rows := []map[string]any{}
 	for _, user := range users {
 		workdays := 0
+		revisiLupa := 0
 		hadir, tepatWaktu, terlambat, izin, sakit, lupaPulang := 0, 0, 0, 0, 0, 0
 		lemburHari, lemburMenit, records := 0, 0, 0
 		for _, date := range dateRange(start, end) {
@@ -337,6 +342,7 @@ func (h *Handler) leaderboardChart(c *fiber.Ctx) error {
 				continue
 			}
 			workdays++
+			revisiLupa += approvedLupaCounts[analyticsUserDateKey(user.ID, date)]
 			log, ok := logsByUserDate[fmt.Sprintf("%d:%s", user.ID, date.Format("2006-01-02"))]
 			if !ok {
 				continue
@@ -379,13 +385,18 @@ func (h *Handler) leaderboardChart(c *fiber.Ctx) error {
 		}
 		skorDasar := (persentaseKehadiran * 0.5) + (persentaseTepatWaktu * 0.25) + (persentasePulang * 0.25)
 		lemburBonus := float64(lemburMenit) / 60
-		skor := mathMin(skorDasar+lemburBonus, 100)
+		potonganRevisiLupa := forgetfulnessPenaltyPoints(revisiLupa)
+		skor := mathMin(skorDasar+lemburBonus, 100) - potonganRevisiLupa
+		if skor < 0 {
+			skor = 0
+		}
 		rows = append(rows, map[string]any{
 			"id": user.ID, "nama": user.Nama, "jabatan": user.Jabatan,
 			"totalHadir": hadir, "tepatWaktu": tepatWaktu, "terlambat": terlambat,
 			"izin": izin, "sakit": sakit, "lupaPulang": lupaPulang,
 			"lemburHari": lemburHari, "lemburMenit": lemburMenit, "lemburBonus": fmt.Sprintf("%.1f", lemburBonus),
 			"totalPulangLengkap": totalPulangLengkap, "persentasePulang": fmt.Sprintf("%.1f", persentasePulang),
+			"revisiLupa": revisiLupa, "potonganRevisiLupa": fmt.Sprintf("%.1f", potonganRevisiLupa),
 			"tidakPresensi": maxInt(workdays-records, 0), "totalHariAktif": workdays,
 			"persentaseKehadiran": fmt.Sprintf("%.1f", persentaseKehadiran), "persentaseTepatWaktu": fmt.Sprintf("%.1f", persentaseTepatWaktu),
 			"skor": fmt.Sprintf("%.1f", skor),

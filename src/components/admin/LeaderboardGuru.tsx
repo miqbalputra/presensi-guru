@@ -311,6 +311,11 @@ function LeaderboardGuru() {
                             {guru.skor}
                           </span>
                           <span className="text-xs text-gray-500">/ 100</span>
+                          {guru.revisiLupa > 0 && (
+                            <span className="mt-1 text-xs font-semibold text-rose-600" title="Potongan skor untuk presensi yang diajukan dengan alasan lupa">
+                              −{guru.potonganRevisiLupa} poin · {guru.revisiLupa}× lupa
+                            </span>
+                          )}
                         </div>
                       </td>
 

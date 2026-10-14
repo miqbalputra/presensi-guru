@@ -54,6 +54,8 @@ export type AnalyticsTeacher = {
   pulangAwal: number
   lemburHari: number
   lemburMenit: number
+  revisiLupa: number
+  potonganRevisiLupa: number
   persentaseKehadiran: number
   persentaseTepatWaktu: number
   persentasePulang: number

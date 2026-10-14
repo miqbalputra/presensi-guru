@@ -71,6 +71,8 @@ type analyticsTeacher struct {
 	PulangAwal           int      `json:"pulangAwal"`
 	LemburHari           int      `json:"lemburHari"`
 	LemburMenit          int      `json:"lemburMenit"`
+	RevisiLupa           int      `json:"revisiLupa"`
+	PotonganRevisiLupa   float64  `json:"potonganRevisiLupa"`
 	PersentaseKehadiran  float64  `json:"persentaseKehadiran"`
 	PersentaseTepatWaktu float64  `json:"persentaseTepatWaktu"`
 	PersentasePulang     float64  `json:"persentasePulang"`
@@ -199,6 +201,10 @@ func (h *Handler) analyticsPeriod(users []models.User, start, end, todayDate tim
 	if err != nil {
 		return analyticsPeriodResult{}, err
 	}
+	approvedLupaCounts, err := h.approvedLupaRevisionCounts(users, start, end)
+	if err != nil {
+		return analyticsPeriodResult{}, err
+	}
 	var schedules []models.JadwalPiket
 	if err := h.db.Where("is_active = ?", true).Find(&schedules).Error; err != nil {
 		return analyticsPeriodResult{}, err
@@ -243,6 +249,7 @@ func (h *Handler) analyticsPeriod(users []models.User, start, end, todayDate tim
 			}
 			key := analyticsUserDateKey(user.ID, date)
 			workdayByUserDate[key] = true
+			teacher.RevisiLupa += approvedLupaCounts[key]
 			daily := dailyByDate[date.Format("2006-01-02")]
 			teacher.TotalHariKerja++
 			result.Summary.TotalHariKerja++
@@ -360,6 +367,29 @@ func (h *Handler) analyticsLogs(users []models.User, start, end time.Time) ([]mo
 	return logs, err
 }
 
+func (h *Handler) approvedLupaRevisionCounts(users []models.User, start, end time.Time) (map[string]int, error) {
+	approvedCounts := make(map[string]int)
+	if len(users) == 0 {
+		return approvedCounts, nil
+	}
+	ids := make([]uint, 0, len(users))
+	for _, user := range users {
+		ids = append(ids, user.ID)
+	}
+	var requests []models.AttendanceRevisionRequest
+	err := h.db.Select("user_id", "tanggal").
+		Where("user_id IN ? AND alasan = ? AND status = ? AND tanggal >= ? AND tanggal < ?",
+			ids, "lupa", attendanceRevisionApproved, start.Format("2006-01-02"), end.AddDate(0, 0, 1).Format("2006-01-02")).
+		Find(&requests).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, request := range requests {
+		approvedCounts[analyticsUserDateKey(request.UserID, request.Tanggal)]++
+	}
+	return approvedCounts, nil
+}
+
 func analyticsUserDateKey(userID uint, date time.Time) string {
 	return fmt.Sprintf("%d:%s", userID, date.Format("2006-01-02"))
 }
@@ -432,7 +462,20 @@ func analyticsSetTeacherRates(teacher *analyticsTeacher, checkInMinutes, checkIn
 		average := float64(checkOutMinutes) / float64(checkOutCount)
 		teacher.RataRataMenitPulang = &average
 	}
-	teacher.Skor = mathMin((teacher.PersentaseKehadiran*0.5)+(teacher.PersentaseTepatWaktu*0.25)+(teacher.PersentasePulang*0.25)+(float64(teacher.LemburMenit)/60), 100)
+	teacher.PotonganRevisiLupa = forgetfulnessPenaltyPoints(teacher.RevisiLupa)
+	teacher.Skor = mathMin((teacher.PersentaseKehadiran*0.5)+(teacher.PersentaseTepatWaktu*0.25)+(teacher.PersentasePulang*0.25)+(float64(teacher.LemburMenit)/60), 100) - teacher.PotonganRevisiLupa
+	if teacher.Skor < 0 {
+		teacher.Skor = 0
+	}
+}
+
+// Each approved "lupa" revision deducts half a point while preserving the
+// corrected attendance record itself.
+func forgetfulnessPenaltyPoints(approvedForgetfulnessRevisions int) float64 {
+	if approvedForgetfulnessRevisions <= 0 {
+		return 0
+	}
+	return float64(approvedForgetfulnessRevisions) * 0.5
 }
 
 func analyticsSetDailyAverages(daily *analyticsDaily, logsByUserDate map[string]models.AttendanceLog, workdayByUserDate map[string]bool, users []models.User, date string) {

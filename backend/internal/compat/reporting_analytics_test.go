@@ -53,7 +53,7 @@ func analyticsTestSetup(t *testing.T) (*fiber.App, *auth.JWTManager, models.User
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.Setting{}, &models.Holiday{}, &models.OptionalWorkday{}, &models.JadwalPiket{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.AttendanceRevisionRequest{}, &models.Setting{}, &models.Holiday{}, &models.OptionalWorkday{}, &models.JadwalPiket{}); err != nil {
 		t.Fatal(err)
 	}
 	admin := models.User{Username: "analytics-admin", Role: "admin", Nama: "Admin", CreatedAt: time.Now(), UpdatedAt: time.Now()}
