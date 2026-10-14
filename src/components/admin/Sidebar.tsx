@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { NavLink, useLocation } from '../../router'
 import { Activity, Archive, ArchiveRestore, BarChart3, Bot, Calendar, CalendarCheck, CalendarPlus, CalendarX, ChevronDown, Download, Edit, LayoutDashboard, LogOut, Map, MapPin, PanelLeftClose, PanelLeftOpen, QrCode, School, Settings, UserPlus, Users, X } from 'lucide-react'
+import { adminAttendanceRevisionAPI } from '../../services/api'
 
 const groups = [
   { label: 'Utama', items: [
@@ -37,11 +38,33 @@ const groups = [
 export default function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, onToggleCollapse }) {
   const { pathname } = useLocation()
   const [expanded, setExpanded] = useState(['Utama', 'Presensi'])
+  const [pendingRevisionCount, setPendingRevisionCount] = useState(0)
   useEffect(() => {
     const current = groups.find((group) => group.items.some((item) => item.path === pathname))
     if (current) setExpanded((previous) => previous.includes(current.label) ? previous : [...previous, current.label])
     setIsOpen(false)
   }, [pathname, setIsOpen])
+
+  useEffect(() => {
+    if (user?.role !== 'admin') { setPendingRevisionCount(0); return }
+    let active = true
+    const loadCount = async () => {
+      try {
+        const response = await adminAttendanceRevisionAPI.getPendingCount()
+        if (active) setPendingRevisionCount(Number(response.data?.pending || 0))
+      } catch {
+        // Keep navigation usable when the count endpoint is temporarily unavailable.
+      }
+    }
+    loadCount()
+    const interval = window.setInterval(loadCount, 60000)
+    window.addEventListener('attendance-revisions-updated', loadCount)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+      window.removeEventListener('attendance-revisions-updated', loadCount)
+    }
+  }, [user?.role])
 
   const contents = (compact: boolean, mobile = false) => <>
     <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
@@ -58,8 +81,9 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, collapsed, 
         return <div key={group.label}>
           {!compact && <button type="button" className="flex min-h-11 w-full items-center justify-between px-3 text-xs font-semibold text-muted-foreground" aria-expanded={open} aria-controls={id} onClick={() => setExpanded((previous) => open ? previous.filter((label) => label !== group.label) : [...previous, group.label])}>{group.label}<ChevronDown className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`} aria-hidden="true" /></button>}
           <div id={id} hidden={!compact && !open} className="space-y-1">
-            {group.items.map((item) => <NavLink key={item.path} to={item.path} end={item.path === '/admin'} title={compact ? item.label : undefined} aria-label={compact ? item.label : undefined} className={({ isActive }) => `sidebar-link ${compact ? 'justify-center px-0' : ''} ${isActive ? 'is-active' : ''}`}>
+            {group.items.map((item) => <NavLink key={item.path} to={item.path} end={item.path === '/admin'} title={compact ? `${item.label}${item.path === '/admin/edit-presensi' && pendingRevisionCount ? ` · ${pendingRevisionCount} menunggu` : ''}` : undefined} aria-label={compact ? item.label : undefined} className={({ isActive }) => `sidebar-link relative ${compact ? 'justify-center px-0' : ''} ${isActive ? 'is-active' : ''}`}>
               <item.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" /><span className={compact ? 'sr-only' : 'truncate'}>{item.label}</span>
+              {item.path === '/admin/edit-presensi' && pendingRevisionCount > 0 && <span aria-label={`${pendingRevisionCount} pengajuan menunggu`} className={`${compact ? 'absolute right-0 top-0 translate-x-1/4 -translate-y-1/4' : 'ml-auto'} inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white`}>{pendingRevisionCount > 99 ? '99+' : pendingRevisionCount}</span>}
             </NavLink>)}
           </div>
         </div>

@@ -31,6 +31,7 @@ func TestCreateAttendanceSucceedsWhenAuditLogIsUnavailable(t *testing.T) {
 		Username:  "guru-attendance",
 		Role:      "guru",
 		Nama:      "Guru Attendance",
+		Email:     pointerString("guru-attendance@gmail.com"),
 		TipeGuru:  "full_time",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -87,7 +88,7 @@ func TestTeacherAttendanceIsRejectedOnConfiguredHoliday(t *testing.T) {
 	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.Setting{}, &models.Holiday{}, &models.OptionalWorkday{}, &models.JadwalPiket{}); err != nil {
 		t.Fatal(err)
 	}
-	guru := models.User{Username: "guru-holiday", Role: "guru", Nama: "Guru Holiday", TipeGuru: "full_time", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	guru := models.User{Username: "guru-holiday", Role: "guru", Nama: "Guru Holiday", Email: pointerString("guru-holiday@gmail.com"), TipeGuru: "full_time", CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	if err := db.Create(&guru).Error; err != nil {
 		t.Fatal(err)
 	}

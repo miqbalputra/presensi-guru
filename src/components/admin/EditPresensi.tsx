@@ -3,8 +3,10 @@ import { useState, useEffect, useRef } from 'react'
 import { Save, Edit2, Trash2, Plus } from 'lucide-react'
 import { formatDate, formatDateForInput, formatTimeForDB } from '../../utils/dateUtils'
 import { guruAPI, presensiAPI } from '../../services/api'
+import AttendanceRevisionQueue from './AttendanceRevisionQueue'
 
 function EditPresensi({ user }) {
+  const [activeTab, setActiveTab] = useState('attendance')
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const isReadOnly = user?.role === 'kepala_sekolah'
@@ -218,9 +220,19 @@ function EditPresensi({ user }) {
     }
   }
 
+  const renderTabs = () => <div className="flex flex-wrap gap-2" role="tablist" aria-label="Jenis koreksi presensi">
+    <button type="button" role="tab" aria-selected={activeTab === 'attendance'} onClick={() => setActiveTab('attendance')} className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition ${activeTab === 'attendance' ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>Data Presensi</button>
+    {!isReadOnly && <button type="button" role="tab" aria-selected={activeTab === 'revisions'} onClick={() => setActiveTab('revisions')} className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition ${activeTab === 'revisions' ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>Pengajuan Guru</button>}
+  </div>
+
+  if (activeTab === 'revisions' && !isReadOnly) {
+    return <div className="space-y-6"><h1 className="text-2xl font-bold text-gray-800">Koreksi Presensi</h1>{renderTabs()}<AttendanceRevisionQueue /></div>
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Edit Presensi</h1>
+      <h1 className="text-2xl font-bold text-gray-800">Koreksi Presensi</h1>
+      {renderTabs()}
 
       {/* Banner Read-Only untuk Kepala Sekolah */}
       {isReadOnly && (

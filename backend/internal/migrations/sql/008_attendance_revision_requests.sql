@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS `attendance_revision_requests` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `attendance_id` int DEFAULT NULL,
+  `tanggal` date NOT NULL,
+  `alasan` varchar(32) NOT NULL,
+  `jam_masuk` time DEFAULT NULL,
+  `jam_pulang` time DEFAULT NULL,
+  `status` varchar(16) NOT NULL DEFAULT 'pending',
+  `catatan_admin` text DEFAULT NULL,
+  `reviewed_by` int DEFAULT NULL,
+  `reviewed_at` timestamp NULL DEFAULT NULL,
+  `pending_key` varchar(64) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_attendance_revision_pending` (`pending_key`),
+  KEY `idx_attendance_revision_user_date` (`user_id`, `tanggal`),
+  KEY `idx_attendance_revision_status_created` (`status`, `created_at`),
+  CONSTRAINT `fk_attendance_revision_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_attendance_revision_reviewer` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -780,6 +780,38 @@ export const monthlyAttendanceConfirmationAPI = {
   }),
 }
 
+export const teacherAttendanceRevisionAPI = {
+  getMine: async (startDate?, endDate?) => {
+    const params = new URLSearchParams()
+    if (startDate && endDate) {
+      params.set('start_date', startDate)
+      params.set('end_date', endDate)
+    }
+    const query = params.toString()
+    return fetchAPI(`/v1/guru/attendance-revisions${query ? `?${query}` : ''}`, { method: 'GET' })
+  },
+  create: async (revision) => fetchAPI('/v1/guru/attendance-revisions', {
+    method: 'POST',
+    body: JSON.stringify(revision),
+  }),
+  update: async (id, revision) => fetchAPI(`/v1/guru/attendance-revisions/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(revision),
+  }),
+}
+
+export const adminAttendanceRevisionAPI = {
+  getAll: async (status = 'pending') => {
+    const params = new URLSearchParams({ status })
+    return fetchAPI(`/v1/admin/attendance-revisions?${params}`, { method: 'GET' })
+  },
+  getPendingCount: async () => fetchAPI('/v1/admin/attendance-revisions/pending-count', { method: 'GET' }),
+  decide: async (id, decision, note = '') => fetchAPI(`/v1/admin/attendance-revisions/${encodeURIComponent(id)}/decision`, {
+    method: 'POST',
+    body: JSON.stringify({ decision, note }),
+  }),
+}
+
 export const adminMonthlyAttendanceConfirmationAPI = {
   getSummary: async () => fetchAPI(`/v1/admin/monthly-confirmations?_t=${Date.now()}`, {
     method: 'GET',
