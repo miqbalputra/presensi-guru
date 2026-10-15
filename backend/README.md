@@ -46,7 +46,20 @@ Endpoint kompatibilitas fitur berada di `/api/*.php` selama masa migrasi fronten
 
 ## Notifikasi pengajuan revisi ke Telegram
 
-Notifikasi Telegram bersifat opsional. Untuk mengaktifkannya, buat bot melalui `@BotFather`. Setiap akun penerima perlu membuka chat bot dan mengirim `/start`, lalu ambil masing-masing `message.chat.id` dari update bot. Atur `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` pada environment backend; keduanya harus diisi bersama. Beberapa chat ID ditulis dipisahkan koma, misalnya `TELEGRAM_CHAT_ID=123456789,987654321`. Simpan token sebagai secret server dan jangan masukkan ke frontend. Setiap pengajuan revisi presensi baru akan dikirim ke semua chat tersebut; kegagalan mengirim ke satu chat tidak menghentikan pengiriman ke chat lainnya dan tidak membatalkan pengajuan. Pengiriman menggunakan metode [`sendMessage`](https://core.telegram.org/bots/api#sendmessage) Bot API.
+Notifikasi Telegram bersifat opsional. Untuk mengaktifkannya, buat bot melalui `@BotFather`. Setiap akun penerima perlu membuka chat bot dan mengirim `/start`, lalu ambil masing-masing `message.chat.id` dari update bot. Atur `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` pada environment backend; keduanya harus diisi bersama. Beberapa chat ID ditulis dipisahkan koma, misalnya `TELEGRAM_CHAT_ID=123456789,987654321`. Pesan memuat guru, tanggal, alasan, jam yang diajukan, dan tautan ke halaman admin.
+
+Untuk mengaktifkan tombol **Setujui**/**Tolak**, isi juga `TELEGRAM_WEBHOOK_SECRET` dan `TELEGRAM_ADMIN_USER_MAP`. Buat secret dengan `openssl rand -hex 32`. Peta admin memakai format `telegram_user_id:users.id`, dipisahkan koma; contoh `TELEGRAM_ADMIN_USER_MAP=123456789:1,987654321:2`. Setiap ID Telegram harus dipetakan ke ID akun aplikasi yang aktif dengan role `admin`. Akun Telegram penerima perlu mengirim `/start` ke bot. ID chat pribadi biasanya sama dengan ID pengguna Telegram.
+
+Setelah backend dapat diakses melalui HTTPS, daftarkan webhook bot satu kali. Gunakan bot khusus GeoPresensi agar URL webhook bot lain tidak tertimpa:
+
+```sh
+curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -d "url=${APP_URL}/api/telegram/webhook" \
+  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
+  -d 'allowed_updates=["callback_query","message"]'
+```
+
+Tombol **Setujui** langsung menerapkan revisi dan mencatat akun admin yang menekan tombol. Tombol **Tolak** meminta admin memilih alasan singkat atau menulis alasan sendiri; catatan penolakan disimpan dan diteruskan ke guru melalui status pengajuannya. Bot hanya memproses callback dari Telegram ID yang dipetakan ke akun admin aktif. Simpan semua secret di server dan jangan masukkan ke frontend. Pengajuan tetap tersimpan jika Telegram sedang tidak tersedia.
 
 ## Keamanan lokal
 

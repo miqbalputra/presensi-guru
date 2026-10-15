@@ -30,19 +30,26 @@ func (h *Handler) sendAttendanceRevisionTelegramNotification(user models.User, r
 	if request.Alasan == "lupa" {
 		reason = "Lupa"
 	}
+	instructions := "Silakan tinjau dan proses pengajuan melalui dashboard admin."
+	var replyMarkup any
+	if h.telegramCallbacksEnabled() {
+		instructions = "Silakan pilih tindakan di bawah. Persetujuan akan langsung memperbarui catatan presensi. Jika ditolak, pilih atau tulis alasan agar dapat disampaikan kepada guru."
+		replyMarkup = telegramRevisionDecisionKeyboard(h.cfg.TelegramBotToken, request.ID)
+	}
 	message := fmt.Sprintf(
-		"📥 Pengajuan revisi presensi baru\nGuru: %s\nTanggal: %s\nAlasan: %s\nJam masuk: %s\nJam pulang: %s\n\nSilakan tinjau pada tab Pengajuan Guru:\n%s/admin/edit-presensi",
+		"🔔 PENGAJUAN REVISI PRESENSI\n\n👤 Guru: %s\n📅 Tanggal: %s\n📝 Alasan pengajuan: %s\n🕒 Jam masuk yang diajukan: %s\n🕒 Jam pulang yang diajukan: %s\n\n%s\n\nDetail pengajuan: %s/admin/edit-presensi",
 		strings.TrimSpace(user.Nama),
 		request.Tanggal.In(appLocation(h)).Format("2006-01-02"),
 		reason,
 		telegramRevisionTime(request.JamMasuk),
 		telegramRevisionTime(request.JamPulang),
+		instructions,
 		strings.TrimRight(strings.TrimSpace(h.cfg.AppURL), "/"),
 	)
 
 	var sendErrors []error
 	for _, chatID := range chatIDs {
-		if err := sendTelegramMessage(botToken, chatID, message); err != nil {
+		if err := sendTelegramMessage(botToken, chatID, message, replyMarkup); err != nil {
 			sendErrors = append(sendErrors, err)
 		}
 	}
@@ -67,24 +74,38 @@ func splitTelegramChatIDs(value string) []string {
 	return chatIDs
 }
 
-func sendTelegramMessage(botToken, chatID, message string) error {
+func sendTelegramMessage(botToken, chatID, message string, replyMarkup any) error {
+	payload := map[string]any{"chat_id": chatID, "text": message}
+	if replyMarkup != nil {
+		payload["reply_markup"] = replyMarkup
+	}
+	return callTelegramAPI(botToken, "sendMessage", payload)
+}
+
+func callTelegramAPI(botToken, method string, payload any) error {
 	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(map[string]string{"chat_id": chatID, "text": message}); err != nil {
-		return errors.New("could not encode Telegram notification")
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
+		return errors.New("could not encode Telegram request")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), telegramNotificationTimeout)
 	defer cancel()
-	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
+	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/%s", botToken, method)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
 	if err != nil {
-		return errors.New("could not create Telegram API request")
+		return errors.New("could not create Telegram request")
 	}
 	req.Header.Set("Content-Type", "application/json")
-	response, err := (&http.Client{Timeout: telegramNotificationTimeout}).Do(req)
+	client := &http.Client{
+		Timeout: telegramNotificationTimeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	response, err := client.Do(req)
 	if err != nil {
 		// Do not log the raw transport error: it can include the bot token in the URL.
-		return errors.New("Telegram Bot API request failed")
+		return errors.New("Telegram request failed")
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
@@ -96,15 +117,19 @@ func sendTelegramMessage(botToken, chatID, message string) error {
 		Description string `json:"description"`
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 64*1024)).Decode(&result); err != nil {
-		return errors.New("Telegram Bot API response could not be read")
+		return errors.New("Telegram response could not be read")
 	}
 	if !result.OK {
 		if strings.TrimSpace(result.Description) == "" {
-			return errors.New("Telegram Bot API rejected the notification")
+			return errors.New("Telegram rejected the request")
 		}
 		return fmt.Errorf("Telegram Bot API rejected the notification: %s", result.Description)
 	}
 	return nil
+}
+
+func (h *Handler) telegramCallbacksEnabled() bool {
+	return strings.TrimSpace(h.cfg.TelegramWebhookSecret) != "" && strings.TrimSpace(h.cfg.TelegramAdminUserMap) != ""
 }
 
 func telegramRevisionTime(value *string) string {

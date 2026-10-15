@@ -458,8 +458,29 @@ func (h *Handler) decideAttendanceRevision(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	request, err := h.applyAttendanceRevisionDecision(id, decision, note, claims.UserID)
+	if err != nil {
+		return respondAttendanceRevisionError(c, err)
+	}
+	items, err := h.attendanceRevisionPayloads([]models.AttendanceRevisionRequest{request}, true)
+	if err != nil {
+		return err
+	}
+	return httpx.Success(c, "Keputusan pengajuan revisi berhasil disimpan", items[0])
+}
+
+func (h *Handler) applyAttendanceRevisionDecision(id uint, decision, note string, reviewerID uint) (models.AttendanceRevisionRequest, error) {
+	if !contains([]string{attendanceRevisionApproved, attendanceRevisionRejected}, decision) {
+		return models.AttendanceRevisionRequest{}, revisionAPIError(fiber.StatusBadRequest, "INVALID_DECISION", "Pilih keputusan Setujui atau Tolak")
+	}
+	if decision == attendanceRevisionRejected && note == "" {
+		return models.AttendanceRevisionRequest{}, revisionAPIError(fiber.StatusBadRequest, "REJECTION_NOTE_REQUIRED", "Catatan penolakan wajib diisi")
+	}
+	if len(note) > 1000 {
+		return models.AttendanceRevisionRequest{}, revisionAPIError(fiber.StatusBadRequest, "REJECTION_NOTE_TOO_LONG", "Catatan maksimal 1000 karakter")
+	}
 	var request models.AttendanceRevisionRequest
-	err = h.db.Transaction(func(tx *gorm.DB) error {
+	err := h.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&request, id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return revisionAPIError(fiber.StatusNotFound, "REVISION_NOT_FOUND", "Pengajuan revisi tidak ditemukan")
@@ -477,7 +498,7 @@ func (h *Handler) decideAttendanceRevision(c *fiber.Ctx) error {
 		now := time.Now().In(appLocation(h))
 		request.Status = decision
 		request.CatatanAdmin = pointerString(note)
-		request.ReviewedBy = &claims.UserID
+		request.ReviewedBy = &reviewerID
 		request.ReviewedAt = &now
 		request.PendingKey = nil
 		if err := tx.Save(&request).Error; err != nil {
@@ -486,7 +507,7 @@ func (h *Handler) decideAttendanceRevision(c *fiber.Ctx) error {
 		return nil
 	})
 	if err != nil {
-		return respondAttendanceRevisionError(c, err)
+		return models.AttendanceRevisionRequest{}, err
 	}
 	var teacher models.User
 	if h.db.Select("id, nama").First(&teacher, request.UserID).Error == nil {
@@ -496,11 +517,7 @@ func (h *Handler) decideAttendanceRevision(c *fiber.Ctx) error {
 		}
 		_ = h.db.Create(&models.ActivityLog{Waktu: time.Now().In(appLocation(h)), User: teacher.Nama, Aktivitas: activity, Status: request.Tanggal.Format("2006-01-02")}).Error
 	}
-	items, err := h.attendanceRevisionPayloads([]models.AttendanceRevisionRequest{request}, true)
-	if err != nil {
-		return err
-	}
-	return httpx.Success(c, "Keputusan pengajuan revisi berhasil disimpan", items[0])
+	return request, nil
 }
 
 func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.AttendanceRevisionRequest) error {

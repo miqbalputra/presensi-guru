@@ -19,6 +19,7 @@ import (
 
 func (h *Handler) RegisterCoreRoutes(app fiber.Router) {
 	attachDB(app, h.db)
+	app.Post("/api/telegram/webhook", h.telegramAttendanceRevisionWebhook)
 	protected := auth.RequireActiveUser(h.db, h.jwt)
 	admin := []string{"admin"}
 	directory := auth.RequireRoles("admin", "kepala_sekolah")

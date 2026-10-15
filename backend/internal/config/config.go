@@ -50,6 +50,8 @@ type Config struct {
 	GowaPassword               string
 	TelegramBotToken           string
 	TelegramChatID             string
+	TelegramWebhookSecret      string
+	TelegramAdminUserMap       string
 	AllowPrivateWebhookTargets bool
 	BackupDir                  string
 	BackupJobTimeout           time.Duration
@@ -104,6 +106,8 @@ func Load() (Config, error) {
 		GowaPassword:               os.Getenv("GOWA_PASSWORD"),
 		TelegramBotToken:           strings.TrimSpace(os.Getenv("TELEGRAM_BOT_TOKEN")),
 		TelegramChatID:             strings.TrimSpace(os.Getenv("TELEGRAM_CHAT_ID")),
+		TelegramWebhookSecret:      strings.TrimSpace(os.Getenv("TELEGRAM_WEBHOOK_SECRET")),
+		TelegramAdminUserMap:       strings.TrimSpace(os.Getenv("TELEGRAM_ADMIN_USER_MAP")),
 		AllowPrivateWebhookTargets: envBool("ALLOW_PRIVATE_WEBHOOK_TARGETS", false),
 		BackupDir:                  env("BACKUP_DIR", "./data/backups"),
 		BackupJobTimeout:           envDuration("BACKUP_JOB_TIMEOUT", 30*time.Minute),
@@ -167,6 +171,23 @@ func Load() (Config, error) {
 	if telegramConfigured && (c.TelegramBotToken == "" || telegramChatIDs == 0) {
 		return Config{}, fmt.Errorf("TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID harus diisi bersama")
 	}
+	telegramWebhookConfigured := c.TelegramWebhookSecret != "" || c.TelegramAdminUserMap != ""
+	if telegramWebhookConfigured {
+		if c.TelegramWebhookSecret == "" || c.TelegramAdminUserMap == "" || !telegramConfigured {
+			return Config{}, fmt.Errorf("TELEGRAM_WEBHOOK_SECRET dan TELEGRAM_ADMIN_USER_MAP harus diisi bersama TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID")
+		}
+		if len(c.TelegramWebhookSecret) < 32 || len(c.TelegramWebhookSecret) > 256 {
+			return Config{}, fmt.Errorf("TELEGRAM_WEBHOOK_SECRET harus berisi 32 sampai 256 karakter")
+		}
+		for _, char := range c.TelegramWebhookSecret {
+			if !(char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '_' || char == '-') {
+				return Config{}, fmt.Errorf("TELEGRAM_WEBHOOK_SECRET hanya boleh berisi huruf, angka, garis bawah, atau tanda hubung")
+			}
+		}
+		if err := validateTelegramAdminUserMap(c.TelegramAdminUserMap); err != nil {
+			return Config{}, err
+		}
+	}
 	if c.JWTSecret == "" {
 		c.JWTSecret = "development-only-change-this-secret-before-production"
 	}
@@ -224,6 +245,26 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+func validateTelegramAdminUserMap(value string) error {
+	seen := make(map[uint64]struct{})
+	for _, entry := range strings.Split(value, ",") {
+		parts := strings.Split(strings.TrimSpace(entry), ":")
+		if len(parts) != 2 {
+			return fmt.Errorf("TELEGRAM_ADMIN_USER_MAP harus berupa telegram_user_id:admin_user_id dipisahkan koma")
+		}
+		telegramID, telegramErr := strconv.ParseUint(strings.TrimSpace(parts[0]), 10, 64)
+		adminID, adminErr := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, strconv.IntSize)
+		if telegramErr != nil || telegramID == 0 || adminErr != nil || adminID == 0 {
+			return fmt.Errorf("TELEGRAM_ADMIN_USER_MAP harus berisi ID numerik positif")
+		}
+		if _, exists := seen[telegramID]; exists {
+			return fmt.Errorf("TELEGRAM_ADMIN_USER_MAP tidak boleh memiliki telegram_user_id duplikat")
+		}
+		seen[telegramID] = struct{}{}
+	}
+	return nil
 }
 
 func envBool(key string, fallback bool) bool {
