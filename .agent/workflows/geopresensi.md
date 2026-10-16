@@ -1,30 +1,31 @@
 ---
-description: Konfigurasi utama project Geo Presensi PKBM Tunas Ilmu
+description: Konfigurasi utama project GeoPresensi
 ---
 
-# Project Geo Presensi PKBM Tunas Ilmu - Konfigurasi Utama
+# Project GeoPresensi - Konfigurasi Utama
 
 ## 🌐 Domain Produksi
-**URL Utama:** https://geo.pkbmtunasilmu.web.id
+**URL Utama:** https://geoloc.kelolasekolah.web.id
 
 ## 📁 Folder Kerja
-- **Folder Utama:** `D:\Google Antigravity\Presensi PKBM`
-- **Frontend Source:** `src/`
-- **Backend API:** `api/`
-- **Build Output:** `dist/` (di-gitignore, di-build saat Docker image dibuat)
+- **Folder Utama:** `d:\Google Antigravity\Presensi Pengajar Antigravity\geo-subdomain`
+- **Frontend Source:** `geo-subdomain/src/`
+- **Backend API:** `geo-subdomain/api/`
+- **Build Output:** `geo-subdomain/dist/`
 
 ## 🔧 Setelah Melakukan Perubahan
 
 1. Jika edit frontend (React/JSX/CSS):
    ```
+   cd geo-subdomain
    npm run build
    ```
-   Lalu commit & push — di deploy Coolify, frontend di-build ulang saat pembuatan image.
+   Lalu upload folder `dist/` ke server
 
 2. Jika edit backend (PHP):
-   Upload/commit langsung file yang diubah ke folder `api/`.
+   Upload langsung file yang diubah ke folder `api/` di server
 
 ## 📝 Catatan
-- CORS dikonfigurasi via env `CORS_ALLOWED_ORIGINS` (di-set di Coolify), fallback ke `APP_URL`.
-- API URL: `https://geo.pkbmtunasilmu.web.id/api`
-- Database credentials & config berasal dari environment variable Coolify, bukan file PHP.
+- CORS sudah dikonfigurasi untuk `geoloc.kelolasekolah.web.id`
+- API URL: `https://geoloc.kelolasekolah.web.id/api`
+- Database credentials ada di `api/config.php`

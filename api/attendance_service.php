@@ -54,7 +54,7 @@ function gp_get_settings($pdo, $keys)
 function gp_get_guru($pdo, $userId)
 {
     $stmt = $pdo->prepare("
-        SELECT id, nama, jenis_kelamin, tipe_guru, pokjar
+        SELECT id, nama, jenis_kelamin, tipe_guru
         FROM users
         WHERE id = ? AND role = 'guru' AND archived_at IS NULL
         LIMIT 1
@@ -129,32 +129,19 @@ function gp_get_attendance_location_targets($settings, $user, $date, $isCheckout
     return array_values($targets);
 }
 
-function gp_assess_attendance_location($settings, $user, $latitude, $longitude, $date, $isCheckout = false, $accuracy = null)
+function gp_enforce_attendance_location($settings, $user, $latitude, $longitude, $date, $isCheckout = false)
 {
     if (($settings['mode_testing'] ?? '0') == '1') {
-        return ['inside' => true, 'verdict' => 'testing', 'distance' => 0, 'label' => 'Mode testing'];
-    }
-
-    // Guru Pokjar: mode presensi sederhana tanpa aturan GPS — boleh presensi
-    // dari mana saja. Di frontend tombol QR tidak ditampilkan untuk Pokjar,
-    // pengecualian ini berlaku sebagai defense-in-depth bila endpoint QR
-    // dipanggil dengan sesi Pokjar.
-    if (!empty($user['pokjar'])) {
-        return ['inside' => true, 'verdict' => 'not_required', 'distance' => null, 'label' => 'Mode Pokjar'];
+        return;
     }
 
     if (!validateCoordinates($latitude, $longitude)) {
-        return ['inside' => false, 'verdict' => 'outside', 'distance' => null, 'label' => 'Koordinat GPS tidak valid'];
-    }
-
-    $maxAccuracy = (float)($settings['max_gps_accuracy_meters'] ?? 50);
-    if ($accuracy !== null && $accuracy !== '' && (!is_numeric($accuracy) || (float)$accuracy < 0 || (float)$accuracy > $maxAccuracy)) {
-        return ['inside' => false, 'verdict' => 'outside', 'distance' => null, 'label' => "Akurasi GPS harus maksimal {$maxAccuracy}m"];
+        sendResponse(false, 'Koordinat GPS tidak valid');
     }
 
     $targets = gp_get_attendance_location_targets($settings, $user, $date, $isCheckout);
     if (empty($targets)) {
-        return ['inside' => false, 'verdict' => 'outside', 'distance' => null, 'label' => 'Lokasi presensi belum dikonfigurasi'];
+        sendResponse(false, 'Lokasi presensi belum dikonfigurasi. Hubungi admin.');
     }
 
     $radius = (int)($settings['radius_gps'] ?? 100);
@@ -167,7 +154,7 @@ function gp_assess_attendance_location($settings, $user, $latitude, $longitude, 
         $allowedLabels[] = $target['label'];
 
         if ($distance <= $radius) {
-            return ['inside' => true, 'verdict' => 'inside', 'distance' => $distance, 'label' => $target['label']];
+            return;
         }
 
         if ($nearestDistance === null || $distance < $nearestDistance) {
@@ -176,25 +163,9 @@ function gp_assess_attendance_location($settings, $user, $latitude, $longitude, 
         }
     }
 
-    return [
-        'inside' => false,
-        'verdict' => 'outside',
-        'distance' => $nearestDistance,
-        'label' => $nearestLabel ?: implode(' / ', array_unique($allowedLabels)),
-        'radius' => $radius
-    ];
-}
-
-function gp_enforce_attendance_location($settings, $user, $latitude, $longitude, $date, $isCheckout = false, $accuracy = null)
-{
-    $assessment = gp_assess_attendance_location($settings, $user, $latitude, $longitude, $date, $isCheckout, $accuracy);
-    if ($assessment['inside']) {
-        return $assessment;
-    }
-
-    $distanceText = $assessment['distance'] === null ? '-' : $assessment['distance'] . 'm';
-    $radius = $assessment['radius'] ?? (int)($settings['radius_gps'] ?? 100);
-    sendResponse(false, "Anda berada di luar area {$assessment['label']}. Jarak terdekat: {$distanceText}, Maksimal: {$radius}m");
+    $areaLabel = implode(' / ', array_unique($allowedLabels));
+    $distanceText = $nearestDistance === null ? '-' : $nearestDistance . 'm';
+    sendResponse(false, "Anda berada di luar area {$areaLabel}. Jarak terdekat: {$distanceText} dari {$nearestLabel}, Maksimal: {$radius}m");
 }
 
 /**
@@ -205,48 +176,49 @@ function gp_enforce_attendance_location($settings, $user, $latitude, $longitude,
  */
 function gp_is_in_attendance_radius($settings, $latitude, $longitude, $date, $isCheckout = false)
 {
-    return gp_assess_attendance_location($settings, null, $latitude, $longitude, $date, $isCheckout)['inside'];
+    if (!validateCoordinates($latitude, $longitude)) {
+        return false;
+    }
+    if (($settings['mode_testing'] ?? '0') == '1') {
+        return true;
+    }
+
+    $targets = gp_get_attendance_location_targets($settings, null, $date, $isCheckout);
+    if (empty($targets)) {
+        return false;
+    }
+
+    $radius = (int)($settings['radius_gps'] ?? 100);
+    foreach ($targets as $target) {
+        $distance = gp_calculate_distance((float)$latitude, (float)$longitude, $target['lat'], $target['lon']);
+        if ($distance <= $radius) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
  * Pastikan kolom lokasi_pulang ada di attendance_logs (idempoten, sekali per request).
  * Menyimpan penanda 'sekolah'/'luar' saat presensi pulang.
  */
-function gp_write_attendance_event($pdo, $options)
+function gp_ensure_checkout_location_column($pdo)
 {
-    $requestId = $options['request_id'] ?? null;
-    if ($requestId !== null && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $requestId)) {
-        $requestId = null;
+    static $ensured = false;
+    if ($ensured) {
+        return;
     }
-    $stmt = $pdo->prepare("INSERT INTO attendance_events
-        (attendance_id, user_id, event_type, method, request_id, latitude, longitude, accuracy_meters, distance_meters, location_verdict, reason, actor_user_id, occurred_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([
-        $options['attendance_id'] ?? null,
-        $options['user_id'],
-        $options['event_type'],
-        $options['method'] ?? 'button',
-        $requestId,
-        $options['latitude'] ?? null,
-        $options['longitude'] ?? null,
-        $options['accuracy'] ?? null,
-        $options['distance'] ?? null,
-        $options['verdict'] ?? 'not_required',
-        $options['reason'] ?? null,
-        $options['actor_user_id'] ?? null,
-        $options['occurred_at'] ?? date('Y-m-d H:i:s')
-    ]);
-}
-
-function gp_get_idempotent_attendance($pdo, $userId, $requestId)
-{
-    if (!is_string($requestId) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $requestId)) {
-        return null;
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance_logs' AND COLUMN_NAME = 'lokasi_pulang'");
+        $stmt->execute();
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->exec("ALTER TABLE attendance_logs ADD COLUMN lokasi_pulang VARCHAR(16) NULL DEFAULT NULL COMMENT 'sekolah|luar — lokasi saat presensi pulang'");
+        }
+    } catch (Exception $e) {
+        // abaikan — kolom mungkin sudah ada atau gagal dienvoironment read-only
     }
-    $stmt = $pdo->prepare('SELECT attendance_id FROM attendance_events WHERE user_id = ? AND request_id = ? LIMIT 1');
-    $stmt->execute([$userId, $requestId]);
-    $id = $stmt->fetchColumn();
-    return $id ? gp_get_attendance_by_id($pdo, (int)$id) : null;
+    $ensured = true;
 }
 
 function gp_day_name($date)
@@ -275,11 +247,9 @@ function gp_get_holiday($pdo, $date)
     return $stmt->fetch();
 }
 
-function gp_validate_workday($pdo, $date, $gender = null, $userId = null)
+function gp_validate_workday($pdo, $date, $gender = null)
 {
-    // UserId diteruskan agar override hari kerja per-guru (user_weekend_overrides)
-    // berlaku saat validasi presensi — bukan hanya di laporan workday.
-    $status = gpw_get_date_status($pdo, $date, $gender, $userId);
+    $status = gpw_get_date_status($pdo, $date, $gender);
     $holiday = $status['holiday'];
     $isWeekend = $status['isWeekend'];
     $isSpecialWorkday = $status['isSpecialWorkday'];
@@ -294,123 +264,11 @@ function gp_validate_workday($pdo, $date, $gender = null, $userId = null)
     return [$holiday, $isSpecialWorkday];
 }
 
-/**
- * Nomor pekan dalam bulan (1..5). Pekan 1 = tanggal 1-7, pekan 2 = 8-14, dst.
- * Dipakai untuk rotasi piket dwi-pekanan Sabtu (PKBM Tunas Ilmu).
- */
-function gp_week_of_month($date)
-{
-    $day = (int)date('j', strtotime($date));
-    return (int)floor(($day - 1) / 7) + 1;
-}
-
-/**
- * Setting rotasi piket dwi-pekanan dari tabel settings.
- */
-function gp_get_piket_rotation_settings($pdo)
-{
-    $keys = [
-        'piket_rotation_enabled',
-        'piket_group_a_weeks',
-        'piket_group_b_weeks',
-        'piket_week5_mode',
-        'piket_jam_masuk',
-        'piket_jam_pulang',
-    ];
-    $placeholders = implode(',', array_fill(0, count($keys), '?'));
-    $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ({$placeholders})");
-    $stmt->execute($keys);
-    $settings = [];
-    foreach ($stmt->fetchAll() as $row) {
-        $settings[$row['setting_key']] = $row['setting_value'];
-    }
-    return $settings;
-}
-
-/**
- * Parse CSV pekan ("1,3") menjadi array int [1,3].
- */
-function gp_parse_piket_weeks($value)
-{
-    $out = [];
-    foreach (preg_split('/[\s,]+/', (string)$value) as $part) {
-        $part = trim($part);
-        if ($part === '') {
-            continue;
-        }
-        $n = (int)$part;
-        if ($n >= 1 && $n <= 5) {
-            $out[] = $n;
-        }
-    }
-    return $out;
-}
-
-/**
- * Apakah guru (userId) piket pada tanggal $date, berdasarkan rotasi dwi-pekanan:
- *   - Guru grup A piket Sabtu pekan sesuai setting `piket_group_a_weeks` (default 1,3)
- *   - Guru grup B piket Sabtu pekan sesuai setting `piket_group_b_weeks` (default 2,4)
- *   - Pekan ke-5 mengikuti `piket_week5_mode` (all|none|A|B), default 'all'
- *   - Jam masuk/pulang piket dari setting `piket_jam_masuk` / `piket_jam_pulang`
- *
- * Mengembalikan array ['jam_piket'=>..., 'jam_pulang_piket'=>...] bila piket, atau null.
- * Sumber tunggal — dipakai gp_get_checkin_target, gp_checkout_attendance, guru_home.
- */
 function gp_get_piket($pdo, $userId, $date)
 {
-    $settings = gp_get_piket_rotation_settings($pdo);
-
-    // Rotasi piket nonaktif -> tidak ada piket.
-    if (!gpw_bool_setting($settings['piket_rotation_enabled'] ?? '1')) {
-        return null;
-    }
-
-    $stmt = $pdo->prepare("SELECT piket_group, pokjar FROM users WHERE id = ? LIMIT 1");
-    $stmt->execute([$userId]);
-    $row = $stmt->fetch();
-
-    // Guru Pokjar tidak ikut rotasi piket (mode presensi sederhana).
-    if ($row && !empty($row['pokjar'])) {
-        return null;
-    }
-
-    $group = $row ? $row['piket_group'] : null;
-
-    // Guru belum diberi grup piket.
-    if ($group !== 'A' && $group !== 'B') {
-        return null;
-    }
-
-    $week = gp_week_of_month($date);
-    if ($week >= 5) {
-        $mode = $settings['piket_week5_mode'] ?? 'all';
-        if ($mode === 'none') {
-            $isPiket = false;
-        } elseif ($mode === 'A') {
-            $isPiket = ($group === 'A');
-        } elseif ($mode === 'B') {
-            $isPiket = ($group === 'B');
-        } else {
-            // 'all' (default) -> semua guru piket
-            $isPiket = true;
-        }
-    } else {
-        $weeks = gp_parse_piket_weeks(
-            $group === 'A'
-                ? ($settings['piket_group_a_weeks'] ?? '1,3')
-                : ($settings['piket_group_b_weeks'] ?? '2,4')
-        );
-        $isPiket = in_array($week, $weeks, true);
-    }
-
-    if (!$isPiket) {
-        return null;
-    }
-
-    return [
-        'jam_piket' => substr($settings['piket_jam_masuk'] ?? '07:00', 0, 5),
-        'jam_pulang_piket' => substr($settings['piket_jam_pulang'] ?? '13:00', 0, 5),
-    ];
+    $stmt = $pdo->prepare("SELECT jam_piket, jam_pulang_piket FROM jadwal_piket WHERE user_id = ? AND hari = ? AND is_active = 1 LIMIT 1");
+    $stmt->execute([$userId, gp_day_name($date)]);
+    return $stmt->fetch();
 }
 
 function gp_get_checkin_target($pdo, $userId, $date, $settings, $holiday, $isSpecialWorkday)
@@ -469,7 +327,7 @@ function gp_create_attendance($pdo, $options)
         sendResponse(false, 'Anda sudah melakukan presensi hari ini.');
     }
 
-    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null, $user['id'] ?? null);
+    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
     $settings = gp_get_settings($pdo, ['jam_masuk_normal', 'toleransi_terlambat', 'apel_senin_enabled']);
 
     $status = $requestedStatus;
@@ -491,16 +349,9 @@ function gp_create_attendance($pdo, $options)
         $jamMasuk = $time;
         $jamHadir = $time;
 
-        $isPartime = ($user['tipe_guru'] ?? '') === 'partime';
-        $isPokjar = !empty($user['pokjar']);
-        if ($isPartime || $isPokjar) {
-            // Guru partime & guru Pokjar: tidak ada perhitungan terlambat.
-            // Guru Pokjar hanya mencatat kehadiran (Hadir/Sakit/Izin).
+        if (($user['tipe_guru'] ?? '') === 'partime') {
             $status = 'hadir';
-            // Default keterangan hanya untuk partime murni (bukan pokjar).
-            if ($isPartime && !$isPokjar) {
-                $keterangan = $keterangan ?: 'Guru Partime';
-            }
+            $keterangan = $keterangan ?: 'Guru Partime';
         } else {
             [$jamMasukTarget, $piketLabel] = gp_get_checkin_target($pdo, $user['id'], $date, $settings, $holiday, $isSpecialWorkday);
             $targetMinutes = gp_time_to_minutes($jamMasukTarget);
@@ -524,8 +375,8 @@ function gp_create_attendance($pdo, $options)
 
     $stmt = $pdo->prepare("
         INSERT INTO attendance_logs
-        (user_id, nama, tanggal, status, jam_masuk, jam_pulang, jam_hadir, jam_izin, jam_sakit, keterangan, latitude, longitude, checkin_accuracy_meters, metode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (user_id, nama, tanggal, status, jam_masuk, jam_pulang, jam_hadir, jam_izin, jam_sakit, keterangan, latitude, longitude, metode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $user['id'],
@@ -540,27 +391,10 @@ function gp_create_attendance($pdo, $options)
         $keterangan,
         $options['latitude'] ?? null,
         $options['longitude'] ?? null,
-        $options['accuracy'] ?? null,
         $method
     ]);
 
     $insertId = $pdo->lastInsertId();
-    $eventType = $status === 'izin' ? 'izin' : ($status === 'sakit' ? 'sakit' : 'check_in');
-    gp_write_attendance_event($pdo, [
-        'attendance_id' => $insertId,
-        'user_id' => $user['id'],
-        'event_type' => $eventType,
-        'method' => $method,
-        'request_id' => $options['request_id'] ?? null,
-        'latitude' => $options['latitude'] ?? null,
-        'longitude' => $options['longitude'] ?? null,
-        'accuracy' => $options['accuracy'] ?? null,
-        'distance' => $options['location_assessment']['distance'] ?? null,
-        'verdict' => $options['location_assessment']['verdict'] ?? ($eventType === 'check_in' ? 'inside' : 'not_required'),
-        'reason' => $keterangan ?: null,
-        'actor_user_id' => $options['actor_user_id'] ?? $user['id'],
-        'occurred_at' => $date . ' ' . $time
-    ]);
     gp_write_activity($pdo, $user['nama'], $method === 'qr_scan' ? 'Presensi QR Scan' : 'Input Presensi', ucfirst(str_replace('_', ' ', $status)));
 
     return gp_get_attendance_by_id($pdo, $insertId);
@@ -574,17 +408,6 @@ function gp_checkout_attendance($pdo, $options)
     $izinPulangAwal = !empty($options['izin_pulang_awal']);
     $reason = trim($options['keterangan'] ?? '');
     $method = $options['method'] ?? 'manual';
-
-    // Ambil data guru lebih awal: guru Pokjar tidak menggunakan presensi pulang
-    // (mode sederhana: hanya Hadir/Sakit/Izin). Penolakan backend sebagai
-    // defense-in-depth meski tombol pulang disembunyikan di frontend.
-    $user = gp_get_guru($pdo, $record['user_id']);
-    if (!$user) {
-        sendResponse(false, 'Data guru tidak ditemukan');
-    }
-    if (!empty($user['pokjar'])) {
-        sendResponse(false, 'Guru Pokjar tidak menggunakan presensi pulang.');
-    }
 
     if (!in_array($record['status'], ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'], true)) {
         sendResponse(false, 'Presensi pulang hanya tersedia untuk status hadir.');
@@ -601,12 +424,18 @@ function gp_checkout_attendance($pdo, $options)
         sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul ' . $minPulangFormatted . ' WIB');
     }
 
-    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null, $user['id'] ?? null);
+    $user = gp_get_guru($pdo, $record['user_id']);
+    if (!$user) {
+        sendResponse(false, 'Data guru tidak ditemukan');
+    }
+
+    [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
+
+    gp_ensure_checkout_location_column($pdo);
 
     // Tentukan lokasi pulang (sekolah/luar). Tidak memblokir — guru yang lupa
     // pulang tetap bisa checkout dari luar sekolah, ditandai 'luar'.
     $lokasiPulang = $options['lokasi_pulang'] ?? null;
-    $locationAssessment = $options['location_assessment'] ?? ['inside' => true, 'verdict' => 'inside', 'distance' => null];
     if ($method === 'qr_scan') {
         // QR scan sudah menegaskan geofence di qr_scan.php, jadi dianggap di sekolah.
         $lokasiPulang = 'sekolah';
@@ -621,18 +450,9 @@ function gp_checkout_attendance($pdo, $options)
         if (!validateCoordinates($options['latitude'] ?? null, $options['longitude'] ?? null)) {
             sendResponse(false, 'Koordinat GPS diperlukan untuk presensi pulang');
         }
-        $locationAssessment = gp_assess_attendance_location(
-            $settings,
-            $user,
-            $options['latitude'],
-            $options['longitude'],
-            $date,
-            true,
-            $options['accuracy'] ?? null
-        );
         if (($settings['mode_testing'] ?? '0') == '1') {
             $lokasiPulang = $lokasiPulang ?: 'sekolah';
-        } elseif ($locationAssessment['inside']) {
+        } elseif (gp_is_in_attendance_radius($settings, $options['latitude'], $options['longitude'], $date, true)) {
             $lokasiPulang = 'sekolah';
         } else {
             // Di luar radius: harapkan deklarasi guru (popup). Default 'luar' (lupa).
@@ -666,33 +486,10 @@ function gp_checkout_attendance($pdo, $options)
 
     $stmt = $pdo->prepare("
         UPDATE attendance_logs
-        SET jam_pulang = ?, keterangan = ?, lokasi_pulang = ?,
-            checkout_latitude = ?, checkout_longitude = ?, checkout_accuracy_meters = ?,
-            checkout_distance_meters = ?, checkout_location_verdict = ?, updated_at = NOW()
+        SET jam_pulang = ?, keterangan = ?, lokasi_pulang = ?, updated_at = NOW()
         WHERE id = ?
     ");
-    $stmt->execute([
-        $time, $keterangan, $lokasiPulang,
-        $options['latitude'] ?? null, $options['longitude'] ?? null, $options['accuracy'] ?? null,
-        $locationAssessment['distance'] ?? null, $locationAssessment['verdict'] ?? ($lokasiPulang === 'luar' ? 'outside' : 'inside'),
-        $record['id']
-    ]);
-
-    gp_write_attendance_event($pdo, [
-        'attendance_id' => $record['id'],
-        'user_id' => $record['user_id'],
-        'event_type' => 'check_out',
-        'method' => $method,
-        'request_id' => $options['request_id'] ?? null,
-        'latitude' => $options['latitude'] ?? null,
-        'longitude' => $options['longitude'] ?? null,
-        'accuracy' => $options['accuracy'] ?? null,
-        'distance' => $locationAssessment['distance'] ?? null,
-        'verdict' => $locationAssessment['verdict'] ?? ($lokasiPulang === 'luar' ? 'outside' : 'inside'),
-        'reason' => $lokasiPulang === 'luar' ? ($reason ?: 'Lupa presensi pulang') : ($izinPulangAwal ? $reason : null),
-        'actor_user_id' => $_SESSION['user_id'] ?? $record['user_id'],
-        'occurred_at' => $date . ' ' . $time
-    ]);
+    $stmt->execute([$time, $keterangan, $lokasiPulang, $record['id']]);
 
     gp_write_activity(
         $pdo,

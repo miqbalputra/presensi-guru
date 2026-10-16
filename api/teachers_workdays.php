@@ -57,7 +57,6 @@ try {
     }
 
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
-    $workdayDays = gpw_get_workday_days($pdo);
     $dateRange = gpw_build_date_range($startDate, $endDate);
 
     $optionalStmt = $pdo->prepare("SELECT tanggal, nama, keterangan FROM optional_workdays WHERE tanggal BETWEEN ? AND ?");
@@ -86,12 +85,17 @@ try {
             } elseif (isset($optionalWorkdays[$date])) {
                 $isWorkday = false;
             } else {
+                $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
                 $isSpecialWorkday = gpw_is_special_workday($holiday);
-                $isWorkday = $isSpecialWorkday || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $workdayDays));
+                $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
             }
 
             if ($isWorkday) {
                 $workdayDates[] = $date;
+            } elseif (isset($optionalWorkdays[$date])) {
+                // optional day: not a mandatory workday
+            } else {
+                $nonWorkdayDates[] = $date;
             }
         }
 

@@ -49,7 +49,7 @@ try {
     $apiBase = $baseUrl . '/api';
 
     sendResponse(true, 'Koneksi Hermes berhasil', [
-        'service' => 'PKBM Tunas Ilmu Hermes API',
+        'service' => 'GeoPresensi Hermes API',
         'status' => 'ready',
         'generatedAt' => date('c'),
         'timezone' => date_default_timezone_get(),

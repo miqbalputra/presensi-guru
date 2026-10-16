@@ -6,7 +6,7 @@
 require_once 'config.php';
 
 // Hanya admin yang bisa mengakses
-requireAuth(['admin', 'kepala_sekolah']);
+requireAuth(['admin']);
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -26,19 +26,12 @@ if ($method === 'GET') {
         $namaResult = $stmt->fetch();
         $sekolahNama = $namaResult ? $namaResult['setting_value'] : 'Sekolah';
 
-        // Token QR berlaku singkat dan ditandatangani; secret tidak pernah masuk
-        // ke payload yang dapat disalin dari QR fisik.
-        $issuedAt = time();
-        $expiresAt = $issuedAt + 60;
-        $nonce = bin2hex(random_bytes(8));
-        $signature = hash_hmac('sha256', "attendance|{$issuedAt}|{$expiresAt}|{$nonce}", $qrSecret);
+        // Generate QR data
         $qrData = json_encode([
-            'v' => 2,
             'type' => 'attendance',
-            'issued_at' => $issuedAt,
-            'expires_at' => $expiresAt,
-            'nonce' => $nonce,
-            'sig' => $signature
+            'school' => $sekolahNama,
+            'secret' => $qrSecret,
+            'generated' => date('Y-m-d H:i:s')
         ]);
 
         sendResponse(true, 'QR Code data generated', [
@@ -48,8 +41,8 @@ if ($method === 'GET') {
                 '1. Gunakan aplikasi QR Code Generator online atau offline',
                 '2. Copy teks QR Data di atas',
                 '3. Generate QR Code',
-                '4. Tampilkan QR ini di layar; QR kedaluwarsa dalam 60 detik',
-                '5. Guru dapat scan QR aktif untuk presensi'
+                '4. Cetak dan pasang di lokasi strategis sekolah',
+                '5. Guru dapat scan QR ini untuk presensi'
             ]
         ]);
     } catch (PDOException $e) {

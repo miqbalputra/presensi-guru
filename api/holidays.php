@@ -9,7 +9,7 @@ if ($method === 'GET' && isset($_GET['check'])) {
     // Public endpoint - tidak perlu auth
 } else if (in_array($method, ['POST', 'PUT', 'DELETE'])) {
     // Write operations - hanya admin
-    requireAuth(['admin', 'kepala_sekolah']);
+    requireAuth(['admin']);
 } else {
     // Read operations - admin dan guru
     requireAuth(['admin', 'guru']);

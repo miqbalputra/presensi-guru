@@ -8,7 +8,7 @@ if ($method === 'GET' && !isset($_GET['id'])) {
     // Public endpoint untuk get settings
 } else if (in_array($method, ['POST', 'PUT'])) {
     // Write operations - hanya admin
-    requireAuth(['admin', 'kepala_sekolah']);
+    requireAuth(['admin']);
 } else {
     // Read operations - semua role
     requireAuth(['admin', 'guru']);
@@ -53,13 +53,7 @@ if ($method === 'PUT') {
             'jam_min_pulang',
             'weekend_workday_enabled',
             'saturday_male_workday_enabled', 'saturday_female_workday_enabled',
-            'sunday_male_workday_enabled', 'sunday_female_workday_enabled',
-            // Aturan PKBM Tunas Ilmu — hari kerja & rotasi piket Sabtu
-            'workday_days',
-            'piket_rotation_enabled',
-            'piket_group_a_weeks', 'piket_group_b_weeks',
-            'piket_week5_mode',
-            'piket_jam_masuk', 'piket_jam_pulang'
+            'sunday_male_workday_enabled', 'sunday_female_workday_enabled'
         ];
         if (!in_array($data['setting_key'], $allowedKeys)) {
             sendResponse(false, 'Setting key tidak valid: ' . $data['setting_key']);
@@ -104,62 +98,6 @@ if ($method === 'PUT') {
             }
             if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $value)) {
                 sendResponse(false, 'Format jam minimal pulang tidak valid. Contoh: 12:30');
-            }
-            $data['setting_value'] = substr($value, 0, 5);
-        }
-
-        // workday_days — CSV angka 0-6 (0=Minggu..6=Sabtu). Normalisasi: urut,
-        // unik, tanpa spasi. Contoh valid: "6" atau "1,3,5".
-        if ($data['setting_key'] === 'workday_days') {
-            $parts = preg_split('/[\s,]+/', trim((string)$data['setting_value']));
-            $days = [];
-            foreach ($parts as $p) {
-                if ($p === '') continue;
-                $n = (int)$p;
-                if ($n < 0 || $n > 6) {
-                    sendResponse(false, 'Hari kerja harus angka 0-6 (0=Minggu, 6=Sabtu)');
-                }
-                if (!in_array($n, $days, true)) $days[] = $n;
-            }
-            if (empty($days)) {
-                sendResponse(false, 'Pilih minimal satu hari kerja aktif');
-            }
-            sort($days);
-            $data['setting_value'] = implode(',', $days);
-        }
-
-        // piket_rotation_enabled — 0 atau 1
-        if ($data['setting_key'] === 'piket_rotation_enabled' && !in_array((string)$data['setting_value'], ['0', '1'], true)) {
-            sendResponse(false, 'Nilai rotasi piket harus 0 atau 1');
-        }
-
-        // piket_group_a_weeks / piket_group_b_weeks — CSV angka 1-4, normalisasi unik & urut.
-        // Pekan ke-5 TIDAK diatur di sini — sepenuhnya dikontrol oleh piket_week5_mode.
-        if (in_array($data['setting_key'], ['piket_group_a_weeks', 'piket_group_b_weeks'], true)) {
-            $parts = preg_split('/[\s,]+/', trim((string)$data['setting_value']));
-            $weeks = [];
-            foreach ($parts as $p) {
-                if ($p === '') continue;
-                $n = (int)$p;
-                if ($n < 1 || $n > 4) {
-                    sendResponse(false, 'Pekan harus angka 1-4 (pekan ke-5 diatur oleh Mode Pekan ke-5)');
-                }
-                if (!in_array($n, $weeks, true)) $weeks[] = $n;
-            }
-            $data['setting_value'] = implode(',', $weeks);
-        }
-
-        // piket_week5_mode — all / none / A / B
-        if ($data['setting_key'] === 'piket_week5_mode' && !in_array((string)$data['setting_value'], ['all', 'none', 'A', 'B'], true)) {
-            sendResponse(false, 'Mode pekan ke-5 harus: all, none, A, atau B');
-        }
-
-        // piket_jam_masuk / piket_jam_pulang — format HH:MM
-        if (in_array($data['setting_key'], ['piket_jam_masuk', 'piket_jam_pulang'], true)) {
-            $value = trim((string)$data['setting_value']);
-            if (strlen($value) === 5) $value .= ':00';
-            if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $value)) {
-                sendResponse(false, 'Format jam piket tidak valid. Contoh: 07:00');
             }
             $data['setting_value'] = substr($value, 0, 5);
         }

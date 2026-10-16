@@ -6,7 +6,7 @@
 
 require_once 'config.php';
 
-requireAuth(['admin', 'kepala_sekolah']);
+requireAuth(['admin']);
 
 $method = $_SERVER['REQUEST_METHOD'];
 

@@ -1,7 +1,7 @@
 {
-  "name": "Presensi PKBM Tunas Ilmu",
-  "short_name": "Presensi PKBM",
-  "description": "Sistem presensi guru PKBM Tunas Ilmu",
+  "name": "Geo-Presensi GQ",
+  "short_name": "GeoGQ",
+  "description": "Sistem Presensi Guru Berbasis Geolocation & QR Code",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

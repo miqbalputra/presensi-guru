@@ -44,17 +44,12 @@ try {
     }
 
     $gender = null;
-    $createdAtDate = null; // YYYY-MM-DD tanggal akun guru dibuat
     if ($userId !== null && $userId !== false) {
-        $userStmt = $pdo->prepare("SELECT jenis_kelamin, created_at FROM users WHERE id = ? LIMIT 1");
+        $userStmt = $pdo->prepare("SELECT jenis_kelamin FROM users WHERE id = ? LIMIT 1");
         $userStmt->execute([$userId]);
         $user = $userStmt->fetch();
         if ($user) {
             $gender = $user['jenis_kelamin'];
-            // Ambil bagian tanggal saja (created_at adalah timestamp).
-            if (!empty($user['created_at'])) {
-                $createdAtDate = substr($user['created_at'], 0, 10);
-            }
         }
     }
 
@@ -76,7 +71,6 @@ try {
     }
 
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
-    $workdayDays = gpw_get_workday_days($pdo);
 
     // Optional workdays: tanggal di mana kehadiran dihitung bonus, tetapi tidak wajib
     $optionalStmt = $pdo->prepare("SELECT tanggal, nama, keterangan FROM optional_workdays WHERE tanggal BETWEEN ? AND ?");
@@ -106,15 +100,9 @@ try {
             // Optional workdays are NOT mandatory workdays; they only count if the teacher attends.
             $isWorkday = false;
         } else {
+            $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
             $isSpecialWorkday = gpw_is_special_workday($holiday);
-            $isWorkday = $isSpecialWorkday || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $workdayDays));
-        }
-
-        // Guru tidak wajib presensi sebelum akunnya dibuat. Sabtu (atau hari kerja
-        // khusus) sebelum created_at tidak dihitung sebagai hari kerja, sehingga
-        // tidak menimbulkan alfa retroaktif bagi guru yang baru di-import.
-        if ($isWorkday && $createdAtDate !== null && $date < $createdAtDate) {
-            $isWorkday = false;
+            $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
         }
 
         $entry = [

@@ -31,7 +31,7 @@ if ($currentUserId <= 0) {
 if ($method === 'GET') {
     try {
         $stmt = $pdo->prepare("
-            SELECT id, id_guru, username, email, nama, no_hp, alamat, role, google_id, tanda_tangan
+            SELECT id, id_guru, username, email, nama, no_hp, alamat, role, google_id
             FROM users
             WHERE id = ? AND role = 'guru'
             LIMIT 1
@@ -45,18 +45,16 @@ if ($method === 'GET') {
 
         // Ubah ke camelCase agar konsisten dengan frontend
         $profile = [
-            'id'             => (int) $guru['id'],
-            'idGuru'         => $guru['id_guru'],
-            'username'       => $guru['username'],
-            'email'          => $guru['email'],
-            'nama'           => $guru['nama'],
-            'noHP'           => $guru['no_hp'],
-            'alamat'         => $guru['alamat'],
-            'role'           => $guru['role'],
-            'googleId'       => $guru['google_id'],
-            'googleLinked'   => !empty($guru['google_id']),
-            'tandaTangan'    => $guru['tanda_tangan'] ?? null,
-            'punyaTandaTangan' => !empty($guru['tanda_tangan']),
+            'id'           => (int) $guru['id'],
+            'idGuru'       => $guru['id_guru'],
+            'username'     => $guru['username'],
+            'email'        => $guru['email'],
+            'nama'         => $guru['nama'],
+            'noHP'         => $guru['no_hp'],
+            'alamat'       => $guru['alamat'],
+            'role'         => $guru['role'],
+            'googleId'     => $guru['google_id'],
+            'googleLinked' => !empty($guru['google_id']),
         ];
 
         sendResponse(true, 'Profil berhasil diambil', $profile);
@@ -153,57 +151,9 @@ if ($method === 'PUT') {
 
 // -------------------------------------------------------------------------
 // POST - Ganti password sendiri
-//         POST ?action=signature - Simpan / hapus tanda tangan digital
 // -------------------------------------------------------------------------
 if ($method === 'POST') {
     $data = getRequestData();
-    $action = $_GET['action'] ?? ($data['action'] ?? '');
-
-    // --- Simpan / hapus tanda tangan digital (per akun guru) --------------
-    if ($action === 'signature') {
-        $tandaTangan = trim((string) ($data['tanda_tangan'] ?? $data['tandaTangan'] ?? ''));
-
-        // Boleh kosong (untuk menghapus). Jika diisi harus data URI PNG.
-        if ($tandaTangan !== '') {
-            if (!preg_match('#^data:image/png;base64,([A-Za-z0-9+/=]+)$#', $tandaTangan, $m)) {
-                sendResponse(false, 'Format tanda tangan tidak valid (harus PNG base64).');
-            }
-            $binary = base64_decode($m[1], true);
-            if ($binary === false || strlen($binary) < 100) {
-                sendResponse(false, 'Data tanda tangan rusak / terlalu kecil.');
-            }
-            // Batas wajar: ~1.5 MB base64 (~2 MB biner)
-            if (strlen($tandaTangan) > 2 * 1024 * 1024) {
-                sendResponse(false, 'Ukuran tanda tangan terlalu besar.');
-            }
-        }
-
-        try {
-            $stmt = $pdo->prepare("UPDATE users SET tanda_tangan = ? WHERE id = ? AND role = 'guru'");
-            $stmt->execute([$tandaTangan !== '' ? $tandaTangan : null, $currentUserId]);
-
-            if ($stmt->rowCount() === 0) {
-                $check = $pdo->prepare("SELECT COUNT(*) FROM users WHERE id = ? AND role = 'guru'");
-                $check->execute([$currentUserId]);
-                if ((int) $check->fetchColumn() === 0) {
-                    sendResponse(false, 'Data guru tidak ditemukan.');
-                }
-            }
-
-            // Ambil data terbaru untuk konfirmasi
-            $fresh = $pdo->prepare("SELECT tanda_tangan FROM users WHERE id = ? LIMIT 1");
-            $fresh->execute([$currentUserId]);
-            $row = $fresh->fetch();
-
-            sendResponse(true, 'Tanda tangan berhasil disimpan.', [
-                'tandaTangan' => $row['tanda_tangan'] ?? null,
-                'punyaTandaTangan' => !empty($row['tanda_tangan']),
-            ]);
-        } catch (PDOException $e) {
-            handleError($e, 'guru_profile.php - signature');
-        }
-    }
-
 
     $passwordLama     = (string) ($data['passwordLama'] ?? $data['oldPassword'] ?? '');
     $passwordBaru     = (string) ($data['passwordBaru'] ?? $data['newPassword'] ?? '');

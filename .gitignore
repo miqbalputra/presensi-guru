@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-vendor/
-.phpunit.result.cache
 .pnp
 .pnp.js
 
@@ -69,27 +67,10 @@ generate_password.php
 generate_miputra_password.php
 reset_admin_miputra.php
 
-# Debug endpoint (bocor info/PII tanpa auth — jangan di-push; sudah diblokir di image Docker)
-api/debug_simple.php
-api/debug_workdays.php
-api/debug_presensi.php
-api/test.php
-api/test_direct_gowa.php
-api/list_users_temp.php
-api/import_guru.php
-api/config_subdomain.php
-api/reset_password.php
-
 # cPanel/manual deployment artifacts
 UPLOAD_ME/
 staging/
 temp_zip_content/
-deploy/staging.env
-
-# Data import guru (PII: nama/alamat/No HP/tgl lahir/password) — JANGAN commit
-/data_guru_pkbm.xlsx
-/tools/import_guru_pkbm.sql
-/tools/*.tsv
 
 # Runtime writable folders
 sessions/

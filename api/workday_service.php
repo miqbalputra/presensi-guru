@@ -5,42 +5,6 @@ function gpw_bool_setting($value)
     return in_array(strtolower((string)$value), ['1', 'true', 'yes', 'on'], true);
 }
 
-/**
- * Daftar hari kerja reguler (0=Minggu .. 6=Sabtu) dari setting `workday_days`.
- * Default '6' (Sabtu saja) — sesuai aturan PKBM Tunas Ilmu yang belajar hanya Sabtu.
- * Admin dapat mengubahnya di menu Pengaturan (mis. '6' atau '1,6').
- */
-function gpw_get_workday_days($pdo)
-{
-    $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'workday_days' LIMIT 1");
-    $stmt->execute();
-    $row = $stmt->fetch();
-    $raw = $row ? trim((string)$row['setting_value']) : '';
-    if ($raw === '') {
-        return [6];
-    }
-    $days = [];
-    foreach (preg_split('/[\s,]+/', $raw) as $part) {
-        $part = trim($part);
-        if ($part === '') {
-            continue;
-        }
-        $n = (int)$part;
-        if ($n >= 0 && $n <= 6) {
-            $days[] = $n;
-        }
-    }
-    return $days ?: [6];
-}
-
-/**
- * Apakah hari (day-of-week) termasuk hari kerja reguler menurut `workday_days`.
- */
-function gpw_is_regular_workday_dow($dayOfWeek, $workdayDays)
-{
-    return in_array((int)$dayOfWeek, $workdayDays, true);
-}
-
 function gpw_weekend_workday_enabled($pdo)
 {
     $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'weekend_workday_enabled' LIMIT 1");
@@ -172,19 +136,18 @@ function gpw_get_date_status($pdo, $date, $gender = null, $userId = null)
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
     $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
     $isSpecialWorkday = gpw_is_special_workday($holiday);
-    $workdayDays = gpw_get_workday_days($pdo);
 
-        // Override per user mengalahkan aturan `workday_days` untuk hari Sabtu/Minggu
+        // Override per user mengalahkan aturan gender/global untuk hari Sabtu/Minggu
         $override = null;
         if ($isWeekend && $userId !== null) {
             $override = gpw_get_user_weekend_override($pdo, $userId, $date);
             if ($override) {
                 $isWorkday = (int)$override['is_workday'] === 1;
             } else {
-                $isWorkday = $isSpecialWorkday || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $workdayDays));
+                $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
             }
         } else {
-            $isWorkday = $isSpecialWorkday || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $workdayDays));
+            $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
         }
 
     return [
@@ -252,38 +215,19 @@ function gpw_get_workday_dates($pdo, $start, $end, $gender = null, $userId = nul
     }
 
     $weekendSettings = gpw_get_weekend_workday_settings($pdo);
-    $workdayDays = gpw_get_workday_days($pdo);
-
-    // Guru tidak wajib presensi sebelum akunnya dibuat. Ambil created_at user
-    // (jika ada) agar hari kerja sebelum akun ada tidak dihitung (menghindari
-    // alfa retroaktif bagi guru yang baru di-import).
-    $createdAtDate = null;
-    if ($userId !== null && $userId !== false) {
-        $cs = $pdo->prepare("SELECT created_at FROM users WHERE id = ? LIMIT 1");
-        $cs->execute([$userId]);
-        $cu = $cs->fetch();
-        if (!empty($cu['created_at'])) {
-            $createdAtDate = substr($cu['created_at'], 0, 10);
-        }
-    }
-
     $workdays = [];
     foreach (gpw_build_date_range($start, $end) as $date) {
         $holiday = $holidays[$date] ?? null;
         $dayOfWeek = (int)date('w', strtotime($date));
         $isWeekend = in_array($dayOfWeek, [0, 6], true);
 
-        // Override per user mengalahkan aturan `workday_days`
+        // Override per user mengalahkan aturan gender/global
         if (isset($userOverrides[$date]) && $isWeekend) {
             $isWorkday = $userOverrides[$date] === 1;
         } else {
+            $isWeekendWorkday = $isWeekend && gpw_weekend_workday_allowed($weekendSettings, $dayOfWeek, $gender);
             $isSpecialWorkday = gpw_is_special_workday($holiday);
-            $isWorkday = $isSpecialWorkday || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $workdayDays));
-        }
-
-        // Lewati hari kerja sebelum akun guru dibuat.
-        if ($isWorkday && $createdAtDate !== null && $date < $createdAtDate) {
-            $isWorkday = false;
+            $isWorkday = $isSpecialWorkday || (!$holiday && (!$isWeekend || $isWeekendWorkday));
         }
 
         if ($isWorkday) {
@@ -295,63 +239,5 @@ function gpw_get_workday_dates($pdo, $start, $end, $gender = null, $userId = nul
         'workdays' => $workdays,
         'optional_workdays' => $optionalWorkdays,
     ];
-}
-
-/**
- * Snapshot kalender untuk satu periode laporan. Semua tabel referensi dimuat
- * sekali sehingga dashboard tidak lagi menjalankan query per guru per tanggal.
- */
-function gpw_create_calendar_snapshot($pdo, $start, $end, $users = [])
-{
-    $holidayStmt = $pdo->prepare('SELECT tanggal, jenis, is_workday FROM holidays WHERE tanggal BETWEEN ? AND ?');
-    $holidayStmt->execute([$start, $end]);
-    $holidays = [];
-    foreach ($holidayStmt->fetchAll() as $row) $holidays[$row['tanggal']] = $row;
-
-    $optionalStmt = $pdo->prepare('SELECT tanggal, nama, keterangan FROM optional_workdays WHERE tanggal BETWEEN ? AND ?');
-    $optionalStmt->execute([$start, $end]);
-    $optional = [];
-    foreach ($optionalStmt->fetchAll() as $row) $optional[$row['tanggal']] = $row;
-
-    $overrides = [];
-    $ids = array_values(array_unique(array_filter(array_map(fn($u) => (int)($u['id'] ?? 0), $users))));
-    if ($ids) {
-        $marks = implode(',', array_fill(0, count($ids), '?'));
-        $overrideStmt = $pdo->prepare("SELECT user_id, tanggal, is_workday FROM user_weekend_overrides WHERE user_id IN ({$marks}) AND tanggal BETWEEN ? AND ?");
-        $overrideStmt->execute([...$ids, $start, $end]);
-        foreach ($overrideStmt->fetchAll() as $row) $overrides[(int)$row['user_id']][$row['tanggal']] = (int)$row['is_workday'];
-    }
-
-    return [
-        'dates' => gpw_build_date_range($start, $end),
-        'holidays' => $holidays,
-        'optional_workdays' => $optional,
-        'overrides' => $overrides,
-        'weekend_settings' => gpw_get_weekend_workday_settings($pdo),
-        'workday_days' => gpw_get_workday_days($pdo)
-    ];
-}
-
-function gpw_get_workdays_from_snapshot($snapshot, $user = [])
-{
-    $userId = (int)($user['id'] ?? 0);
-    $gender = $user['jenis_kelamin'] ?? null;
-    $createdAt = !empty($user['created_at']) ? substr($user['created_at'], 0, 10) : null;
-    $workdays = [];
-    foreach ($snapshot['dates'] as $date) {
-        $holiday = $snapshot['holidays'][$date] ?? null;
-        $dayOfWeek = (int)date('w', strtotime($date));
-        $isWeekend = in_array($dayOfWeek, [0, 6], true);
-        $override = $snapshot['overrides'][$userId][$date] ?? null;
-        if ($isWeekend && $override !== null) {
-            $isWorkday = $override === 1;
-        } else {
-            $isWorkday = gpw_is_special_workday($holiday)
-                || (!$holiday && gpw_is_regular_workday_dow($dayOfWeek, $snapshot['workday_days']));
-        }
-        if ($isWorkday && $createdAt !== null && $date < $createdAt) $isWorkday = false;
-        if ($isWorkday) $workdays[] = $date;
-    }
-    return $workdays;
 }
 ?>

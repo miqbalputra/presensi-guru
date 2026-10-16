@@ -30,14 +30,6 @@ function auth_set_session($user)
     $_SESSION['login_time'] = time();
     $_SESSION['last_activity'] = time();
     $_SESSION['user'] = $user;
-    // Token dirotasi tiap login/restorasi agar token sesi lama tidak dapat dipakai.
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
-function auth_add_session_metadata($user)
-{
-    $user['csrfToken'] = generateCSRFToken();
-    return $user;
 }
 
 /**
@@ -117,14 +109,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'login')
                 'role' => $user['role']
             ]);
 
-            $responseUser = auth_add_session_metadata(auth_map_user($user));
+            $responseUser = auth_map_user($user);
             if ($user['role'] === 'guru') {
-                $rememberToken = auth_create_remember_token($pdo, $user['id']);
-                setcookie('GEOPRESENSI_REMEMBER', $rememberToken, [
-                    'expires' => time() + (30 * 24 * 60 * 60),
-                    'path' => '/', 'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-                    'httponly' => true, 'samesite' => 'Lax'
-                ]);
+                $responseUser['rememberToken'] = auth_create_remember_token($pdo, $user['id']);
                 $responseUser['rememberExpiresAt'] = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
             }
 
@@ -239,14 +226,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'google_
             'email'    => $email,
         ]);
 
-        $responseUser = auth_add_session_metadata(auth_map_user($user));
+        $responseUser = auth_map_user($user);
         if ($user['role'] === 'guru') {
-            $rememberToken = auth_create_remember_token($pdo, $user['id']);
-            setcookie('GEOPRESENSI_REMEMBER', $rememberToken, [
-                'expires' => time() + (30 * 24 * 60 * 60),
-                'path' => '/', 'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-                'httponly' => true, 'samesite' => 'Lax'
-            ]);
+            $responseUser['rememberToken'] = auth_create_remember_token($pdo, $user['id']);
             $responseUser['rememberExpiresAt'] = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
         }
         $responseUser['loginProvider'] = 'google';
@@ -260,7 +242,7 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'google_
 // RESTORE GURU SESSION FROM 30-DAY TOKEN
 if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'restore') {
     $data = getRequestData();
-    $token = $_COOKIE['GEOPRESENSI_REMEMBER'] ?? ($data['rememberToken'] ?? '');
+    $token = $data['rememberToken'] ?? '';
 
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
         sendResponse(false, 'Token login tidak valid');
@@ -292,7 +274,8 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'restore
         $update = $pdo->prepare("UPDATE remember_tokens SET last_used_at = NOW() WHERE token_hash = ?");
         $update->execute([hash('sha256', $token)]);
 
-        $responseUser = auth_add_session_metadata(auth_map_user($user));
+        $responseUser = auth_map_user($user);
+        $responseUser['rememberToken'] = $token;
 
         sendResponse(true, 'Session guru dipulihkan', $responseUser);
     } catch (PDOException $e) {
@@ -312,9 +295,6 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'logout'
     
     session_unset();
     session_destroy();
-    setcookie('GEOPRESENSI_REMEMBER', '', [
-        'expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax'
-    ]);
     sendResponse(true, 'Logout berhasil');
 }
 
@@ -326,8 +306,7 @@ if ($method === 'GET' && isset($_GET['action']) && $_GET['action'] === 'check') 
             'user_id' => $_SESSION['user_id'],
             'username' => $_SESSION['username'],
             'role' => $_SESSION['role'],
-            'nama' => $_SESSION['user']['nama'] ?? ($_SESSION['nama'] ?? null),
-            'csrfToken' => generateCSRFToken()
+            'nama' => $_SESSION['user']['nama'] ?? ($_SESSION['nama'] ?? null)
         ]);
     } else {
         sendResponse(false, 'No active session');

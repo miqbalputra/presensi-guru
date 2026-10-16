@@ -20,14 +20,12 @@ function buildDateRange($start, $end)
     return $dates;
 }
 
-function getWorkdayDates($pdo, $start, $end, $gender = null, $userId = null)
+function getWorkdayDates($pdo, $start, $end, $gender = null)
 {
     // gpw_get_workday_dates() mengembalikan ['workdays' => [...], 'optional_workdays' => [...]].
     // Di sini kita hanya butuh daftar tanggal hari kerja (flat) agar bisa dipakai
     // untuk count(), array_flip(), dan in_array($today, ..., true).
-    // $userId diteruskan agar hari kerja sebelum akun guru dibuat (created_at)
-    // tidak dihitung sebagai alfa retroaktif.
-    $result = gpw_get_workday_dates($pdo, $start, $end, $gender, $userId);
+    $result = gpw_get_workday_dates($pdo, $start, $end, $gender);
     return $result['workdays'] ?? [];
 }
 
@@ -50,18 +48,17 @@ try {
         sendResponse(false, 'Invalid period');
     }
 
-    $guruStmt = $pdo->prepare("SELECT id, jenis_kelamin, created_at FROM users WHERE role = 'guru' AND archived_at IS NULL");
+    $guruStmt = $pdo->prepare("SELECT id, jenis_kelamin FROM users WHERE role = 'guru' AND archived_at IS NULL");
     $guruStmt->execute();
     $guruRows = $guruStmt->fetchAll();
     $totalGuru = count($guruRows);
 
-    $calendarSnapshot = gpw_create_calendar_snapshot($pdo, $startDate, $endDate, $guruRows);
-    $workdayDates = gpw_get_workdays_from_snapshot($calendarSnapshot);
+    $workdayDates = getWorkdayDates($pdo, $startDate, $endDate);
     $totalHariAktif = count($workdayDates);
     $workdayMapByUser = [];
     $totalExpected = 0;
     foreach ($guruRows as $guru) {
-        $userWorkdays = gpw_get_workdays_from_snapshot($calendarSnapshot, $guru);
+        $userWorkdays = getWorkdayDates($pdo, $startDate, $endDate, $guru['jenis_kelamin']);
         $workdayMapByUser[(int)$guru['id']] = array_flip($userWorkdays);
         $totalExpected += count($userWorkdays);
     }
@@ -122,7 +119,7 @@ try {
     unset($log);
 
     $missingStmt = $pdo->prepare("
-        SELECT u.id, u.nama, u.jabatan, u.jenis_kelamin, u.created_at
+        SELECT u.id, u.nama, u.jabatan, u.jenis_kelamin
         FROM users u
         LEFT JOIN attendance_logs a ON a.user_id = u.id AND a.tanggal = ?
         WHERE u.role = 'guru'
@@ -131,11 +128,8 @@ try {
         ORDER BY u.nama ASC
     ");
     $missingStmt->execute([$today]);
-    $todaySnapshot = $today === $startDate && $today === $endDate
-        ? $calendarSnapshot
-        : gpw_create_calendar_snapshot($pdo, $today, $today, $guruRows);
-    $missingGuru = array_values(array_filter($missingStmt->fetchAll(), function ($guru) use ($todaySnapshot, $today) {
-        return in_array($today, gpw_get_workdays_from_snapshot($todaySnapshot, $guru), true);
+    $missingGuru = array_values(array_filter($missingStmt->fetchAll(), function ($guru) use ($pdo, $today) {
+        return in_array($today, getWorkdayDates($pdo, $today, $today, $guru['jenis_kelamin']), true);
     }));
 
     foreach ($missingGuru as &$guru) {
