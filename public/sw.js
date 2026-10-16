@@ -1,4 +1,4 @@
-const CACHE_NAME = 'presensi-pkbm-v1';
+const CACHE_NAME = 'presensi-pkbm-v2';
 const ASSETS_TO_CACHE = [
   '/manifest.json',
   '/icon-192.png',

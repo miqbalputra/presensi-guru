@@ -126,7 +126,7 @@ func TestCheckoutTargetUsesPiketScheduleAndDailyOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
-	if err := db.AutoMigrate(&models.Holiday{}, &models.JadwalPiket{}, &models.PengaturanHarian{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Holiday{}, &models.JadwalPiket{}, &models.PengaturanHarian{}); err != nil {
 		t.Fatalf("migrate database: %v", err)
 	}
 
@@ -146,5 +146,21 @@ func TestCheckoutTargetUsesPiketScheduleAndDailyOverride(t *testing.T) {
 	}
 	if target != "14:00:00" || !isPiket {
 		t.Fatalf("checkout target = (%q, %t), want (14:00:00, true)", target, isPiket)
+	}
+
+	groupA := "A"
+	if err := db.Create(&models.User{ID: 43, Username: "guru-a", Role: "guru", Nama: "Guru A", PiketGroup: &groupA}).Error; err != nil {
+		t.Fatalf("create rotation teacher: %v", err)
+	}
+	rotationDate := time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC)
+	if err := db.Create(&models.PengaturanHarian{Tanggal: rotationDate, JamPulangPiketKhusus: &overridePiket, JamPulangPiketAktif: true}).Error; err != nil {
+		t.Fatalf("create Saturday override: %v", err)
+	}
+	target, isPiket, err = (&Handler{db: db}).checkoutTarget(43, rotationDate, map[string]string{"jam_min_pulang": "12:30"})
+	if err != nil {
+		t.Fatalf("Saturday checkout target: %v", err)
+	}
+	if target != "14:00:00" || !isPiket {
+		t.Fatalf("Saturday checkout target = (%q, %t), want (14:00:00, true)", target, isPiket)
 	}
 }

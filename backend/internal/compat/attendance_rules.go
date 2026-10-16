@@ -189,7 +189,11 @@ func (h *Handler) checkoutTarget(userID uint, date time.Time, settings map[strin
 		if !isRotationPiket {
 			return target, false, nil
 		}
-		return settingTime(settings["piket_jam_pulang"], target), true, nil
+		target = settingTime(settings["piket_jam_pulang"], target)
+		if dailyQuery.Error == nil && daily.JamPulangPiketAktif && daily.JamPulangPiketKhusus != nil && strings.TrimSpace(*daily.JamPulangPiketKhusus) != "" {
+			target = settingTime(*daily.JamPulangPiketKhusus, target)
+		}
+		return target, true, nil
 	}
 
 	var piket models.JadwalPiket

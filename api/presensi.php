@@ -266,9 +266,12 @@ if ($method === 'PUT') {
             // selain itu pakai default 13:00.
             $jamPulangTarget = '13:00:00';
             $piket = gp_get_piket($pdo, (int)$rec['user_id'], date('Y-m-d'));
-            if ($piket && !empty($piket['jam_pulang_piket'])) {
-                $jp = substr($piket['jam_pulang_piket'], 0, 5);
-                $jamPulangTarget = strlen($jp) === 5 ? $jp . ':00' : $jp;
+            if ($piket) {
+                [, $piketPulangFormatted] = gp_get_piket_pulang_target($pdo, $piket, $rec['tanggal']);
+                if ($piketPulangFormatted !== null) {
+                    $jp = $piketPulangFormatted;
+                    $jamPulangTarget = strlen($jp) === 5 ? $jp . ':00' : $jp;
+                }
             }
 
             $nowTime       = date('H:i:s');
@@ -286,9 +289,11 @@ if ($method === 'PUT') {
             } else {
                 // Sudah waktunya pulang
                 if ($isGuru && !empty($data['jamPulang'])) {
-                    // Validasi guru: batas minimal jam pulang dari setting (default 12:30)
+                    // Validasi guru: batas minimal jam pulang dari setting (default 12:30).
+                    // gp_get_min_pulang_minutes otomatis memakai override per-tanggal
+                    // (pengaturan_harian) bila ada & aktif untuk tanggal record ini.
                     $minPulangFormatted = '12:30';
-                    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted);
+                    $minPulangMinutes = gp_get_min_pulang_minutes($pdo, $minPulangFormatted, $rec['tanggal']);
                     if (((intval(date('H')) * 60) + intval(date('i'))) < $minPulangMinutes) {
                         sendResponse(false, 'Presensi pulang hanya bisa dilakukan mulai pukul ' . $minPulangFormatted . ' WIB');
                     }
@@ -300,10 +305,10 @@ if ($method === 'PUT') {
 
                     if (!$isSpecialWorkday && $piket && !empty($piket['jam_pulang_piket'])) {
                         $nowMin    = (intval(date('H')) * 60) + intval(date('i'));
-                        list($pH, $pM) = explode(':', $piket['jam_pulang_piket']);
-                        $piketMin  = (intval($pH) * 60) + intval($pM);
+                        // Target pulang piket bisa ditimpa override per-tanggal.
+                        [$piketMin, $piketFormatted] = gp_get_piket_pulang_target($pdo, $piket, $rec['tanggal']);
                         if ($nowMin < $piketMin && empty($data['izin_pulang_awal'])) {
-                            sendResponse(false, "PIKET_RESTRICTION|" . substr($piket['jam_pulang_piket'], 0, 5));
+                            sendResponse(false, "PIKET_RESTRICTION|" . $piketFormatted);
                         }
                         if (!empty($data['izin_pulang_awal'])) {
                             $ket = $data['keterangan'] ?? '';
