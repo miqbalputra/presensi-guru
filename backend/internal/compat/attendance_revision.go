@@ -111,8 +111,8 @@ func (h *Handler) eligibleAttendanceRevisionDates(user models.User, start, end t
 	if start.Before(monthStart) || start.Year() != todayDate.Year() || start.Month() != todayDate.Month() {
 		return []string{}, nil
 	}
-	if end.After(todayDate.AddDate(0, 0, -1)) {
-		end = todayDate.AddDate(0, 0, -1)
+	if end.After(todayDate) {
+		end = todayDate
 	}
 	if end.Before(start) {
 		return []string{}, nil
@@ -270,8 +270,8 @@ func (h *Handler) validateNewAttendanceRevisionDate(user models.User, date time.
 	location := appLocation(h)
 	todayDate := dateOnly(time.Now().In(location))
 	monthStart := time.Date(todayDate.Year(), todayDate.Month(), 1, 0, 0, 0, 0, location)
-	if date.Before(monthStart) || date.Year() != todayDate.Year() || date.Month() != todayDate.Month() || !date.Before(todayDate) {
-		return revisionAPIError(fiber.StatusBadRequest, "REVISION_DATE_OUT_OF_RANGE", "Revisi hanya dapat diajukan untuk hari kerja lampau pada bulan berjalan")
+	if date.Before(monthStart) || date.Year() != todayDate.Year() || date.Month() != todayDate.Month() || date.After(todayDate) {
+		return revisionAPIError(fiber.StatusBadRequest, "REVISION_DATE_OUT_OF_RANGE", "Revisi hanya dapat diajukan untuk hari kerja pada bulan berjalan sampai hari ini")
 	}
 	calendar, err := h.loadWorkdayCalendar(date, date)
 	if err != nil {

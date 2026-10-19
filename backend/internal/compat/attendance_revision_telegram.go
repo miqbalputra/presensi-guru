@@ -46,6 +46,9 @@ func (h *Handler) sendAttendanceRevisionTelegramNotification(user models.User, r
 		instructions,
 		strings.TrimRight(strings.TrimSpace(h.cfg.AppURL), "/"),
 	)
+	if webhookURL := strings.TrimSpace(h.cfg.TelegramN8NWebhookURL); webhookURL != "" {
+		return h.sendTelegramNotificationToN8N(webhookURL, h.cfg.TelegramN8NWebhookSecret, chatIDs, message, replyMarkup)
+	}
 
 	var sendErrors []error
 	for _, chatID := range chatIDs {
@@ -54,6 +57,44 @@ func (h *Handler) sendAttendanceRevisionTelegramNotification(user models.User, r
 		}
 	}
 	return errors.Join(sendErrors...)
+}
+
+func (h *Handler) sendTelegramNotificationToN8N(webhookURL, webhookSecret string, chatIDs []string, message string, replyMarkup any) error {
+	payload := map[string]any{
+		"chat_ids": chatIDs,
+		"message":  message,
+	}
+	if replyMarkup != nil {
+		payload["reply_markup"] = replyMarkup
+	}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
+		return errors.New("could not encode n8n Telegram notification")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, &body)
+	if err != nil {
+		return errors.New("could not create n8n Telegram notification request")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GeoPresensi-Secret", webhookSecret)
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return errors.New("n8n Telegram webhook request failed")
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("n8n Telegram webhook returned HTTP %d", response.StatusCode)
+	}
+	return nil
 }
 
 func splitTelegramChatIDs(value string) []string {

@@ -52,6 +52,8 @@ type Config struct {
 	TelegramChatID             string
 	TelegramWebhookSecret      string
 	TelegramAdminUserMap       string
+	TelegramN8NWebhookURL      string
+	TelegramN8NWebhookSecret   string
 	AllowPrivateWebhookTargets bool
 	BackupDir                  string
 	BackupJobTimeout           time.Duration
@@ -108,6 +110,8 @@ func Load() (Config, error) {
 		TelegramChatID:             strings.TrimSpace(os.Getenv("TELEGRAM_CHAT_ID")),
 		TelegramWebhookSecret:      strings.TrimSpace(os.Getenv("TELEGRAM_WEBHOOK_SECRET")),
 		TelegramAdminUserMap:       strings.TrimSpace(os.Getenv("TELEGRAM_ADMIN_USER_MAP")),
+		TelegramN8NWebhookURL:      strings.TrimSpace(os.Getenv("TELEGRAM_N8N_WEBHOOK_URL")),
+		TelegramN8NWebhookSecret:   strings.TrimSpace(os.Getenv("TELEGRAM_N8N_WEBHOOK_SECRET")),
 		AllowPrivateWebhookTargets: envBool("ALLOW_PRIVATE_WEBHOOK_TARGETS", false),
 		BackupDir:                  env("BACKUP_DIR", "./data/backups"),
 		BackupJobTimeout:           envDuration("BACKUP_JOB_TIMEOUT", 30*time.Minute),
@@ -167,7 +171,25 @@ func Load() (Config, error) {
 			telegramChatIDs++
 		}
 	}
-	telegramConfigured := c.TelegramBotToken != "" || telegramChatIDs > 0
+	n8nTelegramConfigured := c.TelegramN8NWebhookURL != "" || c.TelegramN8NWebhookSecret != ""
+	if n8nTelegramConfigured {
+		if c.TelegramN8NWebhookURL == "" || c.TelegramN8NWebhookSecret == "" {
+			return Config{}, fmt.Errorf("TELEGRAM_N8N_WEBHOOK_URL dan TELEGRAM_N8N_WEBHOOK_SECRET harus diisi bersama")
+		}
+		webhookURL, err := url.ParseRequestURI(c.TelegramN8NWebhookURL)
+		if err != nil || webhookURL.Host == "" || webhookURL.Scheme != "https" && webhookURL.Scheme != "http" {
+			return Config{}, fmt.Errorf("TELEGRAM_N8N_WEBHOOK_URL harus berupa URL HTTP atau HTTPS yang valid")
+		}
+		if len(c.TelegramN8NWebhookSecret) < 32 || len(c.TelegramN8NWebhookSecret) > 256 {
+			return Config{}, fmt.Errorf("TELEGRAM_N8N_WEBHOOK_SECRET harus berisi 32 sampai 256 karakter")
+		}
+		for _, char := range c.TelegramN8NWebhookSecret {
+			if !(char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '_' || char == '-') {
+				return Config{}, fmt.Errorf("TELEGRAM_N8N_WEBHOOK_SECRET hanya boleh berisi huruf, angka, garis bawah, atau tanda hubung")
+			}
+		}
+	}
+	telegramConfigured := c.TelegramBotToken != "" || telegramChatIDs > 0 || n8nTelegramConfigured
 	if telegramConfigured && (c.TelegramBotToken == "" || telegramChatIDs == 0) {
 		return Config{}, fmt.Errorf("TELEGRAM_BOT_TOKEN dan TELEGRAM_CHAT_ID harus diisi bersama")
 	}

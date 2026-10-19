@@ -59,6 +59,12 @@ curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
   -d 'allowed_updates=["callback_query","message"]'
 ```
 
+### Mengirim notifikasi melalui n8n
+
+Workflow siap impor tersedia di `n8n/telegram-revisi-presensi.json`. Setelah import, buat credential Telegram API untuk bot GeoPresensi, aktifkan workflow, dan salin **Production URL** dari node Webhook. Buat secret baru dengan `openssl rand -hex 32`, lalu masukkan nilai yang sama pada konstanta `sharedSecret` di node **Validasi & Pecah Penerima** dan environment backend `TELEGRAM_N8N_WEBHOOK_SECRET`. Atur `TELEGRAM_N8N_WEBHOOK_URL` ke Production URL tersebut, lalu redeploy backend.
+
+Workflow menerima payload pengajuan dari backend dan mengirimkannya ke semua `TELEGRAM_CHAT_ID`, termasuk tombol Setujui/Tolak yang callback-nya tetap diproses backend GeoPresensi. Karena itu, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`, dan `TELEGRAM_ADMIN_USER_MAP` tetap diperlukan. Jangan menambahkan Telegram Trigger di workflow ini karena bot sudah memakai webhook Telegram langsung ke backend untuk menangani tombol.
+
 Tombol **Setujui** langsung menerapkan revisi dan mencatat akun admin yang menekan tombol. Tombol **Tolak** meminta admin memilih alasan singkat atau menulis alasan sendiri; catatan penolakan disimpan dan diteruskan ke guru melalui status pengajuannya. Bot hanya memproses callback dari Telegram ID yang dipetakan ke akun admin aktif. Simpan semua secret di server dan jangan masukkan ke frontend. Pengajuan tetap tersimpan jika Telegram sedang tidak tersedia.
 
 ## Keamanan lokal

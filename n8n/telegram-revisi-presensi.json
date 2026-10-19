@@ -1,0 +1,127 @@
+{
+  "name": "GeoPresensi - Notifikasi Revisi Presensi Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Notifikasi Revisi Presensi ke Telegram\n\nWorkflow ini menerima pengajuan baru dari backend GeoPresensi dan meneruskannya ke seluruh chat Telegram yang dikonfigurasi.\n\n### Konfigurasi setelah import\n1. Pada node **Kirim ke Telegram**, pilih atau buat credential **Telegram API** dengan token bot GeoPresensi.\n2. Buat secret dengan `openssl rand -hex 32`. Ganti nilai `sharedSecret` di node **Validasi & Pecah Penerima** dan isi nilai yang sama pada environment backend `TELEGRAM_N8N_WEBHOOK_SECRET`.\n3. Aktifkan workflow, salin **Production URL** node Webhook, lalu isi `TELEGRAM_N8N_WEBHOOK_URL` pada backend dan redeploy.\n4. Jangan gunakan Telegram Trigger di workflow lain dengan bot ini. Tombol Setujui/Tolak tetap diproses oleh webhook GeoPresensi.",
+        "height": 390,
+        "width": 540,
+        "color": 4
+      },
+      "id": "e31b91c8-66af-41c9-94bd-ae59dab82622",
+      "name": "Panduan Konfigurasi",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geopresensi-revisi-presensi-telegram-v1",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "7030765c-0069-47f7-b261-c892fdfba9c2",
+      "name": "Webhook GeoPresensi",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -360,
+        80
+      ],
+      "webhookId": "5a8c73b7-86d8-4aca-a563-211ffb1be34d"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const sharedSecret = 'GANTI_DENGAN_HASIL_OPENSSL_RAND_HEX_32';\nconst incoming = $input.first()?.json ?? {};\nconst headers = incoming.headers ?? {};\nconst suppliedSecret = String(headers['x-geopresensi-secret'] ?? headers['X-GeoPresensi-Secret'] ?? '');\n\nif (sharedSecret === 'GANTI_DENGAN_HASIL_OPENSSL_RAND_HEX_32' || sharedSecret.length < 32) {\n  throw new Error('Atur sharedSecret pada node ini sebelum mengaktifkan workflow.');\n}\nif (suppliedSecret !== sharedSecret) {\n  throw new Error('Secret webhook GeoPresensi tidak cocok.');\n}\n\nconst payload = incoming.body ?? incoming;\nconst chatIds = payload.chat_ids;\nconst message = String(payload.message ?? '').trim();\nconst keyboard = payload.reply_markup?.inline_keyboard;\nconst decisionButtons = Array.isArray(keyboard) ? (keyboard.find((row) => Array.isArray(row) && row.length >= 2) ?? []) : [];\n\nif (!Array.isArray(chatIds) || chatIds.length === 0) {\n  throw new Error('Payload harus berisi daftar chat_ids.');\n}\nif (!message || message.length > 4096) {\n  throw new Error('Pesan Telegram kosong atau melebihi 4096 karakter.');\n}\nif (decisionButtons.length < 2 || !decisionButtons[0]?.callback_data || !decisionButtons[1]?.callback_data) {\n  throw new Error('Tombol Setujui/Tolak tidak tersedia. Periksa konfigurasi webhook Telegram backend.');\n}\n\nreturn chatIds.map((chatId) => {\n  const normalizedChatId = String(chatId).trim();\n  if (!/^-?\\d+$/.test(normalizedChatId)) {\n    throw new Error('chat_id harus berupa ID Telegram numerik.');\n  }\n  return {\n    json: {\n      chatId: normalizedChatId,\n      message,\n      approveText: String(decisionButtons[0].text ?? '✅ Setujui'),\n      approveCallbackData: String(decisionButtons[0].callback_data),\n      rejectText: String(decisionButtons[1].text ?? '❌ Tolak'),\n      rejectCallbackData: String(decisionButtons[1].callback_data)\n    }\n  };\n});"
+      },
+      "id": "e991a9e0-5e25-4ee1-8f13-f610601bc024",
+      "name": "Validasi & Pecah Penerima",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{$json.chatId}}",
+        "text": "={{$json.message}}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{$json.approveText}}",
+                    "additionalFields": {
+                      "callback_data": "={{$json.approveCallbackData}}"
+                    }
+                  },
+                  {
+                    "text": "={{$json.rejectText}}",
+                    "additionalFields": {
+                      "callback_data": "={{$json.rejectCallbackData}}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a285bddf-80d8-41f9-9a08-04430c55658d",
+      "name": "Kirim ke Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook GeoPresensi": {
+      "main": [
+        [
+          {
+            "node": "Validasi & Pecah Penerima",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validasi & Pecah Penerima": {
+      "main": [
+        [
+          {
+            "node": "Kirim ke Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dce977eb-4f7d-4f4c-9480-969192d9d90f",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
