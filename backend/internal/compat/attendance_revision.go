@@ -485,14 +485,14 @@ func (h *Handler) applyAttendanceRevisionDecision(id uint, decision, note string
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return revisionAPIError(fiber.StatusNotFound, "REVISION_NOT_FOUND", "Pengajuan revisi tidak ditemukan")
 			}
-			return err
+			return fmt.Errorf("load attendance revision %d: %w", id, err)
 		}
 		if request.Status != attendanceRevisionPending {
 			return revisionAPIError(fiber.StatusConflict, "REVISION_ALREADY_REVIEWED", "Pengajuan ini sudah diproses")
 		}
 		if decision == attendanceRevisionApproved {
 			if err := h.applyAttendanceRevision(tx, &request); err != nil {
-				return err
+				return fmt.Errorf("apply attendance revision %d: %w", id, err)
 			}
 		}
 		now := time.Now().In(appLocation(h))
@@ -502,7 +502,7 @@ func (h *Handler) applyAttendanceRevisionDecision(id uint, decision, note string
 		request.ReviewedAt = &now
 		request.PendingKey = nil
 		if err := tx.Save(&request).Error; err != nil {
-			return err
+			return fmt.Errorf("save attendance revision decision %d: %w", id, err)
 		}
 		return nil
 	})
@@ -526,7 +526,7 @@ func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.Attendanc
 		return err
 	}
 	var attendance models.AttendanceLog
-	err := tx.Where("user_id = ? AND tanggal = ?", request.UserID, request.Tanggal).First(&attendance).Error
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND tanggal = ?", request.UserID, request.Tanggal).First(&attendance).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
@@ -583,14 +583,36 @@ func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.Attendanc
 	attendance.Keterangan = pointerString(checkInNote)
 	if attendance.ID == 0 {
 		if err := tx.Create(&attendance).Error; err != nil {
-			return err
+			if !isDuplicateError(err) {
+				return err
+			}
+			approvedAttendance := attendance
+			// An attendance row may be created by another request after the lookup
+			// above. Re-read the row and apply the approved values instead of
+			// failing the whole approval on the unique (user_id, tanggal) index.
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND tanggal = ?", request.UserID, request.Tanggal).First(&attendance).Error; err != nil {
+				return err
+			}
+			attendance.Nama = approvedAttendance.Nama
+			attendance.Status = approvedAttendance.Status
+			attendance.JamMasuk = approvedAttendance.JamMasuk
+			attendance.JamHadir = approvedAttendance.JamHadir
+			attendance.JamPulang = approvedAttendance.JamPulang
+			attendance.Keterangan = approvedAttendance.Keterangan
+			if err := updateAttendanceForRevision(tx, attendance); err != nil {
+				return err
+			}
 		}
-	} else if err := tx.Model(&attendance).Updates(map[string]any{
-		"nama": attendance.Nama, "status": attendance.Status, "jam_masuk": attendance.JamMasuk,
-		"jam_hadir": attendance.JamHadir, "jam_pulang": attendance.JamPulang, "keterangan": attendance.Keterangan,
-	}).Error; err != nil {
+	} else if err := updateAttendanceForRevision(tx, attendance); err != nil {
 		return err
 	}
 	request.AttendanceID = &attendance.ID
 	return nil
+}
+
+func updateAttendanceForRevision(tx *gorm.DB, attendance models.AttendanceLog) error {
+	return tx.Model(&attendance).Updates(map[string]any{
+		"nama": attendance.Nama, "status": attendance.Status, "jam_masuk": attendance.JamMasuk,
+		"jam_hadir": attendance.JamHadir, "jam_pulang": attendance.JamPulang, "keterangan": attendance.Keterangan,
+	}).Error
 }

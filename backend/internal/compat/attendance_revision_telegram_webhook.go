@@ -146,47 +146,44 @@ func (h *Handler) handleTelegramRevisionCallback(callback telegramCallbackQuery)
 	if callback.From.ID <= 0 {
 		return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Akun Telegram tidak dapat diverifikasi.", true)
 	}
-	admin, authorized, err := h.telegramAdmin(callback.From.ID)
-	if err != nil {
-		return err
-	}
-	if !authorized {
-		return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Akun Telegram ini tidak memiliki akses untuk memproses pengajuan.", true)
-	}
 	action, requestID, reason, valid := parseTelegramRevisionCallback(h.cfg.TelegramBotToken, callback.Data)
 	if !valid {
 		return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Tombol tidak valid atau sudah kedaluwarsa.", true)
 	}
+	if (action == "r" || action == "o") && callback.Message == nil {
+		return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Pesan pengajuan tidak tersedia.", true)
+	}
+	if action == "n" {
+		var ok bool
+		reason, ok = telegramRevisionRejectionNote(reason)
+		if !ok {
+			return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Alasan penolakan tidak dikenali.", true)
+		}
+	}
+	if !contains([]string{"a", "n", "o", "r"}, action) {
+		return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Tindakan tidak dikenal.", true)
+	}
+
+	// Acknowledge a valid callback before touching the database. Telegram keeps
+	// the button spinner open until answerCallbackQuery succeeds, and the admin
+	// lookup can be slow when the database is under load.
+	if err := answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Sedang memproses pengajuan…", false); err != nil {
+		log.Printf("Telegram callback acknowledgement failed: %v", err)
+	}
+	admin, authorized, err := h.telegramAdmin(callback.From.ID)
+	if err != nil {
+		log.Printf("Telegram admin lookup failed for revision callback: %v", err)
+		return h.reportTelegramRevisionCallbackFailure(callback, "⚠️ Sistem belum dapat memeriksa akses admin. Silakan coba lagi.")
+	}
+	if !authorized {
+		return sendTelegramMessage(h.cfg.TelegramBotToken, fmt.Sprint(callback.From.ID), "Akun Telegram ini tidak memiliki akses untuk memproses pengajuan.", nil)
+	}
 	switch action {
 	case "r":
-		if callback.Message == nil {
-			return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Pesan pengajuan tidak tersedia.", true)
-		}
-		if err := answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Silakan pilih alasan penolakan.", false); err != nil {
-			log.Printf("Telegram callback acknowledgement failed: %v", err)
-		}
 		return editTelegramMessageReplyMarkup(h.cfg.TelegramBotToken, *callback.Message, telegramRevisionRejectionKeyboard(h.cfg.TelegramBotToken, requestID))
 	case "o":
-		if callback.Message == nil {
-			return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Pesan pengajuan tidak tersedia.", true)
-		}
-		if err := answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Silakan tulis alasan penolakan pada balasan bot.", false); err != nil {
-			log.Printf("Telegram callback acknowledgement failed: %v", err)
-		}
 		return h.sendTelegramCustomReasonPrompt(callback.Message.Chat.ID, requestID, callback.From.ID)
 	case "a", "n":
-		if action == "n" {
-			var ok bool
-			reason, ok = telegramRevisionRejectionNote(reason)
-			if !ok {
-				return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Alasan penolakan tidak dikenali.", true)
-			}
-		}
-		if callback.Message != nil {
-			if err := answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Sedang memproses pengajuan…", false); err != nil {
-				log.Printf("Telegram callback acknowledgement failed: %v", err)
-			}
-		}
 		decision := attendanceRevisionApproved
 		if action == "n" {
 			decision = attendanceRevisionRejected
@@ -195,14 +192,22 @@ func (h *Handler) handleTelegramRevisionCallback(callback telegramCallbackQuery)
 		if err != nil {
 			var apiErr *attendanceRevisionAPIError
 			if errors.As(err, &apiErr) {
-				return h.finishTelegramRevisionMessage(callback.Message, fmt.Sprintf("⚠️ Pengajuan tidak dapat diproses.\n%s", apiErr.message))
+				return h.reportTelegramRevisionCallbackFailure(callback, fmt.Sprintf("⚠️ Pengajuan tidak dapat diproses.\n%s", apiErr.message))
 			}
-			return err
+			log.Printf("Telegram attendance revision decision failed for request %d: %v", requestID, err)
+			return h.reportTelegramRevisionCallbackFailure(callback, "⚠️ Sistem gagal memproses pengajuan. Silakan coba kembali melalui dashboard admin.")
 		}
 		return h.finishTelegramRevisionDecision(callback.Message, admin, request, decision, reason)
 	default:
 		return answerTelegramCallback(h.cfg.TelegramBotToken, callback.ID, "Tindakan tidak dikenal.", true)
 	}
+}
+
+func (h *Handler) reportTelegramRevisionCallbackFailure(callback telegramCallbackQuery, text string) error {
+	if callback.Message != nil {
+		return h.finishTelegramRevisionMessage(callback.Message, strings.TrimSpace(callback.Message.Text)+"\n\n"+text)
+	}
+	return sendTelegramMessage(h.cfg.TelegramBotToken, fmt.Sprint(callback.From.ID), text, nil)
 }
 
 func telegramRevisionRejectionNote(reason string) (string, bool) {
