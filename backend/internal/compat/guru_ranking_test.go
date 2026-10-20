@@ -44,7 +44,7 @@ func TestGuruRankingReturnsCurrentMonthTopTenAndMyRank(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.Setting{}, &models.Holiday{}, &models.OptionalWorkday{}, &models.JadwalPiket{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.AttendanceRevisionRequest{}, &models.Setting{}, &models.Holiday{}, &models.OptionalWorkday{}, &models.JadwalPiket{}); err != nil {
 		t.Fatal(err)
 	}
 

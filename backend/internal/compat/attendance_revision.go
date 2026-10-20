@@ -531,7 +531,9 @@ func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.Attendanc
 		return err
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		attendance = models.AttendanceLog{UserID: teacher.ID, Nama: teacher.Nama, Tanggal: request.Tanggal, Metode: "revisi"}
+		// Legacy databases restrict metode to button, qr_scan, and manual.
+		// The revision request and keterangan retain the correction history.
+		attendance = models.AttendanceLog{UserID: teacher.ID, Nama: teacher.Nama, Tanggal: request.Tanggal, Metode: "manual"}
 	}
 
 	jamMasuk := stringPointerValue(request.JamMasuk)
