@@ -1,0 +1,190 @@
+{
+  "name": "GeoPresensi - Laporan Performa Guru Setelah Konfirmasi",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Laporan Performa Guru Setelah Konfirmasi\n\nWorkflow dipicu backend setelah guru menyetujui rekap bulanan. Workflow mengambil snapshot rekap yang disetujui, menyusun saran sesuai catatan guru, lalu mengirim laporan hanya ke email guru tersebut.\n\n### Konfigurasi setelah import\n1. Aktifkan workflow dan salin Production URL node Webhook.\n2. Isi N8N_MONTHLY_PERFORMANCE_WEBHOOK_URL di environment backend dengan URL tersebut.\n3. Buat secret acak minimal 32 karakter; isi N8N_MONTHLY_PERFORMANCE_WEBHOOK_SECRET di backend dan sharedSecret pada node Validasi Event & Konfigurasi.\n4. Isi appUrl, n8nApiKey, dan emailFrom pada node Validasi Event & Konfigurasi. n8nApiKey harus sama dengan N8N_API_KEY backend.\n5. Pilih credential SMTP pada node Kirim email laporan. Pastikan email guru terdaftar di profil.\n\nWebhook hanya mengirim ID guru dan periode. Email tujuan diambil dari profil setelah backend memastikan rekap berstatus disetujui.",
+        "height": 390,
+        "width": 540,
+        "color": 4
+      },
+      "id": "efbd4a0d-8e5e-4450-a970-9ebd25502b37",
+      "name": "Petunjuk Konfigurasi",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geopresensi-laporan-performa-guru-v1",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "684e8071-15b2-4399-821c-6b14a19c711f",
+      "name": "Webhook Konfirmasi Guru",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -420,
+        80
+      ],
+      "webhookId": "1fba52ec-8391-4f43-8437-2af56a90e3e9"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const sharedSecret = 'GANTI_DENGAN_SECRET_ACAK_MINIMAL_32_KARAKTER';\nconst appUrl = 'https://geo.griyaquran.web.id';\nconst n8nApiKey = 'ISI_N8N_API_KEY_APLIKASI_DI_SINI';\nconst emailFrom = 'ISI_EMAIL_PENGIRIM_DI_SINI';\n\nconst incoming = $input.first()?.json ?? {};\nconst headers = incoming.headers ?? {};\nconst suppliedSecret = String(headers['x-geopresensi-secret'] ?? headers['X-GeoPresensi-Secret'] ?? '');\nconst body = incoming.body ?? incoming;\nconst userId = Number(body.user_id);\nconst periodStart = String(body.period_start ?? '').trim();\nconst normalizedAppUrl = String(appUrl).trim().replace(/\\/+$/, '').replace(/\\/api$/i, '');\n\nif (sharedSecret.startsWith('GANTI_') || sharedSecret.length < 32) throw new Error('Isi sharedSecret dengan N8N_MONTHLY_PERFORMANCE_WEBHOOK_SECRET backend.');\nif (suppliedSecret !== sharedSecret) throw new Error('Secret webhook GeoPresensi tidak cocok.');\nif (!Number.isSafeInteger(userId) || userId <= 0) throw new Error('user_id guru tidak valid.');\nif (periodStart.length !== 10 || !periodStart.endsWith('-01')) throw new Error('period_start harus berformat YYYY-MM-01.');\nif (!normalizedAppUrl.startsWith('https://')) throw new Error('appUrl harus menggunakan HTTPS.');\nif (!n8nApiKey || n8nApiKey.startsWith('ISI_')) throw new Error('Isi n8nApiKey dengan N8N_API_KEY backend.');\nif (!String(emailFrom).includes('@') || emailFrom.startsWith('ISI_')) throw new Error('Isi emailFrom dengan alamat pengirim SMTP.');\n\nreturn [{ json: { appUrl: normalizedAppUrl, n8nApiKey, emailFrom, userId, periodStart } }];"
+      },
+      "id": "622e9d37-8ec0-49e8-8c5d-1ad3e33d66b8",
+      "name": "Validasi Event & Konfigurasi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.appUrl + '/api/v1/integrations/n8n/monthly-performance-report'}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{$json.userId}}"
+            },
+            {
+              "name": "period_start",
+              "value": "={{$json.periodStart}}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{$json.n8nApiKey}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8b4c76d1-4622-4334-ab73-4d54da29dd1b",
+      "name": "Ambil laporan personal yang disetujui",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        100,
+        80
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const response = $input.first()?.json ?? {};\nif (response.success !== true) throw new Error(response.message || 'Laporan performa tidak berhasil dimuat dari GeoPresensi.');\nconst report = response.data ?? {};\nconst teacher = report.teacher ?? {};\nconst period = report.period ?? {};\nconst stats = report.summary ?? {};\nconst rows = Array.isArray(report.rows) ? report.rows : [];\nif (!teacher.email || !String(teacher.email).includes('@')) throw new Error('Email guru belum ada atau tidak valid pada profil GeoPresensi.');\nif (!teacher.nama) throw new Error('Nama guru tidak tersedia pada laporan.');\n\nconst n = (key) => Number(stats[key] ?? 0) || 0;\nconst late = n('terlambat');\nconst absent = n('tidakPresensi');\nconst missingCheckout = n('pulangBelumTercatat');\nconst piketNoAttendance = n('tanpaPresensiPadaHariPiket');\nconst piketLate = n('terlambatPadaHariPiket');\nconst greeting = (teacher.sapaan || 'Ustadz/Ustadzah') + ' ' + teacher.nama;\nconst esc = (value) => String(value ?? '').replace(/[&<>\"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[char]));\nconst suggestions = [];\nif (late > 0) suggestions.push('Mohon berusaha hadir lebih awal agar dapat memulai tugas tepat waktu.');\nif (absent > 0) suggestions.push('Jika berhalangan hadir, mohon menyampaikan izin sesuai prosedur agar catatan kehadiran dapat diperbarui.');\nif (piketNoAttendance > 0 || piketLate > 0) suggestions.push('Mohon melaksanakan tugas piket sesuai jadwal, hadir tepat waktu pada hari piket, atau berkoordinasi apabila berhalangan.');\nif (missingCheckout > 0) suggestions.push('Mohon melengkapi presensi pulang sebelum meninggalkan lokasi kerja.');\nif (suggestions.length === 0) suggestions.push('Alhamdulillah, tidak ada catatan perbaikan utama pada indikator ini. Mohon pertahankan kedisiplinan dan konsistensi yang sudah baik.');\n\nconst summaryItems = [\n  ['Hari kerja', n('hariKerja')],\n  ['Hadir', n('hadir') + ' (' + n('persentaseKehadiran') + '%)'],\n  ['Tepat waktu', n('tepatWaktu') + ' (' + n('persentaseTepatWaktu') + '% dari kehadiran)'],\n  ['Terlambat', late],\n  ['Izin', n('izin')],\n  ['Sakit', n('sakit')],\n  ['Tidak ada presensi', absent],\n  ['Pulang belum tercatat', missingCheckout],\n  ['Presensi pada hari piket', n('hadirPadaHariPiket') + ' dari ' + n('hariPiketTerjadwal')]\n];\nconst summaryRows = summaryItems.map(([label, value]) =>\n  '<tr><th style=\"padding:9px 12px;border:1px solid #dbe3ee;background:#f8fafc;text-align:left;font-weight:600\">' +\n  esc(label) + '</th><td style=\"padding:9px 12px;border:1px solid #dbe3ee\">' + esc(value) + '</td></tr>'\n).join('');\n\nconst labels = {\n  hadir: 'Hadir tepat waktu',\n  hadir_terlambat: 'Hadir terlambat',\n  hadir_izin_terlambat: 'Hadir terlambat dengan izin',\n  izin: 'Izin',\n  sakit: 'Sakit',\n  alfa: 'Tidak ada presensi',\n  libur: 'Hari non-kerja',\n  libur_override: 'Libur khusus'\n};\nconst detailRows = rows.map((row) => {\n  const status = labels[row.status] || row.status || '—';\n  const piket = row.piketTerjadwal ? row.statusPiket : '—';\n  return '<tr>' +\n    '<td style=\"padding:8px;border:1px solid #dbe3ee;white-space:nowrap\">' + esc(row.tanggal || '—') + '</td>' +\n    '<td style=\"padding:8px;border:1px solid #dbe3ee\">' + esc(row.hari || '—') + '</td>' +\n    '<td style=\"padding:8px;border:1px solid #dbe3ee\">' + esc(status) + '</td>' +\n    '<td style=\"padding:8px;border:1px solid #dbe3ee;white-space:nowrap\">' + esc(row.jamMasuk || '—') + '</td>' +\n    '<td style=\"padding:8px;border:1px solid #dbe3ee;white-space:nowrap\">' + esc(row.jamPulang || '—') + '</td>' +\n    '<td style=\"padding:8px;border:1px solid #dbe3ee\">' + esc(piket) + '</td>' +\n  '</tr>';\n}).join('') || '<tr><td colspan=\"6\" style=\"padding:8px;border:1px solid #dbe3ee\">Rincian harian tidak tersedia.</td></tr>';\n\nconst suggestionsHtml = suggestions.map((item) => '<li style=\"margin:6px 0\">' + esc(item) + '</li>').join('');\nconst salutation = esc(teacher.sapaan || 'Ustadz/Ustadzah');\nconst safeGreeting = esc(greeting);\nconst html =\n  '<!doctype html><html><body style=\"margin:0;padding:24px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1f2937;line-height:1.55\">' +\n  '<div style=\"max-width:900px;margin:0 auto;background:#ffffff;padding:24px;border:1px solid #e2e8f0;border-radius:12px\">' +\n  '<p>Assalamu’alaikum ' + safeGreeting + ',</p>' +\n  '<p>Jazakumullahu khaira katsira atas kerja keras ' + safeGreeting + ' selama sebulan terakhir ini. Semoga usaha dan kerja keras ' + safeGreeting + ' dibalas dengan balasan terbaik oleh Allah ta’ala.</p>' +\n  '<p>Berikut laporan personal performa presensi periode <strong>' + esc(period.label || 'Bulanan') + '</strong>. Laporan ini berdasarkan catatan aplikasi GeoPresensi dan snapshot rekap yang telah ' + salutation + ' setujui.</p>' +\n  '<h3 style=\"margin:22px 0 8px\">Ringkasan Performa</h3>' +\n  '<table role=\"presentation\" style=\"width:100%;max-width:620px;border-collapse:collapse;margin-bottom:22px\"><tbody>' + summaryRows + '</tbody></table>' +\n  '<h3 style=\"margin:22px 0 8px\">Rincian Presensi Harian</h3>' +\n  '<div style=\"overflow-x:auto\"><table style=\"width:100%;border-collapse:collapse;font-size:13px\"><thead><tr style=\"background:#eff6ff\">' +\n  '<th style=\"padding:8px;border:1px solid #dbe3ee;text-align:left\">Tanggal</th>' +\n  '<th style=\"padding:8px;border:1px solid #dbe3ee;text-align:left\">Hari</th>' +\n  '<th style=\"padding:8px;border:1px solid #dbe3ee;text-align:left\">Status</th>' +\n  '<th style=\"padding:8px;border:1px solid #dbe3ee;text-align:left\">Jam masuk</th>' +\n  '<th style=\"padding:8px;border:1px solid #dbe3ee;text-align:left\">Jam pulang</th>' +\n  '<th style=\"padding:8px;border:1px solid #dbe3ee;text-align:left\">Jadwal piket</th>' +\n  '</tr></thead><tbody>' + detailRows + '</tbody></table></div>' +\n  '<h3 style=\"margin:22px 0 8px\">Saran dengan Hormat</h3><ul style=\"padding-left:22px\">' + suggestionsHtml + '</ul>' +\n  '<p>Terima kasih atas dedikasi dan kerja keras ' + safeGreeting + '. Semoga Allah ta’ala memudahkan ikhtiar kita untuk terus memperbaiki pelayanan dan kedisiplinan.</p>' +\n  '<p style=\"font-size:13px;color:#64748b\">Jika ada catatan yang menurut Ustadz/Ustadzah belum sesuai, silakan sampaikan kepada admin sekolah untuk ditinjau.</p>' +\n  '<p>Wassalamu’alaikum,<br><strong>Sistem GeoPresensi Griya Quran</strong></p>' +\n  '</div></body></html>';\n\nconst emailFrom = $items('Validasi Event & Konfigurasi')[0]?.json?.emailFrom;\nreturn [{ json: { toEmail: teacher.email, fromEmail: emailFrom, subject: 'Laporan Performa Presensi ' + (period.label || 'Bulanan'), html } }];"
+      },
+      "id": "f7d65d80-6a0c-4cb7-a774-30fdbb3444d0",
+      "name": "Susun Laporan dan Saran Personal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$json.fromEmail}}",
+        "toEmail": "={{$json.toEmail}}",
+        "subject": "={{$json.subject}}",
+        "emailFormat": "html",
+        "options": {},
+        "html": "={{$json.html}}"
+      },
+      "id": "208a7742-fce0-4bd3-bfff-c857141e1212",
+      "name": "Kirim email laporan",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        620,
+        80
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_SMTP_CREDENTIAL_ID",
+          "name": "GeoPresensi SMTP"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "Webhook Konfirmasi Guru": {
+      "main": [
+        [
+          {
+            "node": "Validasi Event & Konfigurasi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validasi Event & Konfigurasi": {
+      "main": [
+        [
+          {
+            "node": "Ambil laporan personal yang disetujui",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil laporan personal yang disetujui": {
+      "main": [
+        [
+          {
+            "node": "Susun Laporan dan Saran Personal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Susun Laporan dan Saran Personal": {
+      "main": [
+        [
+          {
+            "node": "Kirim email laporan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "versionId": "72a68771-3ae2-4ecb-bce6-77b571110521",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -41,6 +41,7 @@ func (h *Handler) RegisterIntegrationRoutes(app fiber.Router) {
 	v1.All("/n8n/attendance", h.integrationAuth, h.n8nPresensi)
 	v1.All("/n8n/missing-attendance", h.integrationAuth, h.n8nGuruBelumPresensi)
 	v1.Get("/n8n/monthly-confirmation-reminders", h.integrationAuth, h.n8nMonthlyConfirmationReminders)
+	v1.Get("/n8n/monthly-performance-report", h.integrationAuth, h.n8nMonthlyPerformanceReport)
 	v1.All("/n8n/activity", h.integrationAuth, h.n8nActivity)
 	v1.All("/webhook", h.integrationAuth, h.webhookReminder)
 	v1.All("/webhook/direct", h.integrationAuth, h.webhookReminderDirect)

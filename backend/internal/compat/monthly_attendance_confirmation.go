@@ -288,6 +288,7 @@ func (h *Handler) confirmMonthlyConfirmation(c *fiber.Ctx) error {
 	}).Error; err != nil {
 		return err
 	}
+	h.notifyN8NMonthlyPerformanceReport(user.ID, start)
 
 	payload, err := h.monthlyConfirmationPayload(user, now)
 	if err != nil {

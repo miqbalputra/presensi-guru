@@ -14,6 +14,7 @@ Ringkasnya:
 5. Ikuti runbook [STAGING_MIGRATION.md](STAGING_MIGRATION.md) dan rencana lengkap [migrasi_stack.md](migrasi_stack.md).
 6. Untuk backup terjadwal, import [workflow backup n8n](n8n/backup-geopresensi.json) dan ikuti [panduan workflow](n8n/BACKUP_WORKFLOW.md).
 7. Untuk pengingat konfirmasi rekap presensi melalui WhatsApp dan email, import [workflow n8n](n8n/pengingat-konfirmasi-presensi-bulanan.json) dan ikuti [panduan pengaturan](n8n/PENGINGAT_KONFIRMASI_BULANAN.md).
+8. Untuk mengirim laporan performa personal setelah guru menyetujui rekap, import [workflow n8n](n8n/laporan-performa-guru-setelah-konfirmasi.json) dan ikuti [panduan pengaturan](n8n/LAPORAN_PERFORMA_GURU.md).
 
 ## API Hermes Agent
 

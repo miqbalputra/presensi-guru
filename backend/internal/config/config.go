@@ -54,6 +54,8 @@ type Config struct {
 	TelegramAdminUserMap       string
 	TelegramN8NWebhookURL      string
 	TelegramN8NWebhookSecret   string
+	N8NReportWebhookURL        string
+	N8NReportWebhookSecret     string
 	AllowPrivateWebhookTargets bool
 	BackupDir                  string
 	BackupJobTimeout           time.Duration
@@ -112,6 +114,8 @@ func Load() (Config, error) {
 		TelegramAdminUserMap:       strings.TrimSpace(os.Getenv("TELEGRAM_ADMIN_USER_MAP")),
 		TelegramN8NWebhookURL:      strings.TrimSpace(os.Getenv("TELEGRAM_N8N_WEBHOOK_URL")),
 		TelegramN8NWebhookSecret:   strings.TrimSpace(os.Getenv("TELEGRAM_N8N_WEBHOOK_SECRET")),
+		N8NReportWebhookURL:        strings.TrimSpace(os.Getenv("N8N_MONTHLY_PERFORMANCE_WEBHOOK_URL")),
+		N8NReportWebhookSecret:     strings.TrimSpace(os.Getenv("N8N_MONTHLY_PERFORMANCE_WEBHOOK_SECRET")),
 		AllowPrivateWebhookTargets: envBool("ALLOW_PRIVATE_WEBHOOK_TARGETS", false),
 		BackupDir:                  env("BACKUP_DIR", "./data/backups"),
 		BackupJobTimeout:           envDuration("BACKUP_JOB_TIMEOUT", 30*time.Minute),
@@ -186,6 +190,27 @@ func Load() (Config, error) {
 		for _, char := range c.TelegramN8NWebhookSecret {
 			if !(char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '_' || char == '-') {
 				return Config{}, fmt.Errorf("TELEGRAM_N8N_WEBHOOK_SECRET hanya boleh berisi huruf, angka, garis bawah, atau tanda hubung")
+			}
+		}
+	}
+	monthlyPerformanceWebhookConfigured := c.N8NReportWebhookURL != "" || c.N8NReportWebhookSecret != ""
+	if monthlyPerformanceWebhookConfigured {
+		if c.N8NReportWebhookURL == "" || c.N8NReportWebhookSecret == "" {
+			return Config{}, fmt.Errorf("N8N_MONTHLY_PERFORMANCE_WEBHOOK_URL dan N8N_MONTHLY_PERFORMANCE_WEBHOOK_SECRET harus diisi bersama")
+		}
+		webhookURL, err := url.ParseRequestURI(c.N8NReportWebhookURL)
+		if err != nil || webhookURL.Host == "" || webhookURL.Scheme != "https" && webhookURL.Scheme != "http" {
+			return Config{}, fmt.Errorf("N8N_MONTHLY_PERFORMANCE_WEBHOOK_URL harus berupa URL HTTP atau HTTPS yang valid")
+		}
+		if c.IsSecureEnvironment() && webhookURL.Scheme != "https" {
+			return Config{}, fmt.Errorf("N8N_MONTHLY_PERFORMANCE_WEBHOOK_URL harus menggunakan HTTPS di staging/production")
+		}
+		if len(c.N8NReportWebhookSecret) < 32 || len(c.N8NReportWebhookSecret) > 256 {
+			return Config{}, fmt.Errorf("N8N_MONTHLY_PERFORMANCE_WEBHOOK_SECRET harus berisi 32 sampai 256 karakter")
+		}
+		for _, char := range c.N8NReportWebhookSecret {
+			if !(char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '_' || char == '-') {
+				return Config{}, fmt.Errorf("N8N_MONTHLY_PERFORMANCE_WEBHOOK_SECRET hanya boleh berisi huruf, angka, garis bawah, atau tanda hubung")
 			}
 		}
 	}
