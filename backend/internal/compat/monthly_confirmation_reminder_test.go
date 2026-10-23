@@ -29,9 +29,11 @@ func TestMonthlyConfirmationReminderWindow(t *testing.T) {
 		wantType string
 	}{
 		{name: "month end", date: time.Date(2026, time.October, 31, 15, 0, 0, 0, location), wantSend: true, wantType: "month_end"},
-		{name: "first day", date: time.Date(2026, time.November, 1, 15, 0, 0, 0, location), wantSend: true, wantType: "follow_up"},
-		{name: "third day", date: time.Date(2026, time.November, 3, 15, 0, 0, 0, location), wantSend: true, wantType: "follow_up"},
-		{name: "fourth day", date: time.Date(2026, time.November, 4, 15, 0, 0, 0, location)},
+		{name: "first day at nine", date: time.Date(2026, time.November, 1, 9, 0, 0, 0, location), wantSend: true, wantType: "follow_up"},
+		{name: "third day at nine", date: time.Date(2026, time.November, 3, 9, 0, 0, 0, location), wantSend: true, wantType: "follow_up"},
+		{name: "fourth day", date: time.Date(2026, time.November, 4, 9, 0, 0, 0, location)},
+		{name: "first day at wrong time", date: time.Date(2026, time.November, 1, 15, 0, 0, 0, location)},
+		{name: "month end at wrong time", date: time.Date(2026, time.October, 31, 9, 0, 0, 0, location)},
 		{name: "april month end", date: time.Date(2026, time.April, 30, 15, 0, 0, 0, location), wantSend: true, wantType: "month_end"},
 	}
 	for _, test := range tests {
@@ -61,21 +63,31 @@ func TestN8nMonthlyConfirmationRemindersOnlyReturnsUnconfirmedTeachers(t *testin
 	periodStart := time.Date(2026, time.September, 1, 0, 0, 0, 0, location)
 	periodEnd := time.Date(2026, time.September, 30, 0, 0, 0, 0, location)
 	createdAt := time.Date(2026, time.August, 1, 8, 0, 0, 0, location)
-	phones := map[string]string{
-		"pending": "081234567891", "confirmed": "081234567892", "admin-confirmed": "081234567893",
-		"correction": "081234567894", "no-phone": "", "archived": "081234567895", "new-teacher": "081234567896",
+	contacts := map[string]struct{ phone, email string }{
+		"pending":         {phone: "081234567891", email: "pending@gmail.com"},
+		"confirmed":       {phone: "081234567892", email: "confirmed@gmail.com"},
+		"admin-confirmed": {phone: "081234567893", email: "admin-confirmed@gmail.com"},
+		"correction":      {phone: "081234567894", email: "correction@gmail.com"},
+		"email-only":      {email: "email-only@gmail.com"},
+		"no-contact":      {},
+		"archived":        {phone: "081234567895"},
+		"new-teacher":     {phone: "081234567896"},
 	}
-	teachers := make(map[string]models.User, len(phones))
-	for name, phone := range phones {
+	teachers := make(map[string]models.User, len(contacts))
+	for name, contact := range contacts {
 		var phonePtr *string
-		if phone != "" {
-			phonePtr = &phone
+		if contact.phone != "" {
+			phonePtr = &contact.phone
+		}
+		var emailPtr *string
+		if contact.email != "" {
+			emailPtr = &contact.email
 		}
 		created := createdAt
 		if name == "new-teacher" {
 			created = periodEnd.AddDate(0, 0, 1)
 		}
-		teacher := models.User{Username: "teacher-" + name, Role: "guru", Nama: name, NoHP: phonePtr, CreatedAt: created}
+		teacher := models.User{Username: "teacher-" + name, Role: "guru", Nama: name, NoHP: phonePtr, Email: emailPtr, CreatedAt: created}
 		if name == "archived" {
 			archivedAt := time.Date(2026, time.October, 1, 8, 0, 0, 0, location)
 			teacher.ArchivedAt = &archivedAt
@@ -114,6 +126,7 @@ func TestN8nMonthlyConfirmationRemindersOnlyReturnsUnconfirmedTeachers(t *testin
 			Data         []struct {
 				Nama   string `json:"nama"`
 				Phone  string `json:"phone"`
+				Email  string `json:"email"`
 				Status string `json:"status"`
 			} `json:"data"`
 		} `json:"data"`
@@ -136,14 +149,16 @@ func TestN8nMonthlyConfirmationRemindersOnlyReturnsUnconfirmedTeachers(t *testin
 		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusOK)
 	}
 	payload := decode(response)
-	if !payload.Success || !payload.Data.ShouldSend || payload.Data.ReminderType != "month_end" || payload.Data.Total != 2 {
+	if !payload.Success || !payload.Data.ShouldSend || payload.Data.ReminderType != "month_end" || payload.Data.Total != 3 {
 		t.Fatalf("unexpected reminder response: %+v", payload.Data)
 	}
 	got := map[string]string{}
+	gotEmails := map[string]string{}
 	for _, item := range payload.Data.Data {
 		got[item.Nama] = item.Status
+		gotEmails[item.Nama] = item.Email
 	}
-	if got["pending"] != "pending" || got["correction"] != monthlyConfirmationStatusCorrectionRequested || len(got) != 2 {
+	if got["pending"] != "pending" || got["correction"] != monthlyConfirmationStatusCorrectionRequested || got["email-only"] != "pending" || gotEmails["email-only"] != "email-only@gmail.com" || len(got) != 3 {
 		t.Fatalf("reminders include wrong teachers: %+v", got)
 	}
 
@@ -160,11 +175,16 @@ func TestN8nMonthlyConfirmationRemindersOnlyReturnsUnconfirmedTeachers(t *testin
 		t.Fatal(err)
 	}
 	payload = decode(response)
-	if payload.Data.Total != 1 || len(payload.Data.Data) != 1 || payload.Data.Data[0].Nama != "correction" {
+	if payload.Data.Total != 2 || len(payload.Data.Data) != 2 {
 		t.Fatalf("confirmed teacher was not removed from reminders: %+v", payload.Data.Data)
 	}
+	for _, item := range payload.Data.Data {
+		if item.Nama == "pending" {
+			t.Fatalf("confirmed teacher was not removed from reminders: %+v", payload.Data.Data)
+		}
+	}
 
-	clock = time.Date(2026, time.November, 4, 15, 0, 0, 0, location)
+	clock = time.Date(2026, time.November, 4, 9, 0, 0, 0, location)
 	response, err = app.Test(request())
 	if err != nil {
 		t.Fatal(err)

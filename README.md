@@ -13,7 +13,7 @@ Ringkasnya:
 4. Pastikan `/health/live`, `/health/ready`, `/version`, login, dan security gate lulus sebelum cutover.
 5. Ikuti runbook [STAGING_MIGRATION.md](STAGING_MIGRATION.md) dan rencana lengkap [migrasi_stack.md](migrasi_stack.md).
 6. Untuk backup terjadwal, import [workflow backup n8n](n8n/backup-geopresensi.json) dan ikuti [panduan workflow](n8n/BACKUP_WORKFLOW.md).
-7. Untuk pengingat konfirmasi rekap presensi WhatsApp, import [workflow n8n](n8n/pengingat-konfirmasi-presensi-bulanan.json) dan ikuti [panduan pengaturan](n8n/PENGINGAT_KONFIRMASI_BULANAN.md).
+7. Untuk pengingat konfirmasi rekap presensi melalui WhatsApp dan email, import [workflow n8n](n8n/pengingat-konfirmasi-presensi-bulanan.json) dan ikuti [panduan pengaturan](n8n/PENGINGAT_KONFIRMASI_BULANAN.md).
 
 ## API Hermes Agent
 

@@ -1,6 +1,8 @@
 package compat
 
 import (
+	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,13 +13,25 @@ import (
 func monthlyConfirmationReminderWindow(now time.Time) (bool, string) {
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	lastDay := monthStart.AddDate(0, 1, -1).Day()
-	if now.Day() == lastDay {
+	if now.Day() == lastDay && now.Hour() == 15 && now.Minute() == 0 {
 		return true, "month_end"
 	}
-	if now.Day() >= 1 && now.Day() <= 3 {
+	if now.Day() >= 1 && now.Day() <= 3 && now.Hour() == 9 && now.Minute() == 0 {
 		return true, "follow_up"
 	}
 	return false, ""
+}
+
+func normalizeReminderEmail(value string) string {
+	address := strings.TrimSpace(value)
+	if address == "" {
+		return ""
+	}
+	parsed, err := mail.ParseAddress(address)
+	if err != nil || !strings.EqualFold(parsed.Address, address) || !strings.Contains(parsed.Address, "@") {
+		return ""
+	}
+	return parsed.Address
 }
 
 func (h *Handler) n8nMonthlyConfirmationReminders(c *fiber.Ctx) error {
@@ -61,7 +75,11 @@ func (h *Handler) n8nMonthlyConfirmationReminders(c *fiber.Ctx) error {
 			if user.NoHP != nil {
 				phone = normalizeWhatsAppPhone(*user.NoHP)
 			}
-			if phone == "" {
+			email := ""
+			if user.Email != nil {
+				email = normalizeReminderEmail(*user.Email)
+			}
+			if phone == "" && email == "" {
 				continue
 			}
 			status := "pending"
@@ -69,7 +87,7 @@ func (h *Handler) n8nMonthlyConfirmationReminders(c *fiber.Ctx) error {
 				status = confirmation.Status
 			}
 			items = append(items, fiber.Map{
-				"id": user.ID, "nama": user.Nama, "phone": phone, "status": status,
+				"id": user.ID, "nama": user.Nama, "phone": phone, "email": email, "status": status,
 			})
 		}
 	}

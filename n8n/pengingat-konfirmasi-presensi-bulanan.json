@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Pengingat Konfirmasi Rekap Presensi\n\nJadwal: setiap hari pukul 15.00 WIB. API GeoPresensi hanya mengembalikan penerima pada akhir bulan dan tanggal 1–3, serta mengecualikan guru yang sudah konfirmasi.\n\nSetelah import, isi node **Konfigurasi** (URL aplikasi, N8N_API_KEY, URL GOWA), pilih credential Basic Auth GOWA pada node **Kirim WhatsApp**, lalu aktifkan workflow.",
+        "content": "## Pengingat Konfirmasi Rekap Presensi\n\nWhatsApp dan email dikirim pukul 15.00 WIB pada akhir bulan, lalu pukul 09.00 WIB tanggal 1–3. API GeoPresensi hanya mengembalikan penerima yang belum konfirmasi.\n\nSetelah import, isi node **Konfigurasi** (URL aplikasi, N8N_API_KEY, URL GOWA, dan email pengirim). Pilih credential Basic Auth GOWA dan SMTP, lalu aktifkan workflow.",
         "height": 280,
         "width": 430,
         "color": 4
@@ -12,7 +12,10 @@
       "name": "Petunjuk",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-920, -180]
+      "position": [
+        -920,
+        -180
+      ]
     },
     {
       "parameters": {
@@ -20,26 +23,36 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 15 * * *"
+              "expression": "0 15 28-31 * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 9 1-3 * *"
             }
           ]
         }
       },
       "id": "cf5a6246-26c3-4091-b596-844299e53249",
-      "name": "Jadwal setiap hari 15.00 WIB",
+      "name": "Jadwal akhir bulan 15.00 dan tanggal 1-3 09.00 WIB",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-920, 80]
+      "position": [
+        -920,
+        80
+      ]
     },
     {
       "parameters": {
-        "jsCode": "let appUrl = 'https://geo.griyaquran.web.id';\nconst n8nApiKey = 'ISI_N8N_API_KEY_APLIKASI_DI_SINI';\nconst gowaUrl = 'ISI_URL_GOWA_DI_SINI';\n\nappUrl = String(appUrl).trim().replace(/\\/+$/, '');\nif (appUrl.toLowerCase().endsWith('/api')) appUrl = appUrl.slice(0, -4);\nif (!/^https:\\/\\//i.test(appUrl)) throw new Error('Isi appUrl dengan URL HTTPS GeoPresensi.');\nif (!n8nApiKey || n8nApiKey === 'ISI_N8N_API_KEY_APLIKASI_DI_SINI') throw new Error('Isi N8N_API_KEY aplikasi presensi.');\nif (!/^https:\\/\\//i.test(String(gowaUrl).trim())) throw new Error('Isi gowaUrl dengan URL HTTPS endpoint GOWA.');\n\nreturn [{ json: { appUrl, n8nApiKey, gowaUrl: String(gowaUrl).trim() } }];"
+        "jsCode": "let appUrl = 'https://geo.griyaquran.web.id';\nconst n8nApiKey = 'ISI_N8N_API_KEY_APLIKASI_DI_SINI';\nconst gowaUrl = 'ISI_URL_GOWA_DI_SINI';\nconst emailFrom = 'ISI_EMAIL_PENGIRIM_DI_SINI';\n\nappUrl = String(appUrl).trim().replace(/\\/+$/, '');\nif (appUrl.toLowerCase().endsWith('/api')) appUrl = appUrl.slice(0, -4);\nif (!/^https:\\/\\//i.test(appUrl)) throw new Error('Isi appUrl dengan URL HTTPS GeoPresensi.');\nif (!n8nApiKey || n8nApiKey === 'ISI_N8N_API_KEY_APLIKASI_DI_SINI') throw new Error('Isi N8N_API_KEY aplikasi presensi.');\nif (!/^https:\\/\\//i.test(String(gowaUrl).trim())) throw new Error('Isi gowaUrl dengan URL HTTPS endpoint GOWA.');\nif (!String(emailFrom).includes('@') || emailFrom === 'ISI_EMAIL_PENGIRIM_DI_SINI') throw new Error('Isi emailFrom dengan alamat email SMTP pengirim.');\n\nreturn [{ json: { appUrl, n8nApiKey, gowaUrl: String(gowaUrl).trim(), emailFrom: String(emailFrom).trim() } }];"
       },
       "id": "93c9f06c-04eb-4e84-aa64-bd0c295c40bb",
       "name": "Konfigurasi",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-680, 80]
+      "position": [
+        -680,
+        80
+      ]
     },
     {
       "parameters": {
@@ -61,17 +74,23 @@
       "name": "Ambil guru yang belum konfirmasi",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-440, 80]
+      "position": [
+        -440,
+        80
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nif (!response.success) throw new Error(response.message || 'Gagal mengambil status konfirmasi dari GeoPresensi.');\nconst result = response.data || {};\nif (!result.active || !result.shouldSend) return [];\nconst cfg = $items('Konfigurasi')[0]?.json;\nif (!cfg) throw new Error('Konfigurasi workflow tidak ditemukan.');\nconst teachers = Array.isArray(result.data) ? result.data : [];\nconst period = result.period?.label || 'bulan sebelumnya';\nconst appUrl = cfg.appUrl;\nreturn teachers.flatMap((teacher) => {\n  const phone = String(teacher.phone || '').replace(/[^0-9]/g, '');\n  if (!phone || !teacher.nama) return [];\n  const greeting = \"Assalamu'alaikum Bapak/Ibu *\" + String(teacher.nama).trim() + \"*,\";\n  const message = [\n    '🔔 *Pengingat Konfirmasi Rekap Presensi*',\n    '',\n    greeting,\n    '',\n    'Mohon tinjau dan konfirmasi rekap presensi periode *' + period + '* melalui aplikasi GeoPresensi.',\n    '',\n    'Jika ada data yang belum sesuai, ajukan koreksi sebelum memilih Setuju.',\n    '👉 ' + appUrl,\n    '',\n    '_Pengingat ini berhenti setelah konfirmasi berhasil._',\n    '_Sistem GeoPresensi Griya Quran_'\n  ].join('\\n');\n  return [{ json: { nama: teacher.nama, phone, message, gowaUrl: cfg.gowaUrl } }];\n});"
+        "jsCode": "const response = $input.first().json;\nif (!response.success) throw new Error(response.message || 'Gagal mengambil status konfirmasi dari GeoPresensi.');\nconst result = response.data || {};\nif (!result.active || !result.shouldSend) return [];\nconst cfg = $items('Konfigurasi')[0]?.json;\nif (!cfg) throw new Error('Konfigurasi workflow tidak ditemukan.');\nconst teachers = Array.isArray(result.data) ? result.data : [];\nconst period = result.period?.label || 'bulan sebelumnya';\nconst appUrl = cfg.appUrl;\nreturn teachers.flatMap((teacher) => {\n  const phone = String(teacher.phone || '').replace(/[^0-9]/g, '');\n  const email = String(teacher.email || '').trim();\n  if ((!phone && !email) || !teacher.nama) return [];\n  const nama = String(teacher.nama).trim();\n  const greeting = \"Assalamu'alaikum Bapak/Ibu *\" + nama + \"*,\";\n  const message = [\n    '🔔 *Pengingat Konfirmasi Rekap Presensi*',\n    '',\n    greeting,\n    '',\n    'Mohon tinjau dan konfirmasi rekap presensi periode *' + period + '* melalui aplikasi GeoPresensi.',\n    '',\n    'Jika ada data yang belum sesuai, ajukan koreksi sebelum memilih Setuju.',\n    '👉 ' + appUrl,\n    '',\n    '_Pengingat ini berhenti setelah konfirmasi berhasil._',\n    '_Sistem GeoPresensi Griya Quran_'\n  ].join('\\n');\n  const emailMessage = [\n    \"Assalamu'alaikum Bapak/Ibu \" + nama + ',',\n    '',\n    'Mohon tinjau dan konfirmasi rekap presensi periode ' + period + ' melalui aplikasi GeoPresensi.',\n    '',\n    'Jika ada data yang belum sesuai, ajukan koreksi sebelum memilih Setuju.',\n    'Buka aplikasi: ' + appUrl,\n    '',\n    'Pengingat otomatis ini berhenti setelah konfirmasi berhasil.',\n    '',\n    'Sistem GeoPresensi Griya Quran'\n  ].join('\\n');\n  return [{ json: { nama, phone, email, message, emailMessage, emailSubject: 'Pengingat Konfirmasi Rekap Presensi ' + period, gowaUrl: cfg.gowaUrl, emailFrom: cfg.emailFrom } }];\n});"
       },
       "id": "8a5842fb-d74d-441e-9a42-f8c1d2ac7c87",
       "name": "Susun pesan untuk guru tertunda",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-200, 80]
+      "position": [
+        -200,
+        80
+      ]
     },
     {
       "parameters": {
@@ -83,8 +102,14 @@
         "contentType": "json",
         "bodyParameters": {
           "parameters": [
-            { "name": "phone", "value": "={{$json.phone}}" },
-            { "name": "message", "value": "={{$json.message}}" }
+            {
+              "name": "phone",
+              "value": "={{$json.phone}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.message}}"
+            }
           ]
         },
         "options": {
@@ -101,7 +126,10 @@
       "name": "Kirim WhatsApp via GOWA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [40, 80],
+      "position": [
+        280,
+        20
+      ],
       "credentials": {
         "httpBasicAuth": {
           "id": "REPLACE_WITH_GOWA_BASIC_AUTH_CREDENTIAL_ID",
@@ -111,21 +139,139 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().flatMap((item) => {\n  const teacher = item.json;\n  if (!teacher.phone) return [];\n  return [{ json: { phone: teacher.phone, message: teacher.message, gowaUrl: teacher.gowaUrl } }];\n});"
+      },
+      "id": "83a6f5e1-b23a-4818-a10c-128570845637",
+      "name": "Siapkan penerima WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().flatMap((item) => {\n  const teacher = item.json;\n  if (!teacher.email) return [];\n  return [{ json: { email: teacher.email, subject: teacher.emailSubject, message: teacher.emailMessage, fromEmail: teacher.emailFrom } }];\n});"
+      },
+      "id": "8da3d885-7cbf-4da6-968a-4df9f0b3386d",
+      "name": "Siapkan penerima email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$json.fromEmail}}",
+        "toEmail": "={{$json.email}}",
+        "subject": "={{$json.subject}}",
+        "emailFormat": "text",
+        "text": "={{$json.message}}",
+        "options": {}
+      },
+      "id": "4390bac6-4ef2-459f-a244-387995fb5037",
+      "name": "Kirim email via SMTP",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        280,
+        240
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_SMTP_CREDENTIAL_ID",
+          "name": "GeoPresensi SMTP"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     }
   ],
   "pinData": {},
   "connections": {
-    "Jadwal setiap hari 15.00 WIB": {
-      "main": [[{ "node": "Konfigurasi", "type": "main", "index": 0 }]]
+    "Jadwal akhir bulan 15.00 dan tanggal 1-3 09.00 WIB": {
+      "main": [
+        [
+          {
+            "node": "Konfigurasi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Konfigurasi": {
-      "main": [[{ "node": "Ambil guru yang belum konfirmasi", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Ambil guru yang belum konfirmasi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Ambil guru yang belum konfirmasi": {
-      "main": [[{ "node": "Susun pesan untuk guru tertunda", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Susun pesan untuk guru tertunda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Susun pesan untuk guru tertunda": {
-      "main": [[{ "node": "Kirim WhatsApp via GOWA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Siapkan penerima WhatsApp",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Siapkan penerima email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Siapkan penerima WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Kirim WhatsApp via GOWA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim WhatsApp via GOWA": {
+      "main": []
+    },
+    "Siapkan penerima email": {
+      "main": [
+        [
+          {
+            "node": "Kirim email via SMTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim email via SMTP": {
+      "main": []
     }
   },
   "active": false,
@@ -134,6 +280,8 @@
     "timezone": "Asia/Jakarta"
   },
   "versionId": "74a238a4-ec75-4813-83d1-d117b63b73bc",
-  "meta": { "templateCredsSetupCompleted": false },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
   "tags": []
 }
