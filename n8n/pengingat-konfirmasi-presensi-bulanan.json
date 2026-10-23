@@ -1,0 +1,139 @@
+{
+  "name": "Pengingat Konfirmasi Rekap Presensi Bulanan",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Pengingat Konfirmasi Rekap Presensi\n\nJadwal: setiap hari pukul 15.00 WIB. API GeoPresensi hanya mengembalikan penerima pada akhir bulan dan tanggal 1–3, serta mengecualikan guru yang sudah konfirmasi.\n\nSetelah import, isi node **Konfigurasi** (URL aplikasi, N8N_API_KEY, URL GOWA), pilih credential Basic Auth GOWA pada node **Kirim WhatsApp**, lalu aktifkan workflow.",
+        "height": 280,
+        "width": 430,
+        "color": 4
+      },
+      "id": "2e9fb016-321c-48a1-8c68-7f072564cd3d",
+      "name": "Petunjuk",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-920, -180]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 15 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cf5a6246-26c3-4091-b596-844299e53249",
+      "name": "Jadwal setiap hari 15.00 WIB",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-920, 80]
+    },
+    {
+      "parameters": {
+        "jsCode": "let appUrl = 'https://geo.griyaquran.web.id';\nconst n8nApiKey = 'ISI_N8N_API_KEY_APLIKASI_DI_SINI';\nconst gowaUrl = 'ISI_URL_GOWA_DI_SINI';\n\nappUrl = String(appUrl).trim().replace(/\\/+$/, '');\nif (appUrl.toLowerCase().endsWith('/api')) appUrl = appUrl.slice(0, -4);\nif (!/^https:\\/\\//i.test(appUrl)) throw new Error('Isi appUrl dengan URL HTTPS GeoPresensi.');\nif (!n8nApiKey || n8nApiKey === 'ISI_N8N_API_KEY_APLIKASI_DI_SINI') throw new Error('Isi N8N_API_KEY aplikasi presensi.');\nif (!/^https:\\/\\//i.test(String(gowaUrl).trim())) throw new Error('Isi gowaUrl dengan URL HTTPS endpoint GOWA.');\n\nreturn [{ json: { appUrl, n8nApiKey, gowaUrl: String(gowaUrl).trim() } }];"
+      },
+      "id": "93c9f06c-04eb-4e84-aa64-bd0c295c40bb",
+      "name": "Konfigurasi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 80]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.appUrl + '/api/v1/integrations/n8n/monthly-confirmation-reminders'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{$json.n8nApiKey}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "6bc38416-04e2-4fa2-ae11-94d5c52917a5",
+      "name": "Ambil guru yang belum konfirmasi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-440, 80]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nif (!response.success) throw new Error(response.message || 'Gagal mengambil status konfirmasi dari GeoPresensi.');\nconst result = response.data || {};\nif (!result.active || !result.shouldSend) return [];\nconst cfg = $items('Konfigurasi')[0]?.json;\nif (!cfg) throw new Error('Konfigurasi workflow tidak ditemukan.');\nconst teachers = Array.isArray(result.data) ? result.data : [];\nconst period = result.period?.label || 'bulan sebelumnya';\nconst appUrl = cfg.appUrl;\nreturn teachers.flatMap((teacher) => {\n  const phone = String(teacher.phone || '').replace(/[^0-9]/g, '');\n  if (!phone || !teacher.nama) return [];\n  const greeting = \"Assalamu'alaikum Bapak/Ibu *\" + String(teacher.nama).trim() + \"*,\";\n  const message = [\n    '🔔 *Pengingat Konfirmasi Rekap Presensi*',\n    '',\n    greeting,\n    '',\n    'Mohon tinjau dan konfirmasi rekap presensi periode *' + period + '* melalui aplikasi GeoPresensi.',\n    '',\n    'Jika ada data yang belum sesuai, ajukan koreksi sebelum memilih Setuju.',\n    '👉 ' + appUrl,\n    '',\n    '_Pengingat ini berhenti setelah konfirmasi berhasil._',\n    '_Sistem GeoPresensi Griya Quran_'\n  ].join('\\n');\n  return [{ json: { nama: teacher.nama, phone, message, gowaUrl: cfg.gowaUrl } }];\n});"
+      },
+      "id": "8a5842fb-d74d-441e-9a42-f8c1d2ac7c87",
+      "name": "Susun pesan untuk guru tertunda",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-200, 80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.gowaUrl}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "phone", "value": "={{$json.phone}}" },
+            { "name": "message", "value": "={{$json.message}}" }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "id": "ef8afd1a-61ed-4c07-a05a-cd5eebec5097",
+      "name": "Kirim WhatsApp via GOWA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [40, 80],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REPLACE_WITH_GOWA_BASIC_AUTH_CREDENTIAL_ID",
+          "name": "Gowa Basic Auth"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Jadwal setiap hari 15.00 WIB": {
+      "main": [[{ "node": "Konfigurasi", "type": "main", "index": 0 }]]
+    },
+    "Konfigurasi": {
+      "main": [[{ "node": "Ambil guru yang belum konfirmasi", "type": "main", "index": 0 }]]
+    },
+    "Ambil guru yang belum konfirmasi": {
+      "main": [[{ "node": "Susun pesan untuk guru tertunda", "type": "main", "index": 0 }]]
+    },
+    "Susun pesan untuk guru tertunda": {
+      "main": [[{ "node": "Kirim WhatsApp via GOWA", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  },
+  "versionId": "74a238a4-ec75-4813-83d1-d117b63b73bc",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}

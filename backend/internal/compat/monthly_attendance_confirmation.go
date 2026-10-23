@@ -62,7 +62,7 @@ func monthlyConfirmationDeadline(periodStart time.Time) time.Time {
 
 func monthlyConfirmationPeriodScope(db *gorm.DB, start time.Time) *gorm.DB {
 	start = dateOnly(start)
-	return db.Where("period_start >= ? AND period_start < ?", start, start.AddDate(0, 1, 0))
+	return db.Where("period_start >= ? AND period_start < ?", start.Format("2006-01-02"), start.AddDate(0, 1, 0).Format("2006-01-02"))
 }
 
 func (h *Handler) findMonthlyConfirmation(userID uint, periodStart time.Time) (*models.MonthlyAttendanceConfirmation, error) {
