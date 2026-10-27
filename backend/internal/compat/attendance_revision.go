@@ -571,9 +571,7 @@ func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.Attendanc
 	}
 	checkedInAt := time.Date(request.Tanggal.Year(), request.Tanggal.Month(), request.Tanggal.Day(), minutes/60, minutes%60, 0, 0, appLocation(h))
 	status, checkInNote := classifyCheckIn(teacher, checkedInAt, target, targetLabel, settings["toleransi_terlambat"], "")
-	if strings.EqualFold(strings.TrimSpace(teacher.TipeGuru), "partime") {
-		checkInNote = "Guru Partime · Revisi " + request.Alasan
-	} else if checkInNote != "" {
+	if checkInNote != "" {
 		checkInNote += " · Revisi " + request.Alasan
 	} else {
 		checkInNote = "Revisi " + request.Alasan

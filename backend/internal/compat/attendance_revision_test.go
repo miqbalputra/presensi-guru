@@ -211,3 +211,36 @@ func TestValidateAttendanceRevisionTimes(t *testing.T) {
 		}
 	}
 }
+
+func TestPartTimePiketRevisionKeepsLateMinutesAndPiketNote(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.Setting{}, &models.Holiday{}, &models.JadwalPiket{}); err != nil {
+		t.Fatal(err)
+	}
+	teacher := models.User{Username: "partime-piket", Role: "guru", Nama: "Guru Partime Piket", TipeGuru: "partime"}
+	if err := db.Create(&teacher).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.Setting{Key: "apel_senin_enabled", Value: "1"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.JadwalPiket{UserID: teacher.ID, Hari: "Senin", JamPiket: pointerString("06:40"), IsActive: true}).Error; err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{AppTimezone: "Asia/Jakarta"}
+	h := NewHandler(db, cfg, auth.NewJWTManager(cfg))
+	request := models.AttendanceRevisionRequest{UserID: teacher.ID, Tanggal: time.Date(2026, time.August, 17, 0, 0, 0, 0, appLocation(h)), JamMasuk: pointerString("06:50"), Alasan: "kendala_teknis"}
+	if err := db.Transaction(func(tx *gorm.DB) error { return h.applyAttendanceRevision(tx, &request) }); err != nil {
+		t.Fatal(err)
+	}
+	var saved models.AttendanceLog
+	if err := db.Where("user_id = ?", teacher.ID).First(&saved).Error; err != nil {
+		t.Fatal(err)
+	}
+	if saved.Status != "hadir_terlambat" || stringPointerValue(saved.Keterangan) != "Terlambat 10 menit (Piket) · Revisi kendala_teknis" {
+		t.Fatalf("revised attendance = %q / %q, want late minutes, piket marker and revision reason", saved.Status, stringPointerValue(saved.Keterangan))
+	}
+}

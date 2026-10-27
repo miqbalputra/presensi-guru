@@ -35,7 +35,6 @@ function Pengaturan() {
     sekolah_longitude: '119.4327',
     sekolah_nama: 'Sekolah',
     mode_testing: '1',
-    piket_terlambat_adalah_terlambat: '0',
     button_enabled: '1',
     jam_min_pulang: '12:30',
     weekend_workday_enabled: '0',
@@ -440,7 +439,7 @@ function Pengaturan() {
             <div>
               <h3 id="perbaikan-status-masuk" className="text-base font-bold text-slate-900">Perbaiki status masuk per tanggal</h3>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">
-                Gunakan setelah Jam Masuk Normal diperbaiki. Sistem menilai ulang presensi hadir pada tanggal yang dipilih dengan jam terbaru dan toleransi saat ini. Guru yang mendapat jadwal piket tetap memakai jam piket pada hari tersebut.
+                Gunakan untuk memperbaiki presensi hari ini atau tanggal lama setelah aturan jam masuk, apel Senin, atau jadwal piket diperbaiki. Guru piket memakai jam pada jadwal piket, termasuk guru partime. Saat apel Senin aktif, guru lainnya memakai batas 07:00.
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-600">
                 Status hadir/terlambat dan keterangan otomatis “Terlambat … menit” dapat diperbarui. Jam masuk, jam pulang, lokasi GPS, izin, sakit, serta catatan manual tetap utuh. Pengaturan dan jadwal piket aktif saat ini dipakai untuk menghitung ulang tanggal tersebut.
@@ -811,7 +810,7 @@ function Pengaturan() {
           <div className="flex-1">
             <h3 className="text-lg font-bold text-gray-800 mb-2">Status Apel Senin</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Aktifkan ini jika hari Senin besok ada Apel Pagi. Jika dinonaktifkan (misal saat UAS), batas masuk semua guru akan kembali ke jam normal.
+              Saat aktif, batas masuk guru pada hari Senin adalah 07:00. Guru yang mendapat jadwal piket tetap mengikuti jam datang pada jadwal piket, termasuk guru partime.
             </p>
 
             <div className="flex items-center gap-4 mb-2">
@@ -838,8 +837,8 @@ function Pengaturan() {
                 </p>
                 <p className="text-xs text-gray-500">
                   {settings.apel_senin_enabled == '1'
-                    ? 'Batas masuk: Piket 06:40, Non-Piket 07:00'
-                    : 'Batas masuk: Piket 07:00, Non-Piket 07:20'}
+                    ? 'Batas masuk: sesuai jadwal piket untuk petugas piket, 07:00 untuk guru lainnya'
+                    : `Batas masuk: sesuai jadwal piket untuk petugas piket, ${settings.jam_masuk_normal} untuk guru lainnya`}
                 </p>
               </div>
             </div>
@@ -954,103 +953,22 @@ function Pengaturan() {
 
 </section>
 <section hidden={section !== 'Presensi' || !!loadError}>
-      {/* Terlambat Piket Dianggap Terlambat */}
+      {/* Aturan keterlambatan piket */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
-          <div className={`p-3 rounded-lg ${settings.piket_terlambat_adalah_terlambat == '1' ? 'bg-red-100' : 'bg-gray-100'}`}>
-            <Clock className={`w-6 h-6 ${settings.piket_terlambat_adalah_terlambat == '1' ? 'text-red-600' : 'text-gray-600'}`} />
+          <div className="p-3 rounded-lg bg-amber-100">
+            <Clock className="w-6 h-6 text-amber-600" />
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-bold text-gray-800 mb-2">Terlambat Piket = Hadir Terlambat</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Atur apakah guru yang terlambat hadir piket akan dianggap sebagai "Hadir Terlambat" atau hanya mendapat warning saja.
+              Guru yang presensi melewati jam datang pada jadwal piket aktif selalu tercatat sebagai "Hadir Terlambat", termasuk guru partime. Keterangan mencantumkan jumlah menit terlambat dan tanda (Piket).
             </p>
 
-            {/* Toggle Switch */}
-            <div className="flex items-center gap-4 mb-4">
-              <button
-                onClick={() => {
-                  const newValue = settings.piket_terlambat_adalah_terlambat == '1' ? '0' : '1'
-                  handleChange('piket_terlambat_adalah_terlambat', newValue)
-                  handleSave('piket_terlambat_adalah_terlambat', newValue)
-                }}
-                disabled={saving}
-                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                  settings.piket_terlambat_adalah_terlambat == '1' ? 'bg-red-500' : 'bg-gray-400'
-                }`}
-              >
-                <span
-                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                    settings.piket_terlambat_adalah_terlambat == '1' ? 'translate-x-9' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <div>
-                <p className={`font-bold ${settings.piket_terlambat_adalah_terlambat == '1' ? 'text-red-600' : 'text-gray-600'}`}>
-                  {settings.piket_terlambat_adalah_terlambat == '1' ? 'AKTIF - Ubah Status' : 'NONAKTIF - Warning Saja'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {settings.piket_terlambat_adalah_terlambat == '1'
-                    ? 'Terlambat piket akan mengubah status menjadi "Hadir Terlambat"'
-                    : 'Terlambat piket hanya memberi warning tanpa mengubah status'}
-                </p>
-              </div>
-            </div>
-
-            {/* Info Box */}
-            {settings.piket_terlambat_adalah_terlambat == '1' ? (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-800 font-semibold mb-1">🔴 Mode Ketat Aktif</p>
-                <ul className="text-xs text-red-700 space-y-1 list-disc list-inside">
-                  <li>Guru yang terlambat hadir piket akan tercatat sebagai "Hadir Terlambat"</li>
-                  <li>Status akan muncul di statistik dan laporan</li>
-                  <li>Tetap ada warning piket di pesan presensi</li>
-                  <li>Cocok untuk sekolah dengan aturan piket yang ketat</li>
-                </ul>
-              </div>
-            ) : (
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <p className="text-sm text-gray-800 font-semibold mb-1">ℹ️ Mode Warning Saja</p>
-                <ul className="text-xs text-gray-700 space-y-1 list-disc list-inside">
-                  <li>Guru yang terlambat piket tetap tercatat sebagai "Hadir" (jika tidak terlambat masuk normal)</li>
-                  <li>Hanya muncul warning piket di pesan presensi</li>
-                  <li>Status "Hadir Terlambat" hanya untuk terlambat masuk normal</li>
-                  <li>Cocok untuk sekolah yang lebih fleksibel dengan jadwal piket</li>
-                </ul>
-              </div>
-            )}
-
-            {/* Contoh Kasus */}
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800 font-semibold mb-2">📝 Contoh Kasus:</p>
-              <div className="text-xs text-blue-700 space-y-2">
-                <div>
-                  <p className="font-semibold">Guru A:</p>
-                  <ul className="list-disc list-inside ml-2">
-                    <li>Piket jam 07:00, presensi jam 07:30</li>
-                    <li>Jam masuk normal: 07:20</li>
-                    <li>Terlambat piket: 30 menit</li>
-                    <li>Terlambat masuk: 10 menit (masih dalam toleransi)</li>
-                  </ul>
-                  <p className="mt-1 font-semibold">
-                    {settings.piket_terlambat_adalah_terlambat === '1'
-                      ? '→ Status: Hadir Terlambat (karena terlambat piket)'
-                      : '→ Status: Hadir (hanya warning piket)'}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold">Guru B:</p>
-                  <ul className="list-disc list-inside ml-2">
-                    <li>Piket jam 07:00, presensi jam 07:40</li>
-                    <li>Jam masuk normal: 07:20</li>
-                    <li>Terlambat piket: 40 menit</li>
-                    <li>Terlambat masuk: 20 menit (melebihi toleransi 15 menit)</li>
-                  </ul>
-                  <p className="mt-1 font-semibold">
-                    → Status: Hadir Terlambat (terlambat masuk normal)
-                  </p>
-                </div>
-              </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm font-semibold text-amber-800">Contoh Senin dengan apel pagi</p>
+              <p className="mt-1 text-sm text-amber-800">Piket dijadwalkan 06:40, presensi 06:50: Hadir Terlambat dengan keterangan "Terlambat 10 menit (Piket)". Guru tanpa piket yang presensi 06:50 masih hadir tepat waktu karena batasnya 07:00.</p>
+              <p className="mt-2 text-xs text-amber-700">Toleransi hanya menentukan penanda (Parah). Terlambat 1 menit dari jadwal sudah dihitung terlambat. Data tanggal lama dapat diperbaiki melalui "Perbaiki status masuk per tanggal" di atas.</p>
             </div>
           </div>
         </div>

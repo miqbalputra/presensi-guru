@@ -273,7 +273,6 @@ function gp_get_piket($pdo, $userId, $date)
 
 function gp_get_checkin_target($pdo, $userId, $date, $settings, $holiday, $isSpecialWorkday)
 {
-    $hariIni = gp_day_name($date);
     $piket = null;
     $jamMasukTarget = $settings['jam_masuk_normal'] ?? '07:20';
     $piketLabel = '';
@@ -284,25 +283,32 @@ function gp_get_checkin_target($pdo, $userId, $date, $settings, $holiday, $isSpe
 
     $piket = gp_get_piket($pdo, $userId, $date);
 
-    if ($hariIni === 'Senin') {
-        if (($settings['apel_senin_enabled'] ?? '0') == '1') {
-            if ($piket) {
-                $jamMasukTarget = $piket['jam_piket'];
-                $piketLabel = ' (Piket Apel)';
-            } else {
-                $jamMasukTarget = '07:00';
-                $piketLabel = ' (Apel Senin)';
-            }
-        } elseif ($piket) {
-            $jamMasukTarget = '07:00';
-            $piketLabel = ' (Piket)';
-        }
-    } elseif ($piket) {
-        $jamMasukTarget = $piket['jam_piket'];
+    if ($piket) {
+        $jamMasukTarget = !empty($piket['jam_piket'])
+            ? $piket['jam_piket']
+            : ($settings['jam_piket_default'] ?? '07:00');
         $piketLabel = ' (Piket)';
+    } elseif (gp_day_name($date) === 'Senin' && ($settings['apel_senin_enabled'] ?? '0') == '1') {
+        $jamMasukTarget = '07:00';
+        $piketLabel = ' (Apel Senin)';
     }
 
     return [$jamMasukTarget, $piketLabel, $piket];
+}
+
+function gp_classify_checkin($user, $time, $target, $targetLabel, $tolerance, $note = '')
+{
+    $scheduled = in_array($targetLabel, [' (Piket)', ' (Piket Apel)', ' (Apel Senin)'], true);
+    if (strtolower(trim($user['tipe_guru'] ?? '')) === 'partime' && !$scheduled) {
+        return ['hadir', trim($note) === '' ? 'Guru Partime' : $note];
+    }
+
+    $lateMinutes = gp_time_to_minutes($time) - gp_time_to_minutes($target);
+    if ($lateMinutes <= 0) {
+        return ['hadir', $note];
+    }
+    $severity = $lateMinutes > $tolerance ? ' (Parah)' : '';
+    return ['hadir_terlambat', "Terlambat {$lateMinutes} menit{$severity}{$targetLabel}"];
 }
 
 function gp_create_attendance($pdo, $options)
@@ -328,7 +334,7 @@ function gp_create_attendance($pdo, $options)
     }
 
     [$holiday, $isSpecialWorkday] = gp_validate_workday($pdo, $date, $user['jenis_kelamin'] ?? null);
-    $settings = gp_get_settings($pdo, ['jam_masuk_normal', 'toleransi_terlambat', 'apel_senin_enabled']);
+    $settings = gp_get_settings($pdo, ['jam_masuk_normal', 'toleransi_terlambat', 'apel_senin_enabled', 'jam_piket_default']);
 
     $status = $requestedStatus;
     $jamMasuk = null;
@@ -349,24 +355,11 @@ function gp_create_attendance($pdo, $options)
         $jamMasuk = $time;
         $jamHadir = $time;
 
-        if (($user['tipe_guru'] ?? '') === 'partime') {
-            $status = 'hadir';
-            $keterangan = $keterangan ?: 'Guru Partime';
-        } else {
-            [$jamMasukTarget, $piketLabel] = gp_get_checkin_target($pdo, $user['id'], $date, $settings, $holiday, $isSpecialWorkday);
-            $targetMinutes = gp_time_to_minutes($jamMasukTarget);
-            $actualMinutes = gp_time_to_minutes($time);
-            $lateMinutes = $actualMinutes - $targetMinutes;
-
-            if ($lateMinutes > 0) {
-                $status = 'hadir_terlambat';
-                $toleransi = (int)($settings['toleransi_terlambat'] ?? 15);
-                $severity = $lateMinutes > $toleransi ? ' (Parah)' : '';
-                $keterangan = "Terlambat {$lateMinutes} menit{$severity}{$piketLabel}";
-            } else {
-                $status = 'hadir';
-            }
-        }
+        [$jamMasukTarget, $piketLabel] = gp_get_checkin_target($pdo, $user['id'], $date, $settings, $holiday, $isSpecialWorkday);
+        [$status, $keterangan] = gp_classify_checkin(
+            $user, $time, $jamMasukTarget, $piketLabel,
+            (int)($settings['toleransi_terlambat'] ?? 15), $keterangan
+        );
     } elseif ($requestedStatus === 'izin') {
         $jamIzin = $izinTime;
     } elseif ($requestedStatus === 'sakit') {

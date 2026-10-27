@@ -3,6 +3,7 @@ package compat
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -162,6 +163,144 @@ func TestCheckInRecalculationSupportsPastDateAndPiketTargets(t *testing.T) {
 	}
 	if futureResponse.StatusCode != fiber.StatusBadRequest {
 		t.Fatalf("future date status = %d, want %d", futureResponse.StatusCode, fiber.StatusBadRequest)
+	}
+}
+
+func TestPastMondayPiketRecalculationPersistsLatenessAndPreservesAttendance(t *testing.T) {
+	for _, apel := range []string{"1", "0"} {
+		t.Run("apel_"+apel, func(t *testing.T) {
+			db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "-")+"?mode=memory&cache=shared"), &gorm.Config{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.AutoMigrate(&models.User{}, &models.AttendanceLog{}, &models.Setting{}, &models.Holiday{}, &models.JadwalPiket{}, &models.ActivityLog{}); err != nil {
+				t.Fatal(err)
+			}
+			location, err := time.LoadLocation("Asia/Jakarta")
+			if err != nil {
+				t.Fatal(err)
+			}
+			date := time.Date(2026, time.August, 17, 0, 0, 0, 0, location)
+			admin := models.User{Username: "admin", Role: "admin", Nama: "Admin"}
+			if err := db.Create(&admin).Error; err != nil {
+				t.Fatal(err)
+			}
+			for _, setting := range []models.Setting{
+				{Key: "jam_masuk_normal", Value: "07:20"},
+				{Key: "apel_senin_enabled", Value: apel},
+				{Key: "toleransi_terlambat", Value: "15"},
+				{Key: "piket_terlambat_adalah_terlambat", Value: "0"},
+			} {
+				if err := db.Create(&setting).Error; err != nil {
+					t.Fatal(err)
+				}
+			}
+			var original []models.AttendanceLog
+			for _, tc := range []struct {
+				name, teacherType, checkIn, status, note string
+				piket, legacyTime                        bool
+			}{
+				{"late-full-time", "full_time", "06:50:00", "hadir", "Catatan admin", true, false},
+				{"late-partime", "partime", "06:50:00", "hadir", "Guru Partime", true, true},
+				{"on-time-piket", "full_time", "06:40:00", "hadir", "", true, false},
+				{"without-piket", "full_time", "06:50:00", "hadir", "", false, false},
+				{"permission", "full_time", "", "izin", "Izin keluarga", true, false},
+				{"sick", "full_time", "", "sakit", "Istirahat", true, false},
+			} {
+				user := models.User{Username: tc.name, Nama: tc.name, Role: "guru", TipeGuru: tc.teacherType}
+				if err := db.Create(&user).Error; err != nil {
+					t.Fatal(err)
+				}
+				if tc.piket {
+					if err := db.Create(&models.JadwalPiket{UserID: user.ID, Hari: "Senin", JamPiket: pointerString("06:40"), IsActive: true}).Error; err != nil {
+						t.Fatal(err)
+					}
+				}
+				row := models.AttendanceLog{UserID: user.ID, Nama: user.Nama, Tanggal: date, Status: tc.status, JamMasuk: pointerString(tc.checkIn), JamHadir: pointerString(tc.checkIn), Keterangan: pointerString(tc.note), Metode: "qr_scan"}
+				if tc.checkIn != "" {
+					row.JamPulang = pointerString("13:00:00")
+					latitude, longitude := -7.4, 109.3
+					row.Latitude, row.Longitude = &latitude, &longitude
+				}
+				if tc.legacyTime {
+					row.JamMasuk = nil
+				}
+				if err := db.Create(&row).Error; err != nil {
+					t.Fatal(err)
+				}
+				original = append(original, row)
+			}
+			// The correction must stay bounded to the date selected by the admin.
+			otherDate := models.AttendanceLog{UserID: original[0].UserID, Nama: original[0].Nama, Tanggal: date.AddDate(0, 0, -7), Status: "hadir", JamMasuk: pointerString("06:50:00")}
+			if err := db.Create(&otherDate).Error; err != nil {
+				t.Fatal(err)
+			}
+			original = append(original, otherDate)
+			for i := range original {
+				if err := db.First(&original[i], original[i].ID).Error; err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg := config.Config{AppTimezone: "Asia/Jakarta"}
+			h := NewHandler(db, cfg, auth.NewJWTManager(cfg))
+			app := fiber.New()
+			app.All("/recalculate", func(c *fiber.Ctx) error {
+				c.Locals("authClaims", &auth.Claims{UserID: admin.ID, Role: "admin"})
+				return h.todayCheckInRecalculation(c)
+			})
+			request := func(method string) todayCheckInRecalculationResponse {
+				t.Helper()
+				req := httptest.NewRequest(method, "/recalculate?date=2026-08-17", nil)
+				if method == fiber.MethodPost {
+					req = httptest.NewRequest(method, "/recalculate", strings.NewReader(`{"date":"2026-08-17"}`))
+					req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+				}
+				res, err := app.Test(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer res.Body.Close()
+				if res.StatusCode != fiber.StatusOK {
+					t.Fatalf("%s status = %d", method, res.StatusCode)
+				}
+				var payload struct {
+					Data todayCheckInRecalculationResponse `json:"data"`
+				}
+				if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+					t.Fatal(err)
+				}
+				return payload.Data
+			}
+			preview := request(fiber.MethodGet)
+			if preview.Processed != 4 || preview.Changed != 2 {
+				t.Fatalf("preview = %#v, want 4 processed and 2 corrections", preview)
+			}
+			for _, item := range preview.Items[:2] {
+				if item.Target != "06:40:00" || item.TargetLabel != "(Piket)" || item.NewStatus != "hadir_terlambat" || item.NewLateMinutes == nil || *item.NewLateMinutes != 10 {
+					t.Fatalf("incorrect Monday piket preview: %#v", item)
+				}
+			}
+			assertRecalculatedStatus(t, db, original[0].ID, "hadir")
+			request(fiber.MethodPost)
+			for i, before := range original {
+				var saved models.AttendanceLog
+				if err := db.First(&saved, before.ID).Error; err != nil {
+					t.Fatal(err)
+				}
+				if i < 2 {
+					before.Status = "hadir_terlambat"
+					before.Keterangan = pointerString(*before.Keterangan + " | Terlambat 10 menit (Piket)")
+				}
+				// UpdatedAt records the correction; all other original fields stay intact.
+				saved.UpdatedAt = before.UpdatedAt
+				if !reflect.DeepEqual(saved, before) {
+					t.Fatalf("record %d differs beyond the expected status/note correction:\n got %#v\nwant %#v", before.ID, saved, before)
+				}
+			}
+			if second := request(fiber.MethodPost); second.Changed != 0 {
+				t.Fatalf("second correction still changes %d records", second.Changed)
+			}
+		})
 	}
 }
 

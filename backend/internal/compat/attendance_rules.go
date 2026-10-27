@@ -10,9 +10,9 @@ import (
 	"github.com/griyaquran/geopresensi/backend/internal/models"
 )
 
-// checkInTarget keeps the attendance timing rules aligned with the previous
-// PHP implementation. The school default applies unless a special workday or
-// an active duty roster (piket) supplies an earlier target.
+// checkInTarget uses the configured active piket time on every weekday,
+// including Mondays with or without apel. Special workdays keep their explicit
+// override; Monday apel applies to teachers without an active duty roster.
 func (h *Handler) checkInTarget(userID uint, date time.Time, settings map[string]string) (string, string, error) {
 	target := settingTime(settings["jam_masuk_normal"], "07:20")
 	label := ""
@@ -33,27 +33,22 @@ func (h *Handler) checkInTarget(userID uint, date time.Time, settings map[string
 	if piketQuery.Error != nil && piketQuery.Error != gorm.ErrRecordNotFound {
 		return "", "", piketQuery.Error
 	}
-	hasPiket := piketQuery.Error == nil
-
-	if date.Weekday() == time.Monday {
-		if settings["apel_senin_enabled"] == "1" {
-			if hasPiket && piket.JamPiket != nil && strings.TrimSpace(*piket.JamPiket) != "" {
-				return settingTime(*piket.JamPiket, "07:00"), " (Piket Apel)", nil
-			}
-			return "07:00:00", " (Apel Senin)", nil
-		}
-		if hasPiket {
-			return "07:00:00", " (Piket)", nil
-		}
-	} else if hasPiket && piket.JamPiket != nil && strings.TrimSpace(*piket.JamPiket) != "" {
-		return settingTime(*piket.JamPiket, target), " (Piket)", nil
+	if piketQuery.Error == nil {
+		fallback := settingTime(settings["jam_piket_default"], "07:00")
+		return settingTime(stringPointerValue(piket.JamPiket), fallback), " (Piket)", nil
+	}
+	if date.Weekday() == time.Monday && settings["apel_senin_enabled"] == "1" {
+		return "07:00:00", " (Apel Senin)", nil
 	}
 
 	return target, label, nil
 }
 
 func classifyCheckIn(user models.User, checkedInAt time.Time, target, targetLabel, toleranceValue, note string) (string, string) {
-	if strings.EqualFold(strings.TrimSpace(user.TipeGuru), "partime") {
+	// Part-time flexibility applies to normal school hours. Assigned piket and
+	// Monday apel still have a required arrival time for every teacher.
+	scheduled := targetLabel == " (Piket)" || targetLabel == " (Piket Apel)" || targetLabel == " (Apel Senin)"
+	if strings.EqualFold(strings.TrimSpace(user.TipeGuru), "partime") && !scheduled {
 		if strings.TrimSpace(note) == "" {
 			note = "Guru Partime"
 		}
@@ -117,7 +112,7 @@ func (h *Handler) lateMinutesForAttendance(user models.User, attendance models.A
 // intentionally read-only: administrators' historical/manual corrections stay
 // untouched, while teacher-facing views still show the rule that applies now.
 func (h *Handler) derivedAttendanceStatus(user models.User, attendance models.AttendanceLog, date time.Time, settings map[string]string) (string, error) {
-	if attendance.Status != "hadir" || strings.EqualFold(strings.TrimSpace(user.TipeGuru), "partime") {
+	if attendance.Status != "hadir" {
 		return attendance.Status, nil
 	}
 
