@@ -2,6 +2,7 @@ package compat
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -144,9 +145,12 @@ func (h *Handler) holidays(c *fiber.Ctx) error {
 	if claims.Role != "admin" {
 		return fiber.ErrForbidden
 	}
-	body, err := readJSON(c)
-	if err != nil {
-		return invalid(c, err.Error())
+	body := map[string]any{}
+	if c.Method() == fiber.MethodPost || c.Method() == fiber.MethodPut {
+		body, err = readJSON(c)
+		if err != nil {
+			return invalid(c, err.Error())
+		}
 	}
 	switch c.Method() {
 	case fiber.MethodPost:
@@ -160,11 +164,35 @@ func (h *Handler) holidays(c *fiber.Ctx) error {
 		if err != nil {
 			return invalid(c, "Format tanggal tidak valid")
 		}
-		updates := map[string]any{"tanggal": date.Format("2006-01-02"), "nama": stringValue(body, "nama"), "jenis": stringValue(body, "jenis"), "keterangan": stringValue(body, "keterangan"), "is_workday": boolValue(body, "isWorkday", "is_workday"), "jam_masuk_khusus": stringValue(body, "jamMasukKhusus", "jam_masuk_khusus")}
+		if err := validateWorkAgendaTime(body); err != nil {
+			return invalid(c, err.Error())
+		}
+		updates := map[string]any{"tanggal": date, "nama": stringValue(body, "nama"), "jenis": stringValue(body, "jenis"), "keterangan": stringValue(body, "keterangan"), "is_workday": boolValue(body, "isWorkday", "is_workday"), "jam_masuk_khusus": pointerString(normalizeTime(stringValue(body, "jamMasukKhusus", "jam_masuk_khusus")))}
 		if updates["nama"] == "" || updates["jenis"] == "" {
 			return invalid(c, "Nama dan jenis hari libur harus diisi")
 		}
-		if err := h.db.Model(&models.Holiday{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		if !contains([]string{"nasional", "cuti_bersama", "sekolah"}, stringValue(body, "jenis")) {
+			return invalid(c, "Jenis kalender tidak valid")
+		}
+		var current models.Holiday
+		if err := h.db.First(&current, id).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return httpx.Error(c, fiber.StatusNotFound, "AGENDA_NOT_FOUND", "Jadwal tidak ditemukan")
+			}
+			return err
+		}
+		var conflict models.Holiday
+		conflictQuery := h.db.Where("tanggal >= ? AND tanggal < ? AND id <> ?", date, date.AddDate(0, 0, 1), id).First(&conflict)
+		if conflictQuery.Error == nil {
+			return httpx.Error(c, fiber.StatusConflict, "DATE_ALREADY_CONFIGURED", "Tanggal tersebut sudah memiliki hari libur atau agenda. Edit jadwal yang sudah ada.")
+		}
+		if conflictQuery.Error != gorm.ErrRecordNotFound {
+			return conflictQuery.Error
+		}
+		if err := h.db.Model(&current).Updates(updates).Error; err != nil {
+			if isDuplicateError(err) {
+				return httpx.Error(c, fiber.StatusConflict, "DATE_ALREADY_CONFIGURED", "Tanggal tersebut sudah memiliki jadwal lain.")
+			}
 			return err
 		}
 		return httpx.Success(c, "Hari libur berhasil diupdate", nil)
@@ -194,8 +222,12 @@ func (h *Handler) createHoliday(c *fiber.Ctx, body map[string]any) error {
 	if !contains([]string{"nasional", "cuti_bersama", "sekolah"}, kind) {
 		return invalid(c, "Jenis libur tidak valid")
 	}
+	if err := validateWorkAgendaTime(body); err != nil {
+		return invalid(c, err.Error())
+	}
 	start := stringValue(body, "start_date")
 	end := stringValue(body, "end_date")
+	isRange := start != ""
 	if start == "" {
 		start = stringValue(body, "tanggal")
 		end = start
@@ -210,11 +242,18 @@ func (h *Handler) createHoliday(c *fiber.Ctx, body map[string]any) error {
 	}
 	for date := startDate; !date.After(endDate); date = date.AddDate(0, 0, 1) {
 		var holiday models.Holiday
-		query := h.db.Where("tanggal = ?", date.Format("2006-01-02")).First(&holiday)
-		updates := map[string]any{"nama": name, "jenis": kind, "keterangan": stringValue(body, "keterangan"), "is_workday": boolValue(body, "isWorkday", "is_workday"), "jam_masuk_khusus": stringValue(body, "jamMasukKhusus", "jam_masuk_khusus")}
+		query := h.db.Where("tanggal >= ? AND tanggal < ?", date, date.AddDate(0, 0, 1)).First(&holiday)
+		if query.Error == nil && !isRange {
+			return httpx.Error(c, fiber.StatusConflict, "DATE_ALREADY_CONFIGURED", "Tanggal tersebut sudah memiliki hari libur atau agenda. Edit jadwal yang sudah ada.")
+		}
+		specialTime := pointerString(normalizeTime(stringValue(body, "jamMasukKhusus", "jam_masuk_khusus")))
+		updates := map[string]any{"nama": name, "jenis": kind, "keterangan": stringValue(body, "keterangan"), "is_workday": boolValue(body, "isWorkday", "is_workday"), "jam_masuk_khusus": specialTime}
 		if query.Error == gorm.ErrRecordNotFound {
-			holiday = models.Holiday{Tanggal: date, Nama: name, Jenis: kind, Keterangan: pointerString(stringValue(body, "keterangan")), IsWorkday: boolValue(body, "isWorkday", "is_workday"), JamMasukKhusus: pointerString(stringValue(body, "jamMasukKhusus", "jam_masuk_khusus"))}
+			holiday = models.Holiday{Tanggal: date, Nama: name, Jenis: kind, Keterangan: pointerString(stringValue(body, "keterangan")), IsWorkday: boolValue(body, "isWorkday", "is_workday"), JamMasukKhusus: specialTime}
 			if err := h.db.Create(&holiday).Error; err != nil {
+				if isDuplicateError(err) {
+					return httpx.Error(c, fiber.StatusConflict, "DATE_ALREADY_CONFIGURED", "Tanggal tersebut sudah memiliki jadwal lain.")
+				}
 				return err
 			}
 		} else if query.Error == nil {
@@ -228,13 +267,24 @@ func (h *Handler) createHoliday(c *fiber.Ctx, body map[string]any) error {
 	return httpx.Success(c, "Hari libur berhasil disimpan", nil)
 }
 
+func validateWorkAgendaTime(body map[string]any) error {
+	value := stringValue(body, "jamMasukKhusus", "jam_masuk_khusus")
+	if boolValue(body, "isWorkday", "is_workday") && value == "" {
+		return fmt.Errorf("jam masuk khusus wajib diisi untuk agenda kerja")
+	}
+	if value != "" && !validTime(value) {
+		return fmt.Errorf("format jam masuk khusus tidak valid")
+	}
+	return nil
+}
+
 func (h *Handler) checkDate(c *fiber.Ctx, value string) error {
 	date, err := parseDate(value, appLocation(h))
 	if err != nil {
 		return invalid(c, "Format tanggal tidak valid")
 	}
 	var holiday models.Holiday
-	query := h.db.Where("tanggal = ?", date.Format("2006-01-02")).First(&holiday)
+	query := h.db.Where("tanggal >= ? AND tanggal < ?", date, date.AddDate(0, 0, 1)).First(&holiday)
 	hasHoliday := query.Error == nil
 	if query.Error != nil && query.Error != gorm.ErrRecordNotFound {
 		return query.Error
@@ -446,7 +496,7 @@ func (h *Handler) guruHome(c *fiber.Ctx) error {
 		return err
 	}
 	var holiday models.Holiday
-	holidayQuery := h.db.Where("tanggal = ?", date).First(&holiday)
+	holidayQuery := h.db.Where("tanggal >= ? AND tanggal < ?", attendanceDate, attendanceDate.AddDate(0, 0, 1)).First(&holiday)
 	if holidayQuery.Error != nil && holidayQuery.Error != gorm.ErrRecordNotFound {
 		return holidayQuery.Error
 	}
@@ -458,7 +508,20 @@ func (h *Handler) guruHome(c *fiber.Ctx) error {
 		return err
 	}
 	settings = visibleSettings(settings, user.Role)
-	return httpx.Success(c, "Data dashboard guru berhasil diambil", fiber.Map{"today": date, "settings": settings, "holiday": fiber.Map{"tanggal": date, "isHoliday": hasHoliday && !holiday.IsWorkday, "isWeekend": isWeekend, "isWorkday": effectiveWorkday, "dayName": dayName(attendanceDate.Weekday()), "holidayName": holiday.Nama, "holidayType": holiday.Jenis, "jamMasukKhusus": holiday.JamMasukKhusus}, "attendance": func() any {
+	var piket *models.JadwalPiket
+	if scheduleQuery.Error == nil {
+		piket = &schedule
+	}
+	checkinTime, checkinLabel := effectiveCheckInTarget(attendanceDate, settings, &holiday, piket)
+	label := "Jam masuk normal"
+	if strings.HasPrefix(checkinLabel, " (Event: ") {
+		label = holiday.Nama
+	} else if checkinLabel == " (Piket)" {
+		label = "Jadwal piket"
+	} else if checkinLabel == " (Apel Senin)" {
+		label = "Apel Senin"
+	}
+	return httpx.Success(c, "Data dashboard guru berhasil diambil", fiber.Map{"today": date, "checkinSchedule": fiber.Map{"time": checkinTime[:5], "label": label}, "settings": settings, "holiday": fiber.Map{"tanggal": date, "isHoliday": hasHoliday && !holiday.IsWorkday, "isWeekend": isWeekend, "isWorkday": effectiveWorkday, "dayName": dayName(attendanceDate.Weekday()), "holidayName": holiday.Nama, "holidayType": holiday.Jenis, "jamMasukKhusus": holiday.JamMasukKhusus}, "attendance": func() any {
 		if attendanceQuery.Error == nil {
 			return mapAttendance(attendance)
 		}

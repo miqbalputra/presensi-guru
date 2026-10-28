@@ -57,9 +57,9 @@ func effectiveCheckInTarget(date time.Time, settings map[string]string, holiday 
 }
 
 func classifyCheckIn(user models.User, checkedInAt time.Time, target, targetLabel, toleranceValue, note string) (string, string) {
-	// Part-time flexibility applies to normal school hours. Assigned piket and
-	// Monday apel still have a required arrival time for every teacher.
-	scheduled := targetLabel == " (Piket)" || targetLabel == " (Piket Apel)" || targetLabel == " (Apel Senin)"
+	// Dated work agendas, assigned piket and Monday apel have a required
+	// arrival time for every teacher, including part-time teachers.
+	scheduled := targetLabel == " (Piket)" || targetLabel == " (Piket Apel)" || targetLabel == " (Apel Senin)" || strings.HasPrefix(targetLabel, " (Event: ")
 	if strings.EqualFold(strings.TrimSpace(user.TipeGuru), "partime") && !scheduled {
 		if strings.TrimSpace(note) == "" {
 			note = "Guru Partime"

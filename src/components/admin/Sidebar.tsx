@@ -21,6 +21,7 @@ const groups = [
     { path: '/admin/jadwal-piket', icon: CalendarCheck, label: 'Jadwal Piket' },
   ] },
   { label: 'Operasional', items: [
+    { path: '/admin/agenda-rapat', icon: CalendarCheck, label: 'Agenda Rapat' },
     { path: '/admin/hari-libur', icon: Calendar, label: 'Hari Libur' },
     { path: '/admin/override-weekend', icon: CalendarX, label: 'Jadwal Akhir Pekan' },
     { path: '/admin/hari-kerja-opsional', icon: CalendarPlus, label: 'Hari Kerja Opsional' },

@@ -298,7 +298,8 @@ function gp_get_checkin_target($pdo, $userId, $date, $settings, $holiday, $isSpe
 
 function gp_classify_checkin($user, $time, $target, $targetLabel, $tolerance, $note = '')
 {
-    $scheduled = in_array($targetLabel, [' (Piket)', ' (Piket Apel)', ' (Apel Senin)'], true);
+    $scheduled = in_array($targetLabel, [' (Piket)', ' (Piket Apel)', ' (Apel Senin)'], true)
+        || str_starts_with($targetLabel, ' (Event: ');
     if (strtolower(trim($user['tipe_guru'] ?? '')) === 'partime' && !$scheduled) {
         return ['hadir', trim($note) === '' ? 'Guru Partime' : $note];
     }

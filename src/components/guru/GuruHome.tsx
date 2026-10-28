@@ -13,6 +13,8 @@ import { PageLoading, Notice, EmptyState } from '../ui/page'
 import { AttendanceFeedbackDialog } from './AttendanceFeedbackDialog'
 import { getAttendanceFeedback, getCheckoutFeedback, type AttendanceFeedback } from './attendance-feedback'
 
+const todayInJakarta = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+
 function GuruHome({ user, onChangeTab, gmailComplete = false }) {
   const [todayAttendance, setTodayAttendance] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -25,7 +27,9 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
   const [monthlyLoading, setMonthlyLoading] = useState(true)
   const monthlyRequest = useRef(0)
   const checkoutPreparation = useRef(false)
-  const [, setClockTick] = useState(0)
+  const [clockTick, setClockTick] = useState(0)
+  const loadedScheduleDate = useRef('')
+  const [checkinSchedule, setCheckinSchedule] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState('')
   const [keterangan, setKeterangan] = useState('')
@@ -81,6 +85,14 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
     const timer = window.setInterval(() => setClockTick((tick) => tick + 1), 30000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    const date = todayInJakarta()
+    if (loadedScheduleDate.current && loadedScheduleDate.current !== date) {
+      loadedScheduleDate.current = date
+      void loadInitialData()
+    }
+  }, [clockTick])
 
   useEffect(() => {
     loadInitialData()
@@ -307,6 +319,9 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
 
   const applyInitialPayload = (data) => {
     if (!data) return
+    loadedScheduleDate.current = data.today || todayInJakarta()
+    setCheckinSchedule(data.checkinSchedule || (data.holiday?.isWorkday && data.holiday?.jamMasukKhusus
+      ? { time: data.holiday.jamMasukKhusus.slice(0, 5), label: data.holiday.holidayName || 'Agenda kerja' } : null))
 
     if (data.settings) {
       setSettings(prev => ({ ...prev, ...data.settings }))
@@ -494,7 +509,9 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
       console.log('📅 Holiday API response:', response)
 
       if (response && response.success && response.data) {
-        const { isWorkday, isHoliday, isWeekend, holidayName, dayName } = response.data
+        const { isWorkday, isHoliday, isWeekend, holidayName, dayName, jamMasukKhusus } = response.data
+        loadedScheduleDate.current = todayInJakarta()
+        setCheckinSchedule(isWorkday && jamMasukKhusus ? { time: jamMasukKhusus.slice(0, 5), label: holidayName || 'Agenda kerja' } : null)
         console.log('📊 Holiday data:', { isWorkday, isHoliday, isWeekend, holidayName, dayName })
 
         // Jika bukan hari kerja (libur atau weekend)
@@ -939,6 +956,7 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
   if (initialError) return <Notice onRetry={loadInitialData}>{initialError}</Notice>
 
   const scheduleInfo = (() => {
+    if (checkinSchedule?.time) return checkinSchedule
     const today = new Date()
     const isMonday = today.getDay() === 1
     const isApel = settings.apel_senin_enabled == '1'

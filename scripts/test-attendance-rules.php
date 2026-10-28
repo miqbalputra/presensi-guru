@@ -33,4 +33,13 @@ foreach ($cases as [$name, $userId, $apel, $teacherType, $time, $expectedTarget,
     }
 }
 
-echo count($cases), " attendance rule cases passed", PHP_EOL;
+foreach (['full_time', 'partime'] as $teacherType) {
+    foreach (['06:50:00' => ['hadir', ''], '07:00:00' => ['hadir', ''], '07:01:00' => ['hadir_terlambat', 'Terlambat 1 menit (Event: Rapat Asatidz dan Karyawan)']] as $time => $expected) {
+        [$target, $label] = gp_get_checkin_target($pdo, 42, '2026-11-04', ['jam_masuk_normal' => '07:20'], ['nama' => 'Rapat Asatidz dan Karyawan', 'jam_masuk_khusus' => '07:00:00'], true);
+        $actual = gp_classify_checkin(['tipe_guru' => $teacherType], $time, $target, $label, 15);
+        if ($target !== '07:00' || $actual !== $expected) {
+            throw new RuntimeException('Meeting rule failed for ' . $teacherType . ': ' . json_encode($actual));
+        }
+    }
+}
+echo count($cases) + 6, " attendance rule cases passed", PHP_EOL;

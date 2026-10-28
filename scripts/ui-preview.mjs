@@ -49,10 +49,11 @@ const analyticsFixture = (query) => {
   const example = teacherRows[0] ? { id: 900, userId: teacherRows[0].id, nama: teacherRows[0].nama, tanggal: endDate, status: 'hadir_terlambat', jamMasuk: '08:05', jamPulang: null, keterangan: 'Catatan uji' } : null
   return { period: { startDate, endDate, totalHari: 7 }, filters: { tipeGuru: query.get('tipe_guru') || '', userId: Number(query.get('user_id') || 0) }, filterOptions: { tipeGuru: ['full_time'], guru: teachers.map((teacher) => ({ id: teacher.id, nama: teacher.nama, tipeGuru: teacher.tipeGuru })) }, summary, today: { ...summary, totalHariKerja: teacherRows.length, hadir: Math.max(0, teacherRows.length - 3), izin: 1, sakit: 1, alfa: 1 }, daily, teachers: teacherRows.sort((a, b) => b.skor - a.skor), details: { terlambatPiket: example ? [example] : [], pulangAwal: example ? [{ ...example, id: 901, status: 'hadir', jamPulang: '12:00', keterangan: 'Izin Pulang Awal Piket | Alasan: uji' }] : [], izinSakit: example ? [{ ...example, id: 902, status: 'izin', jamMasuk: null, keterangan: 'Keperluan keluarga' }] : [], lupaCheckout: example ? [example] : [] }, comparison: { startDate: dateAgo(13), endDate: dateAgo(7), available: !empty, summary: { ...summary, persentaseKehadiran: Math.max(0, summary.persentaseKehadiran - 2.5), terlambat: totalLate + 2, alfa: totalAlfa + 1 } } }
 }
-const scenarios = ['normal', 'terlambat', 'masuk', 'menunggu', 'selesai', 'izin', 'sakit', 'libur', 'piket', 'gps', 'tombol-nonaktif', 'gagal-muat', 'gagal-simpan', 'lambat', 'kosong', 'balapan-filter', 'sesi-berakhir']
+const scenarios = ['normal', 'terlambat', 'masuk', 'menunggu', 'selesai', 'izin', 'sakit', 'libur', 'piket', 'rapat', 'gps', 'tombol-nonaktif', 'gagal-muat', 'gagal-simpan', 'lambat', 'kosong', 'balapan-filter', 'sesi-berakhir']
 let scenario = 'normal'
 let saved = null
 let recalculationApplied = false
+let calendarEntries = []
 const requests = []
 const settings = () => ({ jam_masuk_normal: '07:20', toleransi_terlambat: '15', radius_gps: '500', sekolah_latitude: '-5.1477', sekolah_longitude: '119.4327', mode_testing: scenario === 'gps' ? '0' : '1', button_enabled: scenario === 'tombol-nonaktif' ? '0' : '1', jam_min_pulang: scenario === 'menunggu' ? '23:59' : '00:00', location_tracking_enabled: '0', apel_senin_enabled: '0', weekend_workday_enabled: '1' })
 const checkInRecalculation = (selection = { date: today }) => {
@@ -74,7 +75,7 @@ const checkInRecalculation = (selection = { date: today }) => {
   return { date: start === end ? start : '', start_date: start, end_date: end, weekdays, selected_days: dates.length, days, normal_target: '07:20:00', tolerance_minutes: '15', processed: days.reduce((sum, day) => sum + day.processed, 0), changed: items.length, unchanged: days.reduce((sum, day) => sum + day.unchanged, 0), skipped_no_time: 0, skipped_no_user: 0, items }
 }
 const attendance = () => saved || (['masuk', 'menunggu', 'piket', 'selesai', 'izin', 'sakit'].includes(scenario) ? { ...baseLogs[0], jamPulang: scenario === 'selesai' ? '14:30' : null, status: ['izin', 'sakit'].includes(scenario) ? scenario : 'hadir' } : null)
-const holiday = () => ({ isWorkday: scenario !== 'libur', isHoliday: scenario === 'libur', isWeekend: false, holidayName: 'Libur sekolah', dayName: 'Minggu' })
+const holiday = () => ({ isWorkday: scenario !== 'libur', isHoliday: scenario === 'libur', isWeekend: false, holidayName: scenario === 'rapat' ? 'Rapat Asatidz dan Karyawan' : 'Libur sekolah', jamMasukKhusus: scenario === 'rapat' ? '07:00:00' : null, dayName: scenario === 'rapat' ? 'Rabu' : 'Minggu' })
 const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
 const server = createServer(async (req, res) => {
   try {
@@ -88,7 +89,7 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/__ui/requests') return ok(requests)
     if (url.pathname === '/__ui/scenario' && req.method === 'POST') {
       if (!scenarios.includes(payload.scenario)) return failure('Unknown scenario', 400)
-      scenario = payload.scenario; saved = null; recalculationApplied = false; requests.length = 0
+      scenario = payload.scenario; saved = null; recalculationApplied = false; calendarEntries = []; requests.length = 0
       res.writeHead(303, { Location: '/__ui' }); return res.end()
     }
     if (url.pathname === '/__ui') {
@@ -138,15 +139,27 @@ const server = createServer(async (req, res) => {
         saved = { ...baseLogs[0], ...payload, id: 100, userId: 3, status, jamPulang: req.method === 'PUT' ? '14:30' : null }
         return ok({ attendance: saved }, 'Presensi berhasil disimpan!')
       }
+      if (path === '/v1/holidays' && req.method !== 'GET') {
+        if (role !== 'admin') return failure('Forbidden', 403)
+        if (scenario === 'gagal-simpan') return failure('Simulasi penyimpanan gagal. Isian Anda tetap tersedia.')
+        if (req.method === 'DELETE') {
+          calendarEntries = calendarEntries.filter((entry) => entry.id !== Number(url.searchParams.get('id')))
+          return ok({}, 'Agenda dibatalkan')
+        }
+        if (calendarEntries.some((entry) => entry.tanggal === payload.tanggal && entry.id !== Number(payload.id))) return failure('Tanggal tersebut sudah memiliki hari libur atau agenda. Edit jadwal yang sudah ada.', 409)
+        const entry = { id: payload.id || Date.now(), tanggal: payload.tanggal, nama: payload.nama, jenis: payload.jenis || 'sekolah', keterangan: payload.keterangan || '', is_workday: !!payload.isWorkday, jam_masuk_khusus: payload.jamMasukKhusus ? payload.jamMasukKhusus.slice(0, 5) + ':00' : null }
+        calendarEntries = [...calendarEntries.filter((item) => item.id !== entry.id), entry].sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+        return ok({ id: entry.id }, 'Agenda tersimpan')
+      }
       if (req.method !== 'GET') return failure('Penulisan fixture ini tidak tersedia; tidak ada data yang diubah.', 400)
       const list = scenario === 'kosong' ? [] : [...baseLogs, ...history]
       if (path === '/v1/users') return ok(url.searchParams.has('archived') ? [] : scenario === 'kosong' ? [] : teachers)
       if (path === '/v1/profile') return ok(user)
       if (path === '/v1/settings') return ok(settings())
-      if (path === '/v1/guru/home') return ok({ settings: settings(), holiday: holiday(), attendance: attendance(), piket: { isPiketToday: scenario === 'piket', mine: scenario === 'piket' ? { user_id: 3, jam_piket: '07:00' } : null }, pulangThreshold: settings().jam_min_pulang, piketPulangTarget: scenario === 'piket' ? '16:00' : '' })
+      if (path === '/v1/guru/home') return ok({ today, settings: settings(), holiday: holiday(), attendance: attendance(), checkinSchedule: scenario === 'rapat' ? { time: '07:00', label: 'Rapat Asatidz dan Karyawan' } : null, piket: { isPiketToday: ['piket', 'rapat'].includes(scenario), mine: ['piket', 'rapat'].includes(scenario) ? { user_id: 3, jam_piket: scenario === 'rapat' ? '06:40' : '07:00' } : null }, pulangThreshold: settings().jam_min_pulang, piketPulangTarget: scenario === 'piket' ? '16:00' : '' })
       if (path === '/v1/attendance') return ok(url.searchParams.has('tanggal') ? (attendance() ? [attendance()] : []) : url.searchParams.has('user_id') ? (scenario === 'kosong' ? [] : [...(attendance() ? [attendance()] : []), ...history]) : list)
       if (path === '/v1/attendance/manual') return ok(teachers)
-      if (path === '/v1/holidays') return ok(url.searchParams.has('check') ? holiday() : [])
+      if (path === '/v1/holidays') return ok(url.searchParams.has('check') ? holiday() : calendarEntries.filter((entry) => !url.searchParams.has('year') || entry.tanggal.startsWith(url.searchParams.get('year'))))
       if (path === '/v1/schedules/piket') return ok(url.searchParams.has('today') ? { jadwal: [] } : [])
       if (path === '/v1/reports/admin-summary') {
         const selected = url.searchParams.get('period') || 'today'

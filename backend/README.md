@@ -52,6 +52,14 @@ Endpoint admin `GET /api/v1/operations/checkin-recalculation` menerima `start_da
 
 Perhitungan memakai pengaturan dan jadwal piket aktif saat ini, serta jam khusus dari kalender tanggal tersebut. Koreksi hanya memperbarui status hadir/terlambat dan keterangan keterlambatan otomatis pada catatan yang sudah ada. Jam masuk/pulang, GPS, izin, sakit, dan catatan manual tetap dipertahankan. Semua tanggal diterapkan dalam satu transaksi; jika catatan berubah saat proses berjalan, seluruh koreksi dibatalkan dan admin diminta memperbarui pratinjau.
 
+## Agenda Rapat Asatidz dan Karyawan
+
+Buka **Admin → Operasional → Agenda Rapat → Jadwalkan Rapat**. Isi tanggal rapat setiap bulan dan jam masuk (bawaan **07:00 WIB**). Tanggal tidak diulang otomatis karena jadwal rapat bisa berubah; admin dapat menjadwalkan beberapa bulan lebih awal, mengedit, atau membatalkan setiap agenda.
+
+Agenda memakai kalender kerja khusus yang sudah ada (`holidays.is_workday` dan `jam_masuk_khusus`), sehingga tidak memerlukan perubahan skema database atau job penjadwalan. Pada tanggal agenda menurut zona waktu aplikasi `Asia/Jakarta`, jam khusus menjadi acuan untuk semua guru, termasuk partime dan petugas piket. Pada tanggal lain, aturan normal/apel/piket kembali berlaku. Halaman guru menampilkan nama agenda dan jam masuk efektif dari backend.
+
+Menyimpan agenda tidak mengubah catatan presensi lama. Gunakan perbaikan status masuk jika agenda dibuat untuk tanggal lampau. Tanggal yang sudah memiliki agenda atau hari libur ditolak pada penambahan baru agar jadwal lama tidak tertimpa; edit catatan yang sudah ada untuk menggantinya.
+
 ## Notifikasi pengajuan revisi ke Telegram
 
 Notifikasi Telegram bersifat opsional. Untuk mengaktifkannya, buat bot melalui `@BotFather`. Setiap akun penerima perlu membuka chat bot dan mengirim `/start`, lalu ambil masing-masing `message.chat.id` dari update bot. Atur `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` pada environment backend; keduanya harus diisi bersama. Beberapa chat ID ditulis dipisahkan koma, misalnya `TELEGRAM_CHAT_ID=123456789,987654321`. Pesan memuat guru, tanggal, alasan, jam yang diajukan, dan tautan ke halaman admin.
