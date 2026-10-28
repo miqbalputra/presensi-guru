@@ -14,9 +14,6 @@ import (
 // including Mondays with or without apel. Special workdays keep their explicit
 // override; Monday apel applies to teachers without an active duty roster.
 func (h *Handler) checkInTarget(userID uint, date time.Time, settings map[string]string) (string, string, error) {
-	target := settingTime(settings["jam_masuk_normal"], "07:20")
-	label := ""
-
 	var holiday models.Holiday
 	holidayQuery := h.db.
 		Where("tanggal >= ? AND tanggal < ?", date, date.AddDate(0, 0, 1)).
@@ -25,7 +22,8 @@ func (h *Handler) checkInTarget(userID uint, date time.Time, settings map[string
 		return "", "", holidayQuery.Error
 	}
 	if holidayQuery.Error == nil && holiday.IsWorkday && holiday.JamMasukKhusus != nil && strings.TrimSpace(*holiday.JamMasukKhusus) != "" {
-		return settingTime(*holiday.JamMasukKhusus, target), " (Event: " + holiday.Nama + ")", nil
+		target, label := effectiveCheckInTarget(date, settings, &holiday, nil)
+		return target, label, nil
 	}
 
 	var piket models.JadwalPiket
@@ -33,15 +31,29 @@ func (h *Handler) checkInTarget(userID uint, date time.Time, settings map[string
 	if piketQuery.Error != nil && piketQuery.Error != gorm.ErrRecordNotFound {
 		return "", "", piketQuery.Error
 	}
+	var schedule *models.JadwalPiket
 	if piketQuery.Error == nil {
+		schedule = &piket
+	}
+	target, label := effectiveCheckInTarget(date, settings, &holiday, schedule)
+	return target, label, nil
+}
+
+// Bulk corrections preload holidays and rosters, then use the same rules as a
+// live check-in without querying the database again for every attendance row.
+func effectiveCheckInTarget(date time.Time, settings map[string]string, holiday *models.Holiday, piket *models.JadwalPiket) (string, string) {
+	target := settingTime(settings["jam_masuk_normal"], "07:20")
+	if holiday != nil && holiday.IsWorkday && holiday.JamMasukKhusus != nil && strings.TrimSpace(*holiday.JamMasukKhusus) != "" {
+		return settingTime(*holiday.JamMasukKhusus, target), " (Event: " + holiday.Nama + ")"
+	}
+	if piket != nil {
 		fallback := settingTime(settings["jam_piket_default"], "07:00")
-		return settingTime(stringPointerValue(piket.JamPiket), fallback), " (Piket)", nil
+		return settingTime(stringPointerValue(piket.JamPiket), fallback), " (Piket)"
 	}
 	if date.Weekday() == time.Monday && settings["apel_senin_enabled"] == "1" {
-		return "07:00:00", " (Apel Senin)", nil
+		return "07:00:00", " (Apel Senin)"
 	}
-
-	return target, label, nil
+	return target, ""
 }
 
 func classifyCheckIn(user models.User, checkedInAt time.Time, target, targetLabel, toleranceValue, note string) (string, string) {

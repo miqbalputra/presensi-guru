@@ -23,6 +23,10 @@ const latenessNoteChange = (item) => {
 }
 
 const jakartaToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+const recalculationWeekdays = [
+  { value: 1, label: 'Senin' }, { value: 2, label: 'Selasa' }, { value: 3, label: 'Rabu' },
+  { value: 4, label: 'Kamis' }, { value: 5, label: 'Jumat' }, { value: 6, label: 'Sabtu' }, { value: 0, label: 'Minggu' },
+]
 
 function Pengaturan() {
   const [section, setSection] = useState('Presensi')
@@ -55,7 +59,17 @@ function Pengaturan() {
   const [recalculationLoading, setRecalculationLoading] = useState(true)
   const [recalculationApplying, setRecalculationApplying] = useState(false)
   const [recalculationError, setRecalculationError] = useState('')
-  const [recalculationDate, setRecalculationDate] = useState(() => jakartaToday())
+  const [recalculationSelection, setRecalculationSelection] = useState(() => ({
+    mode: 'range', date: jakartaToday(), startDate: jakartaToday().slice(0, 7) + '-01', endDate: jakartaToday(), weekdays: [2, 3, 4, 5],
+  }))
+  const [recalculationPreviewKey, setRecalculationPreviewKey] = useState('')
+  const recalculationPayload = recalculationSelection.mode === 'range'
+    ? { start_date: recalculationSelection.startDate, end_date: recalculationSelection.endDate, weekdays: recalculationSelection.weekdays }
+    : { date: recalculationSelection.date }
+  const recalculationKey = JSON.stringify(recalculationPayload)
+  const recalculationPeriod = recalculationSelection.mode === 'range'
+    ? `${recalculationSelection.startDate} s.d. ${recalculationSelection.endDate}` : recalculationSelection.date
+  const selectedWeekdayLabels = recalculationWeekdays.filter((day) => recalculationSelection.weekdays.includes(day.value)).map((day) => day.label).join(', ')
   const recalculationRequest = useRef(0)
   const [monthlyContact, setMonthlyContact] = useState('')
   const [monthlyContactLoading, setMonthlyContactLoading] = useState(true)
@@ -78,9 +92,13 @@ function Pengaturan() {
   useEffect(() => {
     loadSettings()
     loadHarian()
-    loadRecalculationPreview()
     loadMonthlyContact()
   }, [])
+
+  useEffect(() => {
+    loadRecalculationPreview()
+    return () => { recalculationRequest.current += 1 }
+  }, [recalculationKey])
 
   const loadMonthlyContact = async () => {
     try {
@@ -95,14 +113,30 @@ function Pengaturan() {
     }
   }
 
-  const loadRecalculationPreview = async (date = recalculationDate) => {
+  const loadRecalculationPreview = async () => {
     const requestID = ++recalculationRequest.current
+    setRecalculationPreview(null)
+    setRecalculationPreviewKey('')
+    const start = recalculationSelection.mode === 'range' ? recalculationSelection.startDate : recalculationSelection.date
+    const end = recalculationSelection.mode === 'range' ? recalculationSelection.endDate : recalculationSelection.date
+    let validationError = ''
+    if (!start || !end) validationError = 'Pilih tanggal awal dan akhir yang ingin diperiksa.'
+    else if (end < start) validationError = 'Tanggal akhir tidak boleh sebelum tanggal awal.'
+    else if (end > jakartaToday()) validationError = 'Tanggal perbaikan tidak boleh melewati hari ini.'
+    else if ((Date.parse(end) - Date.parse(start)) / 86400000 >= 366) validationError = 'Rentang perbaikan maksimal 366 hari.'
+    else if (recalculationSelection.mode === 'range' && !recalculationSelection.weekdays.length) validationError = 'Pilih minimal satu hari untuk diperiksa.'
+    if (validationError) {
+      setRecalculationLoading(false)
+      setRecalculationError(validationError)
+      return
+    }
     try {
       setRecalculationLoading(true)
       setRecalculationError('')
-      const response = await todayCheckInRecalculationAPI.preview(date)
+      const response = await todayCheckInRecalculationAPI.preview(recalculationPayload)
       if (requestID !== recalculationRequest.current) return
       setRecalculationPreview(response.data || null)
+      setRecalculationPreviewKey(recalculationKey)
     } catch (error) {
       if (requestID !== recalculationRequest.current) return
       setRecalculationError(error.message || 'Pratinjau perbaikan status belum dapat dimuat.')
@@ -111,27 +145,28 @@ function Pengaturan() {
     }
   }
 
-  const handleRecalculationDateChange = (date) => {
-    setRecalculationDate(date)
+  const handleRecalculationSelectionChange = (change) => {
+    const next = { ...recalculationSelection, ...change }
+    const nextPayload = next.mode === 'range' ? { start_date: next.startDate, end_date: next.endDate, weekdays: next.weekdays } : { date: next.date }
+    if (JSON.stringify(nextPayload) === recalculationKey) return
+    recalculationRequest.current += 1
     setRecalculationPreview(null)
-    if (!date) {
-      recalculationRequest.current += 1
-      setRecalculationLoading(false)
-      setRecalculationError('Pilih tanggal presensi yang ingin diperiksa.')
-      return
-    }
-    loadRecalculationPreview(date)
+    setRecalculationPreviewKey('')
+    setRecalculationError('')
+    setRecalculationLoading(true)
+    setRecalculationSelection(next)
   }
 
   const applyTodayCheckInRecalculation = async () => {
-    if (!recalculationPreview?.changed || recalculationApplying || recalculationLoading || recalculationPreview.date !== recalculationDate) return
+    if (!recalculationPreview?.changed || recalculationApplying || recalculationLoading || recalculationPreviewKey !== recalculationKey) return
     const count = recalculationPreview.changed
-    if (!window.confirm(`Sesuaikan status masuk tanggal ${recalculationPreview.date} untuk ${count} presensi? Jam masuk, jam pulang, GPS, izin, sakit, dan catatan manual tidak akan diubah.`)) return
+    const days = recalculationSelection.mode === 'range' ? ` (${selectedWeekdayLabels})` : ''
+    if (!window.confirm(`Sesuaikan status masuk ${recalculationPeriod}${days} untuk ${count} presensi? Jam masuk, jam pulang, GPS, izin, sakit, dan catatan manual tetap dipertahankan.`)) return
     try {
       setRecalculationApplying(true)
-      const response = await todayCheckInRecalculationAPI.apply(recalculationDate)
-      showNotification(response.message || `${count} status masuk hari ini berhasil disesuaikan.`, 'success')
-      await loadRecalculationPreview(recalculationDate)
+      const response = await todayCheckInRecalculationAPI.apply(recalculationPayload)
+      showNotification(`${response.data?.changed ?? count} presensi berhasil disesuaikan untuk ${recalculationPeriod}.`, 'success')
+      await loadRecalculationPreview()
     } catch (error) {
       showNotification('Gagal menyesuaikan status masuk: ' + (error.message || 'Silakan coba lagi.'), 'error')
     } finally {
@@ -431,37 +466,71 @@ function Pengaturan() {
 </section>
 <section hidden={section !== 'Presensi' || !!loadError} aria-labelledby="perbaikan-status-masuk">
       <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-4">
           <div className="flex gap-3">
             <div className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-amber-100">
               <AlertTriangle className="h-5 w-5 text-amber-700" aria-hidden="true" />
             </div>
             <div>
-              <h3 id="perbaikan-status-masuk" className="text-base font-bold text-slate-900">Perbaiki status masuk per tanggal</h3>
+              <h3 id="perbaikan-status-masuk" className="text-base font-bold text-slate-900">Perbaiki status masuk</h3>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">
-                Gunakan untuk memperbaiki presensi hari ini atau tanggal lama setelah aturan jam masuk, apel Senin, atau jadwal piket diperbaiki. Guru piket memakai jam pada jadwal piket, termasuk guru partime. Saat apel Senin aktif, guru lainnya memakai batas 07:00.
+                Periksa satu tanggal atau banyak tanggal sekaligus, lalu terapkan perbaikan dari pratinjau. Untuk rentang tanggal, pilihan awal hanya Selasa–Jumat. Rentang maksimal 366 hari dan kedua tanggal batas ikut diperiksa jika harinya dipilih.
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-600">
                 Status hadir/terlambat dan keterangan otomatis “Terlambat … menit” dapat diperbarui. Jam masuk, jam pulang, lokasi GPS, izin, sakit, serta catatan manual tetap utuh. Pengaturan dan jadwal piket aktif saat ini dipakai untuk menghitung ulang tanggal tersebut.
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+              Mode pemeriksaan
+              <select
+                aria-label="Mode pemeriksaan presensi"
+                value={recalculationSelection.mode}
+                onChange={(event) => handleRecalculationSelectionChange({ mode: event.target.value })}
+                disabled={recalculationApplying}
+                className="min-h-11 rounded-lg border border-amber-300 bg-white px-3 text-sm font-medium text-slate-800"
+              >
+                <option value="range">Rentang tanggal</option>
+                <option value="single">Satu tanggal</option>
+              </select>
+            </label>
+            {recalculationSelection.mode === 'range' ? <>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+                Tanggal awal
+                <input type="date" aria-label="Tanggal awal pemeriksaan" value={recalculationSelection.startDate} max={jakartaToday()} onChange={(event) => handleRecalculationSelectionChange({ startDate: event.target.value })} disabled={recalculationApplying} className="min-h-11 rounded-lg border border-amber-300 bg-white px-3 text-sm font-medium text-slate-800" />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+                Tanggal akhir
+                <input type="date" aria-label="Tanggal akhir pemeriksaan" value={recalculationSelection.endDate} min={recalculationSelection.startDate} max={jakartaToday()} onChange={(event) => handleRecalculationSelectionChange({ endDate: event.target.value })} disabled={recalculationApplying} className="min-h-11 rounded-lg border border-amber-300 bg-white px-3 text-sm font-medium text-slate-800" />
+              </label>
+            </> : <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
               Tanggal presensi
               <input
                 type="date"
                 aria-label="Tanggal presensi untuk perbaikan status"
-                value={recalculationDate}
+                value={recalculationSelection.date}
                 max={jakartaToday()}
-                onChange={(event) => handleRecalculationDateChange(event.target.value)}
+                onChange={(event) => handleRecalculationSelectionChange({ date: event.target.value })}
                 disabled={recalculationApplying}
                 className="min-h-11 rounded-lg border border-amber-300 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
               />
-            </label>
+            </label>}
+          </div>
+          {recalculationSelection.mode === 'range' && <fieldset disabled={recalculationApplying}>
+            <legend className="mb-2 text-xs font-semibold text-slate-700">Hari yang diperiksa</legend>
+            <div className="flex flex-wrap items-center gap-2">
+              {recalculationWeekdays.map((day) => <label key={day.value} className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 text-sm text-slate-800">
+                <input type="checkbox" checked={recalculationSelection.weekdays.includes(day.value)} onChange={(event) => handleRecalculationSelectionChange({ weekdays: (event.target.checked ? [...recalculationSelection.weekdays, day.value] : recalculationSelection.weekdays.filter((value) => value !== day.value)).sort((a, b) => a - b) })} className="h-4 w-4 accent-amber-600" />
+                {day.label}
+              </label>)}
+              <button type="button" onClick={() => handleRecalculationSelectionChange({ weekdays: [2, 3, 4, 5] })} className="min-h-11 px-3 text-sm font-semibold text-amber-900 underline underline-offset-2">Selasa–Jumat saja</button>
+            </div>
+          </fieldset>}
+          <div>
             <button
               type="button"
-              onClick={() => loadRecalculationPreview(recalculationDate)}
+              onClick={() => loadRecalculationPreview()}
               disabled={recalculationLoading || recalculationApplying}
               className="inline-flex min-h-11 flex-none items-center justify-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -472,11 +541,11 @@ function Pengaturan() {
         </div>
 
         <div className="mt-5 rounded-lg border border-amber-200 bg-white p-4" aria-live="polite">
-          {recalculationLoading && <div className="flex items-center gap-3 text-sm text-slate-600"><RefreshCw className="h-4 w-4 animate-spin text-amber-700" aria-hidden="true" />Memeriksa dampak pengaturan tanggal {recalculationDate}…</div>}
+          {recalculationLoading && <div className="flex items-center gap-3 text-sm text-slate-600"><RefreshCw className="h-4 w-4 animate-spin text-amber-700" aria-hidden="true" />Memeriksa presensi {recalculationPeriod}…</div>}
           {!recalculationLoading && recalculationError && (
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-rose-700">
               <span>{recalculationError}</span>
-              <button type="button" onClick={() => loadRecalculationPreview(recalculationDate)} className="font-semibold underline underline-offset-2">Coba lagi</button>
+              <button type="button" onClick={() => loadRecalculationPreview()} className="font-semibold underline underline-offset-2">Coba lagi</button>
             </div>
           )}
           {!recalculationLoading && !recalculationError && recalculationPreview && (
@@ -486,22 +555,32 @@ function Pengaturan() {
                   <p className="text-sm font-semibold text-slate-900">
                     {recalculationPreview.changed > 0
                       ? `${recalculationPreview.changed} dari ${recalculationPreview.processed} presensi hadir perlu disesuaikan.`
-                      : 'Status dan keterangan keterlambatan pada tanggal ini sudah sesuai dengan pengaturan terbaru.'}
+                      : recalculationPreview.processed === 0 ? 'Tidak ada presensi hadir untuk tanggal dan hari yang dipilih.' : 'Status dan keterangan keterlambatan sudah sesuai dengan pengaturan terbaru.'}
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
-                    Tanggal {recalculationPreview.date} · Jam normal {String(recalculationPreview.normal_target || '-').slice(0, 5)} WIB · Toleransi {recalculationPreview.tolerance_minutes || 15} menit
+                    {recalculationPeriod} · {recalculationPreview.selected_days} tanggal terpilih{recalculationSelection.mode === 'range' ? ` · ${selectedWeekdayLabels}` : ''} · Jam normal {String(recalculationPreview.normal_target || '-').slice(0, 5)} WIB · Toleransi {recalculationPreview.tolerance_minutes ?? 15} menit
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={applyTodayCheckInRecalculation}
-                  disabled={!recalculationPreview.changed || recalculationApplying || recalculationLoading || recalculationPreview.date !== recalculationDate}
+                  disabled={!recalculationPreview.changed || recalculationApplying || recalculationLoading || recalculationPreviewKey !== recalculationKey}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {recalculationApplying ? <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-                  {recalculationApplying ? 'Menyesuaikan status…' : 'Jalankan perbaikan status'}
+                  {recalculationApplying ? 'Menyesuaikan status…' : recalculationSelection.mode === 'range' ? 'Perbaiki semua tanggal terpilih' : 'Jalankan perbaikan status'}
                 </button>
               </div>
+
+              {recalculationSelection.mode === 'range' && recalculationPreview.days?.length > 0 && <details className="mt-4 rounded-lg border border-slate-200">
+                <summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-slate-800">Rincian per tanggal ({recalculationPreview.selected_days})</summary>
+                <div className="max-h-64 overflow-auto border-t border-slate-200">
+                  <table className="w-full text-left text-xs text-slate-700">
+                    <thead className="sticky top-0 bg-slate-50"><tr><th className="px-3 py-2">Tanggal</th><th className="px-3 py-2">Diperiksa</th><th className="px-3 py-2">Perlu diperbaiki</th></tr></thead>
+                    <tbody>{recalculationPreview.days.map((day) => <tr key={day.date} className="border-t border-slate-100"><td className="px-3 py-2">{day.date}</td><td className="px-3 py-2">{day.processed}</td><td className="px-3 py-2 font-semibold">{day.changed}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              </details>}
 
               {recalculationPreview.changed > 0 && (
                 <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
@@ -510,7 +589,7 @@ function Pengaturan() {
                   </div>
                   {(recalculationPreview.items || []).filter((item) => item.changed).slice(0, 8).map((item) => (
                     <div key={item.id} className="grid gap-2 border-t border-slate-100 px-3 py-3 text-sm sm:grid-cols-[minmax(0,1.4fr)_auto_auto_auto] sm:items-center sm:gap-3">
-                      <span className="font-medium text-slate-800">{item.nama}</span>
+                      <span className="font-medium text-slate-800">{item.nama}<span className="mt-0.5 block text-xs font-normal text-slate-500">{item.date}</span></span>
                       <span className="text-slate-600">{String(item.jam_masuk || '-').slice(0, 5)} / {String(item.target || '-').slice(0, 5)} {item.target_label || ''}</span>
                       <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(item.old_status)}`}>{statusLabel(item.old_status)}</span>
                       <span className="inline-flex items-center gap-1.5"><ArrowRight className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" /><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(item.new_status)}`}>{statusLabel(item.new_status)}</span></span>
@@ -521,6 +600,7 @@ function Pengaturan() {
                 </div>
               )}
               {recalculationPreview.skipped_no_time > 0 && <p className="mt-3 text-xs text-slate-500">{recalculationPreview.skipped_no_time} catatan hadir dilewati karena tidak memiliki jam masuk yang valid.</p>}
+              {recalculationPreview.skipped_no_user > 0 && <p className="mt-3 text-xs text-slate-500">{recalculationPreview.skipped_no_user} catatan dilewati karena data guru tidak ditemukan.</p>}
             </>
           )}
         </div>
@@ -968,7 +1048,7 @@ function Pengaturan() {
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm font-semibold text-amber-800">Contoh Senin dengan apel pagi</p>
               <p className="mt-1 text-sm text-amber-800">Piket dijadwalkan 06:40, presensi 06:50: Hadir Terlambat dengan keterangan "Terlambat 10 menit (Piket)". Guru tanpa piket yang presensi 06:50 masih hadir tepat waktu karena batasnya 07:00.</p>
-              <p className="mt-2 text-xs text-amber-700">Toleransi hanya menentukan penanda (Parah). Terlambat 1 menit dari jadwal sudah dihitung terlambat. Data tanggal lama dapat diperbaiki melalui "Perbaiki status masuk per tanggal" di atas.</p>
+              <p className="mt-2 text-xs text-amber-700">Toleransi hanya menentukan penanda (Parah). Terlambat 1 menit dari jadwal sudah dihitung terlambat. Data tanggal lama dapat diperbaiki satu tanggal atau sekaligus melalui "Perbaiki status masuk" di atas.</p>
             </div>
           </div>
         </div>
@@ -1208,7 +1288,7 @@ function Pengaturan() {
         <h4 className="font-bold text-blue-800 mb-2">ℹ️ Informasi Penting</h4>
         <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
           <li>Perubahan pengaturan akan langsung berlaku untuk presensi berikutnya</li>
-          <li>Perbaikan status masuk hanya berlaku untuk satu tanggal yang dipilih; gunakan Koreksi Presensi untuk perubahan data lainnya</li>
+          <li>Perbaikan status masuk dapat dijalankan untuk satu tanggal atau rentang tanggal dengan pilihan hari; gunakan Koreksi Presensi untuk perubahan data lainnya</li>
           <li>Pastikan pengaturan sesuai dengan kebijakan sekolah</li>
           <li>Radius GPS terlalu kecil dapat menyebabkan guru kesulitan presensi</li>
           <li>Koordinat GPS harus akurat agar validasi presensi berjalan dengan baik</li>

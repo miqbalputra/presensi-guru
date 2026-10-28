@@ -1,9 +1,11 @@
 package compat
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -19,10 +21,8 @@ var errTodayCheckInRecalculationStale = errors.New("catatan presensi berubah saa
 
 var generatedLateNotePattern = regexp.MustCompile(`(?i)Terlambat\s+(\d+)\s+menit(?:\s+\(Parah\))?(?:\s+\((?:Piket(?:\s+Apel)?|Apel\s+Senin|Event:\s*[^)]*)\))?`)
 
-// todayCheckInRecalculation lets an administrator correct one selected day's
-// stored arrival statuses after updating the normal check-in time. The chosen
-// date must not be in the future, so the action remains bounded to one known
-// attendance day.
+// The legacy single-date API also accepts a bounded date range and weekdays.
+// GET previews changes; POST applies all selected dates in one transaction.
 func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 	if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodPost {
 		return fiber.ErrMethodNotAllowed
@@ -36,7 +36,7 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 	}
 
 	location := appLocation(h)
-	date, err := checkInRecalculationDate(c, location)
+	selection, err := parseCheckInRecalculationSelection(c, location)
 	if err != nil {
 		return invalid(c, err.Error())
 	}
@@ -44,31 +44,13 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	preview, err := h.todayCheckInRecalculationPreview(date, settings)
+	preview, err := h.checkInRecalculationPreview(selection, settings)
 	if err != nil {
 		return err
 	}
 
 	if c.Method() == fiber.MethodPost && preview.Changed > 0 {
-		if err := h.db.Transaction(func(tx *gorm.DB) error {
-			for _, item := range preview.Items {
-				if !item.Changed {
-					continue
-				}
-				result := tx.Model(&models.AttendanceLog{}).
-					Where("id = ?", item.ID).
-					Where("status = ?", item.OldStatus).
-					Where("COALESCE(keterangan, '') = ?", item.OldKeterangan).
-					Updates(map[string]any{"status": item.NewStatus, "keterangan": pointerString(item.NewKeterangan)})
-				if result.Error != nil {
-					return result.Error
-				}
-				if result.RowsAffected != 1 {
-					return errTodayCheckInRecalculationStale
-				}
-			}
-			return nil
-		}); err != nil {
+		if err := h.applyCheckInRecalculation(preview); err != nil {
 			if errors.Is(err, errTodayCheckInRecalculationStale) {
 				return httpx.Error(c, fiber.StatusConflict, "ATTENDANCE_CHANGED", "Data presensi berubah saat diproses. Perbarui pratinjau lalu coba lagi.")
 			}
@@ -77,11 +59,19 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 
 		var actor models.User
 		if err := h.db.Select("nama").First(&actor, claims.UserID).Error; err == nil {
+			period := preview.StartDate
+			if preview.StartDate != preview.EndDate {
+				period += " s.d. " + preview.EndDate
+			}
+			days := make([]string, 0, len(preview.Weekdays))
+			for _, weekday := range preview.Weekdays {
+				days = append(days, dayName(time.Weekday(weekday)))
+			}
 			if err := h.db.Create(&models.ActivityLog{
 				Waktu:     time.Now().In(location),
 				User:      actor.Nama,
 				Aktivitas: "Hitung ulang status masuk",
-				Status:    preview.Date + " · " + strconv.Itoa(preview.Changed) + " presensi disesuaikan",
+				Status:    period + " · " + strings.Join(days, ", ") + " · " + strconv.Itoa(preview.Changed) + " presensi disesuaikan",
 			}).Error; err != nil {
 				// An unavailable legacy audit table must not roll back the actual fix.
 				log.Printf("today check-in recalculation audit log failed: %v", err)
@@ -96,31 +86,132 @@ func (h *Handler) todayCheckInRecalculation(c *fiber.Ctx) error {
 	return httpx.Success(c, message, preview)
 }
 
-func checkInRecalculationDate(c *fiber.Ctx, location *time.Location) (time.Time, error) {
-	value := time.Now().In(location).Format("2006-01-02")
+func (h *Handler) applyCheckInRecalculation(preview todayCheckInRecalculationResponse) error {
+	return h.db.Transaction(func(tx *gorm.DB) error {
+		for _, item := range preview.Items {
+			if !item.Changed {
+				continue
+			}
+			result := tx.Model(&models.AttendanceLog{}).
+				Where("id = ? AND status = ?", item.ID, item.OldStatus).
+				Where("COALESCE(keterangan, '') = ?", item.OldKeterangan).
+				Where("COALESCE(jam_masuk, '') = ?", item.oldJamMasuk).
+				Where("COALESCE(jam_hadir, '') = ?", item.oldJamHadir).
+				Updates(map[string]any{"status": item.NewStatus, "keterangan": pointerString(item.NewKeterangan)})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errTodayCheckInRecalculationStale
+			}
+		}
+		return nil
+	})
+}
+
+type checkInRecalculationSelection struct {
+	Start, End time.Time
+	Weekdays   []int
+	Dates      []time.Time
+}
+
+func parseCheckInRecalculationSelection(c *fiber.Ctx, location *time.Location) (checkInRecalculationSelection, error) {
+	var input struct {
+		Date      string `json:"date"`
+		Tanggal   string `json:"tanggal"`
+		StartDate string `json:"start_date"`
+		EndDate   string `json:"end_date"`
+		Weekdays  *[]int `json:"weekdays"`
+	}
+	var selection checkInRecalculationSelection
 	if c.Method() == fiber.MethodGet {
-		value = c.Query("date", value)
+		input.Date, input.StartDate, input.EndDate = c.Query("date"), c.Query("start_date"), c.Query("end_date")
+		if value, present := c.Queries()["weekdays"]; present {
+			days := []int{}
+			if strings.TrimSpace(value) != "" {
+				for _, part := range strings.Split(value, ",") {
+					day, err := strconv.Atoi(strings.TrimSpace(part))
+					if err != nil {
+						return selection, errors.New("hari harus berupa angka 0 (Minggu) sampai 6 (Sabtu)")
+					}
+					days = append(days, day)
+				}
+			}
+			input.Weekdays = &days
+		}
 	} else if strings.TrimSpace(string(c.Body())) != "" {
-		body, err := readJSON(c)
-		if err != nil {
-			return time.Time{}, err
-		}
-		if requested := stringValue(body, "date", "tanggal"); requested != "" {
-			value = requested
+		if err := json.Unmarshal(c.Body(), &input); err != nil {
+			return selection, errors.New("payload perbaikan tidak valid")
 		}
 	}
-	date, err := parseDate(value, location)
+	if input.Date == "" {
+		input.Date = input.Tanggal
+	}
+	isRange := input.StartDate != "" || input.EndDate != ""
+	if isRange && (input.Date != "" || input.StartDate == "" || input.EndDate == "") {
+		return selection, errors.New("isi tanggal awal dan akhir tanpa tanggal tunggal")
+	}
+	if !isRange {
+		if input.Date == "" {
+			input.Date = time.Now().In(location).Format("2006-01-02")
+		}
+		input.StartDate, input.EndDate = input.Date, input.Date
+	}
+	var err error
+	selection.Start, err = parseDate(input.StartDate, location)
 	if err != nil {
-		return time.Time{}, errors.New("format tanggal tidak valid")
+		return selection, errors.New("format tanggal awal tidak valid")
 	}
-	if date.After(dateOnly(time.Now().In(location))) {
-		return time.Time{}, errors.New("tanggal perbaikan tidak boleh melewati hari ini")
+	selection.End, err = parseDate(input.EndDate, location)
+	if err != nil {
+		return selection, errors.New("format tanggal akhir tidak valid")
 	}
-	return dateOnly(date), nil
+	if selection.End.Before(selection.Start) {
+		return selection, errors.New("tanggal akhir tidak boleh sebelum tanggal awal")
+	}
+	if selection.End.After(dateOnly(time.Now().In(location))) {
+		return selection, errors.New("tanggal perbaikan tidak boleh melewati hari ini")
+	}
+	if selection.End.Sub(selection.Start) >= 366*24*time.Hour {
+		return selection, errors.New("rentang perbaikan maksimal 366 hari")
+	}
+	selection.Weekdays = []int{0, 1, 2, 3, 4, 5, 6}
+	if isRange {
+		selection.Weekdays = []int{2, 3, 4, 5}
+	}
+	if input.Weekdays != nil {
+		selection.Weekdays = *input.Weekdays
+	}
+	if len(selection.Weekdays) == 0 {
+		return selection, errors.New("pilih minimal satu hari untuk diperiksa")
+	}
+	seen := map[int]bool{}
+	for _, day := range selection.Weekdays {
+		if day < 0 || day > 6 {
+			return selection, errors.New("hari harus antara 0 (Minggu) dan 6 (Sabtu)")
+		}
+		seen[day] = true
+	}
+	selection.Weekdays = make([]int, 0, len(seen))
+	for day := range seen {
+		selection.Weekdays = append(selection.Weekdays, day)
+	}
+	sort.Ints(selection.Weekdays)
+	for date := selection.Start; !date.After(selection.End); date = date.AddDate(0, 0, 1) {
+		if seen[int(date.Weekday())] {
+			selection.Dates = append(selection.Dates, date)
+		}
+	}
+	return selection, nil
 }
 
 type todayCheckInRecalculationResponse struct {
 	Date             string                          `json:"date"`
+	StartDate        string                          `json:"start_date"`
+	EndDate          string                          `json:"end_date"`
+	Weekdays         []int                           `json:"weekdays"`
+	SelectedDays     int                             `json:"selected_days"`
+	Days             []checkInRecalculationDay       `json:"days"`
 	NormalTarget     string                          `json:"normal_target"`
 	ToleranceMinutes string                          `json:"tolerance_minutes"`
 	Processed        int                             `json:"processed"`
@@ -131,8 +222,18 @@ type todayCheckInRecalculationResponse struct {
 	Items            []todayCheckInRecalculationItem `json:"items"`
 }
 
+type checkInRecalculationDay struct {
+	Date          string `json:"date"`
+	Processed     int    `json:"processed"`
+	Changed       int    `json:"changed"`
+	Unchanged     int    `json:"unchanged"`
+	SkippedNoTime int    `json:"skipped_no_time"`
+	SkippedNoUser int    `json:"skipped_no_user"`
+}
+
 type todayCheckInRecalculationItem struct {
 	ID             uint   `json:"id"`
+	Date           string `json:"date"`
 	UserID         uint   `json:"user_id"`
 	Nama           string `json:"nama"`
 	JamMasuk       string `json:"jam_masuk"`
@@ -147,11 +248,17 @@ type todayCheckInRecalculationItem struct {
 	StatusChanged  bool   `json:"status_changed"`
 	NoteChanged    bool   `json:"note_changed"`
 	Changed        bool   `json:"changed"`
+	oldJamMasuk    string
+	oldJamHadir    string
 }
 
-func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[string]string) (todayCheckInRecalculationResponse, error) {
+func (h *Handler) checkInRecalculationPreview(selection checkInRecalculationSelection, settings map[string]string) (todayCheckInRecalculationResponse, error) {
 	response := todayCheckInRecalculationResponse{
-		Date:             date.Format("2006-01-02"),
+		StartDate:        selection.Start.Format("2006-01-02"),
+		EndDate:          selection.End.Format("2006-01-02"),
+		Weekdays:         selection.Weekdays,
+		SelectedDays:     len(selection.Dates),
+		Days:             []checkInRecalculationDay{},
 		NormalTarget:     settingTime(settings["jam_masuk_normal"], "07:20"),
 		ToleranceMinutes: strings.TrimSpace(settings["toleransi_terlambat"]),
 		Items:            []todayCheckInRecalculationItem{},
@@ -159,15 +266,35 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 	if response.ToleranceMinutes == "" {
 		response.ToleranceMinutes = "15"
 	}
+	if response.StartDate == response.EndDate {
+		response.Date = response.StartDate
+	}
+	datesByKey := make(map[string]time.Time, len(selection.Dates))
+	daysByKey := make(map[string]int, len(selection.Dates))
+	for _, date := range selection.Dates {
+		key := date.Format("2006-01-02")
+		datesByKey[key], daysByKey[key] = date, len(response.Days)
+		response.Days = append(response.Days, checkInRecalculationDay{Date: key})
+	}
+	if len(selection.Dates) == 0 {
+		return response, nil
+	}
 
 	var rows []models.AttendanceLog
 	if err := h.db.
-		Where("tanggal >= ? AND tanggal < ?", date, date.AddDate(0, 0, 1)).
+		Where("tanggal >= ? AND tanggal < ?", selection.Start, selection.End.AddDate(0, 0, 1)).
 		Where("status IN ?", []string{"hadir", "hadir_terlambat", "hadir_izin_terlambat"}).
-		Order("id ASC").
+		Order("tanggal ASC, id ASC").
 		Find(&rows).Error; err != nil {
 		return response, err
 	}
+	selectedRows := make([]models.AttendanceLog, 0, len(rows))
+	for _, row := range rows {
+		if _, selected := datesByKey[row.Tanggal.Format("2006-01-02")]; selected {
+			selectedRows = append(selectedRows, row)
+		}
+	}
+	rows = selectedRows
 	response.Processed = len(rows)
 	if len(rows) == 0 {
 		return response, nil
@@ -189,11 +316,39 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 	for _, user := range users {
 		usersByID[user.ID] = user
 	}
+	var holidays []models.Holiday
+	if err := h.db.Where("tanggal >= ? AND tanggal < ?", selection.Start, selection.End.AddDate(0, 0, 1)).Find(&holidays).Error; err != nil {
+		return response, err
+	}
+	holidayByDate := make(map[string]*models.Holiday, len(holidays))
+	for i := range holidays {
+		holidayByDate[holidays[i].Tanggal.Format("2006-01-02")] = &holidays[i]
+	}
+	var schedules []models.JadwalPiket
+	if err := h.db.Where("user_id IN ? AND is_active = ?", userIDs, true).Order("id ASC").Find(&schedules).Error; err != nil {
+		return response, err
+	}
+	type scheduleKey struct {
+		userID uint
+		day    string
+	}
+	scheduleByUserDay := make(map[scheduleKey]*models.JadwalPiket, len(schedules))
+	for i := range schedules {
+		key := scheduleKey{schedules[i].UserID, schedules[i].Hari}
+		if _, exists := scheduleByUserDay[key]; !exists {
+			scheduleByUserDay[key] = &schedules[i]
+		}
+	}
 
 	for _, row := range rows {
+		dateKey := row.Tanggal.Format("2006-01-02")
+		date := datesByKey[dateKey]
+		day := &response.Days[daysByKey[dateKey]]
+		day.Processed++
 		user, found := usersByID[row.UserID]
 		if !found {
 			response.SkippedNoUser++
+			day.SkippedNoUser++
 			continue
 		}
 		checkIn := row.JamMasuk
@@ -202,17 +357,16 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 		}
 		if checkIn == nil || strings.TrimSpace(*checkIn) == "" {
 			response.SkippedNoTime++
+			day.SkippedNoTime++
 			continue
 		}
 		minutes, valid := timeToMinutes(*checkIn)
 		if !valid {
 			response.SkippedNoTime++
+			day.SkippedNoTime++
 			continue
 		}
-		target, targetLabel, err := h.checkInTarget(user.ID, date, settings)
-		if err != nil {
-			return response, err
-		}
+		target, targetLabel := effectiveCheckInTarget(date, settings, holidayByDate[dateKey], scheduleByUserDay[scheduleKey{user.ID, dayName(date.Weekday())}])
 		checkedInAt := time.Date(date.Year(), date.Month(), date.Day(), minutes/60, minutes%60, 0, 0, date.Location())
 		newStatus, generatedLateNote := classifyCheckIn(user, checkedInAt, target, targetLabel, response.ToleranceMinutes, "")
 		oldNote := ""
@@ -222,6 +376,7 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 		newNote := recalculatedCheckInNote(oldNote, generatedLateNote, newStatus)
 		item := todayCheckInRecalculationItem{
 			ID:             row.ID,
+			Date:           dateKey,
 			UserID:         row.UserID,
 			Nama:           row.Nama,
 			JamMasuk:       normalizeTime(*checkIn),
@@ -235,6 +390,8 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 			TargetLabel:    strings.TrimSpace(targetLabel),
 			StatusChanged:  row.Status != newStatus,
 			NoteChanged:    oldNote != newNote,
+			oldJamMasuk:    stringPointerValue(row.JamMasuk),
+			oldJamHadir:    stringPointerValue(row.JamHadir),
 		}
 		item.Changed = item.StatusChanged || item.NoteChanged
 		if item.Nama == "" {
@@ -242,8 +399,10 @@ func (h *Handler) todayCheckInRecalculationPreview(date time.Time, settings map[
 		}
 		if item.Changed {
 			response.Changed++
+			day.Changed++
 		} else {
 			response.Unchanged++
+			day.Unchanged++
 		}
 		response.Items = append(response.Items, item)
 	}

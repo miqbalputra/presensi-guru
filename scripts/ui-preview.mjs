@@ -55,13 +55,23 @@ let saved = null
 let recalculationApplied = false
 const requests = []
 const settings = () => ({ jam_masuk_normal: '07:20', toleransi_terlambat: '15', radius_gps: '500', sekolah_latitude: '-5.1477', sekolah_longitude: '119.4327', mode_testing: scenario === 'gps' ? '0' : '1', button_enabled: scenario === 'tombol-nonaktif' ? '0' : '1', jam_min_pulang: scenario === 'menunggu' ? '23:59' : '00:00', location_tracking_enabled: '0', apel_senin_enabled: '0', weekend_workday_enabled: '1' })
-const checkInRecalculation = (date = today) => {
-  const items = scenario === 'kosong' || recalculationApplied ? [] : [
+const checkInRecalculation = (selection = { date: today }) => {
+  if (typeof selection === 'string') selection = { date: selection }
+  const start = selection.start_date || selection.date || today
+  const end = selection.end_date || start
+  const weekdays = selection.weekdays || (selection.start_date ? [2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6])
+  const dates = []
+  for (let date = new Date(start + 'T00:00:00Z'); date.toISOString().slice(0, 10) <= end; date.setUTCDate(date.getUTCDate() + 1)) {
+    if (weekdays.includes(date.getUTCDay())) dates.push(date.toISOString().slice(0, 10))
+  }
+  const templates = scenario === 'kosong' || recalculationApplied ? [] : [
     { id: 100, user_id: 3, nama: 'Ahmad Fauzi', jam_masuk: '07:10:00', old_status: 'hadir_terlambat', new_status: 'hadir', old_late_minutes: 10, target: '07:20:00', target_label: '', status_changed: true, note_changed: true, changed: true },
     { id: 101, user_id: 4, nama: 'Siti Aminah', jam_masuk: '07:10:00', old_status: 'hadir', new_status: 'hadir_terlambat', new_late_minutes: 10, target: '07:00:00', target_label: '(Piket)', status_changed: true, note_changed: true, changed: true },
     { id: 102, user_id: 5, nama: 'Muhammad Ridwan', jam_masuk: '07:40:00', old_status: 'hadir_terlambat', new_status: 'hadir_terlambat', old_late_minutes: 40, new_late_minutes: 20, target: '07:20:00', target_label: '', status_changed: false, note_changed: true, changed: true },
   ]
-  return { date, normal_target: '07:20:00', tolerance_minutes: '15', processed: scenario === 'kosong' ? 0 : 12, changed: items.length, unchanged: scenario === 'kosong' ? 0 : 9, skipped_no_time: 0, skipped_no_user: 0, items }
+  const items = dates.flatMap((date, index) => templates.map((item) => ({ ...item, id: item.id + index * 100, date })))
+  const days = dates.map((date) => ({ date, processed: scenario === 'kosong' ? 0 : 12, changed: templates.length, unchanged: scenario === 'kosong' ? 0 : 12 - templates.length }))
+  return { date: start === end ? start : '', start_date: start, end_date: end, weekdays, selected_days: dates.length, days, normal_target: '07:20:00', tolerance_minutes: '15', processed: days.reduce((sum, day) => sum + day.processed, 0), changed: items.length, unchanged: days.reduce((sum, day) => sum + day.unchanged, 0), skipped_no_time: 0, skipped_no_user: 0, items }
 }
 const attendance = () => saved || (['masuk', 'menunggu', 'piket', 'selesai', 'izin', 'sakit'].includes(scenario) ? { ...baseLogs[0], jamPulang: scenario === 'selesai' ? '14:30' : null, status: ['izin', 'sakit'].includes(scenario) ? scenario : 'hadir' } : null)
 const holiday = () => ({ isWorkday: scenario !== 'libur', isHoliday: scenario === 'libur', isWeekend: false, holidayName: 'Libur sekolah', dayName: 'Minggu' })
@@ -108,14 +118,17 @@ const server = createServer(async (req, res) => {
       if (scenario === 'lambat') await new Promise((done) => setTimeout(done, 1800))
       if (path === '/v1/operations/checkin-recalculation' || path === '/v1/operations/today-checkin-recalculation') {
         if (role !== 'admin') return failure('Forbidden', 403)
-        const selectedDate = req.method === 'POST' ? (payload.date || today) : (url.searchParams.get('date') || today)
-        if (selectedDate > today) return failure('Tanggal perbaikan tidak boleh melewati hari ini', 400)
+        const selection = req.method === 'POST' ? payload : Object.fromEntries(url.searchParams)
+        if (typeof selection.weekdays === 'string') selection.weekdays = selection.weekdays.split(',').map(Number)
+        if ((selection.end_date || selection.date || today) > today) return failure('Tanggal perbaikan tidak boleh melewati hari ini', 400)
         if (req.method === 'POST') {
-          const before = checkInRecalculation(selectedDate)
+          const before = checkInRecalculation(selection)
           recalculationApplied = true
           return ok(before, 'Status masuk berhasil disesuaikan')
         }
-        return ok(checkInRecalculation(selectedDate), 'Pratinjau status masuk berhasil dimuat')
+        const preview = checkInRecalculation(selection)
+        if (scenario === 'balapan-filter' && selection.start_date?.endsWith('-01')) await new Promise((done) => setTimeout(done, 1800))
+        return ok(preview, 'Pratinjau status masuk berhasil dimuat')
       }
       if (path === '/v1/attendance' && req.method !== 'GET') {
         if (scenario === 'gagal-simpan') return failure('Simulasi penyimpanan gagal. Isian Anda tetap tersedia.')

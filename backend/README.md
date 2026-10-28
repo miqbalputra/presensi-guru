@@ -44,6 +44,14 @@ Buka `http://localhost:8080`. Database dibuat di `data/geopresensi-local.db` dan
 
 Endpoint kompatibilitas fitur berada di `/api/*.php` selama masa migrasi frontend.
 
+## Pemeriksaan dan perbaikan status masuk sekaligus
+
+Di **Admin → Pengaturan → Presensi → Perbaiki status masuk**, pilih satu tanggal atau rentang tanggal. Mode rentang memilih **Selasa–Jumat** secara bawaan; hari dapat diubah. Batas awal dan akhir termasuk dalam rentang, maksimal 366 hari hingga hari ini. Pratinjau menampilkan jumlah perubahan per tanggal sebelum tombol perbaikan dijalankan.
+
+Endpoint admin `GET /api/v1/operations/checkin-recalculation` menerima `start_date=YYYY-MM-DD`, `end_date=YYYY-MM-DD`, dan `weekdays=2,3,4,5` (0=Minggu, 1=Senin, ..., 6=Sabtu). Untuk menerapkan koreksi, kirim `POST` ke endpoint yang sama dengan JSON `{ "start_date": "2026-09-01", "end_date": "2026-09-30", "weekdays": [2, 3, 4, 5] }`. Parameter lama `date` tetap didukung untuk satu tanggal.
+
+Perhitungan memakai pengaturan dan jadwal piket aktif saat ini, serta jam khusus dari kalender tanggal tersebut. Koreksi hanya memperbarui status hadir/terlambat dan keterangan keterlambatan otomatis pada catatan yang sudah ada. Jam masuk/pulang, GPS, izin, sakit, dan catatan manual tetap dipertahankan. Semua tanggal diterapkan dalam satu transaksi; jika catatan berubah saat proses berjalan, seluruh koreksi dibatalkan dan admin diminta memperbarui pratinjau.
+
 ## Notifikasi pengajuan revisi ke Telegram
 
 Notifikasi Telegram bersifat opsional. Untuk mengaktifkannya, buat bot melalui `@BotFather`. Setiap akun penerima perlu membuka chat bot dan mengirim `/start`, lalu ambil masing-masing `message.chat.id` dari update bot. Atur `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` pada environment backend; keduanya harus diisi bersama. Beberapa chat ID ditulis dipisahkan koma, misalnya `TELEGRAM_CHAT_ID=123456789,987654321`. Pesan memuat guru, tanggal, alasan, jam yang diajukan, dan tautan ke halaman admin.

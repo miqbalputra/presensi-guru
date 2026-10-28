@@ -712,23 +712,26 @@ export const manualEntryAPI = {
   },
 }
 
-// Recalculate one selected day's saved check-in statuses after an administrator
-// corrected the normal arrival time. The server rejects future dates and still
-// applies each teacher's active piket target for that date.
+// Accept a legacy date string, { date }, or { start_date, end_date, weekdays }.
+// Weekdays use 0 = Sunday through 6 = Saturday. Preview is always read-only.
 export const todayCheckInRecalculationAPI = {
-  preview: async (date) => {
-    const query = date ? `?date=${encodeURIComponent(date)}` : ''
-    return fetchAPI('/v1/operations/checkin-recalculation' + query, {
+  preview: async (selection) => {
+    const payload = typeof selection === 'string' ? { date: selection } : selection || {}
+    const query = new URLSearchParams()
+    for (const [key, value] of Object.entries(payload)) {
+      query.set(key, Array.isArray(value) ? value.join(',') : String(value))
+    }
+    return fetchAPI('/v1/operations/checkin-recalculation?' + query, {
       method: 'GET',
-      timeoutMs: 10000,
+      timeoutMs: 30000,
     })
   },
 
-  apply: async (date) => {
+  apply: async (selection) => {
     return fetchAPI('/v1/operations/checkin-recalculation', {
       method: 'POST',
-      body: JSON.stringify({ date }),
-      timeoutMs: 15000,
+      body: JSON.stringify(typeof selection === 'string' ? { date: selection } : selection),
+      timeoutMs: 60000,
     })
   },
 }
