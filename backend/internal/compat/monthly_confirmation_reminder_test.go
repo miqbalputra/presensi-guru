@@ -28,13 +28,13 @@ func TestMonthlyConfirmationReminderWindow(t *testing.T) {
 		wantSend bool
 		wantType string
 	}{
-		{name: "month end", date: time.Date(2026, time.October, 31, 15, 0, 0, 0, location), wantSend: true, wantType: "month_end"},
+		{name: "month end", date: time.Date(2026, time.October, 31, 9, 0, 0, 0, location), wantSend: true, wantType: "month_end"},
 		{name: "first day at nine", date: time.Date(2026, time.November, 1, 9, 0, 0, 0, location), wantSend: true, wantType: "follow_up"},
 		{name: "third day at nine", date: time.Date(2026, time.November, 3, 9, 0, 0, 0, location), wantSend: true, wantType: "follow_up"},
 		{name: "fourth day", date: time.Date(2026, time.November, 4, 9, 0, 0, 0, location)},
 		{name: "first day at wrong time", date: time.Date(2026, time.November, 1, 15, 0, 0, 0, location)},
-		{name: "month end at wrong time", date: time.Date(2026, time.October, 31, 9, 0, 0, 0, location)},
-		{name: "april month end", date: time.Date(2026, time.April, 30, 15, 0, 0, 0, location), wantSend: true, wantType: "month_end"},
+		{name: "month end at wrong time", date: time.Date(2026, time.October, 31, 15, 0, 0, 0, location)},
+		{name: "april month end", date: time.Date(2026, time.April, 30, 9, 0, 0, 0, location), wantSend: true, wantType: "month_end"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestN8nMonthlyConfirmationRemindersOnlyReturnsUnconfirmedTeachers(t *testin
 		t.Fatal(err)
 	}
 	location, _ := time.LoadLocation("Asia/Jakarta")
-	clock := time.Date(2026, time.October, 31, 15, 0, 0, 0, location)
+	clock := time.Date(2026, time.October, 31, 9, 0, 0, 0, location)
 	previousClock := monthlyConfirmationNow
 	monthlyConfirmationNow = func() time.Time { return clock }
 	t.Cleanup(func() { monthlyConfirmationNow = previousClock })

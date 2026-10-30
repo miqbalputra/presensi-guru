@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Pengingat Konfirmasi Rekap Presensi\n\nWhatsApp dan email dikirim pukul 15.00 WIB pada akhir bulan, lalu pukul 09.00 WIB tanggal 1–3. API GeoPresensi hanya mengembalikan penerima yang belum konfirmasi.\n\nSetelah import, isi node **Konfigurasi** (URL aplikasi, N8N_API_KEY, URL GOWA, dan email pengirim). Pilih credential Basic Auth GOWA dan SMTP, lalu aktifkan workflow.",
+        "content": "## Pengingat Konfirmasi Rekap Presensi\n\nWhatsApp dan email dikirim pukul 09.00 WIB pada akhir bulan dan tanggal 1–3. API GeoPresensi hanya mengembalikan penerima yang belum konfirmasi.\n\nSetelah import, isi node **Konfigurasi** (URL aplikasi, N8N_API_KEY, URL GOWA, dan email pengirim). Pilih credential Basic Auth GOWA dan SMTP, lalu aktifkan workflow.",
         "height": 280,
         "width": 430,
         "color": 4
@@ -23,7 +23,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 15 28-31 * *"
+              "expression": "0 9 28-31 * *"
             },
             {
               "field": "cronExpression",
@@ -33,7 +33,7 @@
         }
       },
       "id": "cf5a6246-26c3-4091-b596-844299e53249",
-      "name": "Jadwal akhir bulan 15.00 dan tanggal 1-3 09.00 WIB",
+      "name": "Jadwal akhir bulan dan tanggal 1-3 09.00 WIB",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -196,7 +196,7 @@
   ],
   "pinData": {},
   "connections": {
-    "Jadwal akhir bulan 15.00 dan tanggal 1-3 09.00 WIB": {
+    "Jadwal akhir bulan dan tanggal 1-3 09.00 WIB": {
       "main": [
         [
           {

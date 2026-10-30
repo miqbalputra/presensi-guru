@@ -13,7 +13,7 @@ import (
 func monthlyConfirmationReminderWindow(now time.Time) (bool, string) {
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	lastDay := monthStart.AddDate(0, 1, -1).Day()
-	if now.Day() == lastDay && now.Hour() == 15 && now.Minute() == 0 {
+	if now.Day() == lastDay && now.Hour() == 9 && now.Minute() == 0 {
 		return true, "month_end"
 	}
 	if now.Day() >= 1 && now.Day() <= 3 && now.Hour() == 9 && now.Minute() == 0 {

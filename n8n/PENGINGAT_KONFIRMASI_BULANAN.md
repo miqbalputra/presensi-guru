@@ -1,6 +1,6 @@
 # Pengingat Konfirmasi Rekap Presensi Bulanan
 
-Workflow `pengingat-konfirmasi-presensi-bulanan.json` mengirim pengingat lewat WhatsApp dan email. Jadwalnya pukul 15.00 WIB pada tanggal terakhir bulan berjalan, lalu pukul 09.00 WIB pada tanggal 1, 2, dan 3. Backend hanya menyediakan guru yang belum mengonfirmasi dan memiliki setidaknya satu kontak valid. Status konfirmasi diperiksa ulang setiap kali workflow berjalan, sehingga pengingat berhenti pada jadwal berikutnya setelah guru konfirmasi.
+Workflow `pengingat-konfirmasi-presensi-bulanan.json` mengirim pengingat lewat WhatsApp dan email. Jadwalnya pukul 09.00 WIB pada tanggal terakhir bulan berjalan dan tanggal 1, 2, dan 3. Backend hanya menyediakan guru yang belum mengonfirmasi dan memiliki setidaknya satu kontak valid. Status konfirmasi diperiksa ulang setiap kali workflow berjalan, sehingga pengingat berhenti pada jadwal berikutnya setelah guru konfirmasi.
 
 Guru yang mengajukan koreksi tetap menerima pengingat sampai rekapnya dikonfirmasi. Status `confirmed` dan `confirmed_by_admin` tidak menerima pengingat.
 
