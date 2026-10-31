@@ -306,13 +306,19 @@ func readAttendanceRevisionInput(c *fiber.Ctx) (attendanceRevisionInput, error) 
 	input.Alasan = strings.TrimSpace(input.Alasan)
 	input.JamMasuk = strings.TrimSpace(input.JamMasuk)
 	input.JamPulang = strings.TrimSpace(input.JamPulang)
-	if !contains([]string{"lupa", "kendala_teknis"}, input.Alasan) {
-		return input, fmt.Errorf("Pilih alasan Lupa atau Kendala Teknis")
+	if !contains([]string{"lupa", "kendala_teknis", "izin", "sakit"}, input.Alasan) {
+		return input, fmt.Errorf("Pilih alasan Lupa, Kendala Teknis, Izin, atau Sakit")
 	}
 	return input, nil
 }
 
 func validateAttendanceRevisionTimes(input attendanceRevisionInput, attendance models.AttendanceLog) (*string, *string, error) {
+	if isAttendanceRevisionAbsence(input.Alasan) {
+		if input.JamMasuk != "" || input.JamPulang != "" {
+			return nil, nil, fmt.Errorf("Pengajuan Izin atau Sakit tidak memerlukan jam masuk dan jam pulang")
+		}
+		return nil, nil, nil
+	}
 	if input.JamMasuk == "" && input.JamPulang == "" {
 		return nil, nil, fmt.Errorf("Isi setidaknya satu jam yang ingin direvisi")
 	}
@@ -536,6 +542,14 @@ func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.Attendanc
 		attendance = models.AttendanceLog{UserID: teacher.ID, Nama: teacher.Nama, Tanggal: request.Tanggal, Metode: "manual"}
 	}
 
+	if isAttendanceRevisionAbsence(request.Alasan) {
+		attendance.Status = request.Alasan
+		attendance.JamMasuk = nil
+		attendance.JamHadir = nil
+		attendance.JamPulang = nil
+		attendance.Keterangan = pointerString("Revisi " + attendanceRevisionReasonLabel(request.Alasan))
+		return saveAttendanceRevision(tx, request, attendance)
+	}
 	jamMasuk := stringPointerValue(request.JamMasuk)
 	if jamMasuk == "" {
 		jamMasuk = stringPointerValue(attendance.JamMasuk)
@@ -581,6 +595,29 @@ func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.Attendanc
 	attendance.JamHadir = pointerString(normalizeTime(jamMasuk))
 	attendance.JamPulang = pointerString(jamPulang)
 	attendance.Keterangan = pointerString(checkInNote)
+	return saveAttendanceRevision(tx, request, attendance)
+}
+
+func isAttendanceRevisionAbsence(reason string) bool {
+	return reason == "izin" || reason == "sakit"
+}
+
+func attendanceRevisionReasonLabel(reason string) string {
+	switch reason {
+	case "lupa":
+		return "Lupa"
+	case "kendala_teknis":
+		return "Kendala Teknis"
+	case "izin":
+		return "Izin"
+	case "sakit":
+		return "Sakit"
+	default:
+		return reason
+	}
+}
+
+func saveAttendanceRevision(tx *gorm.DB, request *models.AttendanceRevisionRequest, attendance models.AttendanceLog) error {
 	if attendance.ID == 0 {
 		if err := tx.Create(&attendance).Error; err != nil {
 			if !isDuplicateError(err) {

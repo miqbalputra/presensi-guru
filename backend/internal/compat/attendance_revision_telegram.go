@@ -26,9 +26,10 @@ func (h *Handler) sendAttendanceRevisionTelegramNotification(user models.User, r
 		return errors.New("Telegram notification requires both bot token and chat ID")
 	}
 
-	reason := "Kendala teknis"
-	if request.Alasan == "lupa" {
-		reason = "Lupa"
+	reason := attendanceRevisionReasonLabel(request.Alasan)
+	timeDetails := fmt.Sprintf("🕒 Jam masuk yang diajukan: %s\n🕒 Jam pulang yang diajukan: %s", telegramRevisionTime(request.JamMasuk), telegramRevisionTime(request.JamPulang))
+	if isAttendanceRevisionAbsence(request.Alasan) {
+		timeDetails = "Status yang diajukan: " + reason + ". Jam masuk/pulang tidak diperlukan."
 	}
 	instructions := "Silakan tinjau dan proses pengajuan melalui dashboard admin."
 	var replyMarkup any
@@ -37,12 +38,11 @@ func (h *Handler) sendAttendanceRevisionTelegramNotification(user models.User, r
 		replyMarkup = telegramRevisionDecisionKeyboard(h.cfg.TelegramBotToken, request.ID)
 	}
 	message := fmt.Sprintf(
-		"🔔 PENGAJUAN REVISI PRESENSI\n\n👤 Guru: %s\n📅 Tanggal: %s\n📝 Alasan pengajuan: %s\n🕒 Jam masuk yang diajukan: %s\n🕒 Jam pulang yang diajukan: %s\n\n%s\n\nDetail pengajuan: %s/admin/edit-presensi",
+		"🔔 PENGAJUAN REVISI PRESENSI\n\n👤 Guru: %s\n📅 Tanggal: %s\n📝 Alasan pengajuan: %s\n%s\n\n%s\n\nDetail pengajuan: %s/admin/edit-presensi",
 		strings.TrimSpace(user.Nama),
 		request.Tanggal.In(appLocation(h)).Format("2006-01-02"),
 		reason,
-		telegramRevisionTime(request.JamMasuk),
-		telegramRevisionTime(request.JamPulang),
+		timeDetails,
 		instructions,
 		strings.TrimRight(strings.TrimSpace(h.cfg.AppURL), "/"),
 	)

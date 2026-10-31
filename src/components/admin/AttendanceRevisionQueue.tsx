@@ -5,6 +5,7 @@ import { formatDisplayDate } from '../../utils/dateUtils'
 import { AppDialog } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { notify } from '../ui/toast'
+import { attendanceRevisionReasonLabel, isAbsenceRevision } from '../../utils/attendanceRevision'
 
 const filters = [
   { value: 'pending', label: 'Menunggu' },
@@ -64,7 +65,7 @@ export default function AttendanceRevisionQueue() {
     <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 id="attendance-revision-queue-title" className="text-lg font-bold text-slate-900">Pengajuan Guru</h2>
-        <p className="mt-1 text-sm text-slate-500">Tinjau jam yang diajukan dan jam pada catatan presensi saat ini.</p>
+        <p className="mt-1 text-sm text-slate-500">Tinjau pengajuan status Izin/Sakit atau koreksi jam presensi sebelum menyetujui.</p>
       </div>
       <Button type="button" variant="outline" onClick={loadRequests} disabled={loading}><RefreshCw className={loading ? 'animate-spin' : ''} /> Muat Ulang</Button>
     </div>
@@ -86,9 +87,9 @@ export default function AttendanceRevisionQueue() {
           <tbody className="divide-y divide-slate-100">
             {requests.map((request) => <tr key={request.id} className="align-top hover:bg-slate-50/70">
               <td className="px-5 py-4"><p className="font-semibold text-slate-900">{request.namaGuru}</p><p className="mt-1 text-xs text-slate-500">{request.idGuru || `ID ${request.userId}`} · {formatDisplayDate(request.tanggal)}</p></td>
-              <td className="px-5 py-4"><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{request.alasan === 'lupa' ? 'Lupa' : 'Kendala Teknis'}</span></td>
-              <td className="px-5 py-4 text-sm"><p className="text-xs text-slate-500">Saat ini: <strong className="text-slate-700">{request.currentJamMasuk || '-'}</strong></p><p className="mt-1 text-xs text-slate-500">Diajukan: <strong className="text-blue-700">{request.jamMasuk || 'Tidak diubah'}</strong></p></td>
-              <td className="px-5 py-4 text-sm"><p className="text-xs text-slate-500">Saat ini: <strong className="text-slate-700">{request.currentJamPulang || '-'}</strong></p><p className="mt-1 text-xs text-slate-500">Diajukan: <strong className="text-blue-700">{request.jamPulang || 'Tidak diubah'}</strong></p></td>
+              <td className="px-5 py-4"><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{attendanceRevisionReasonLabel(request.alasan)}</span>{isAbsenceRevision(request.alasan) && <p className="mt-2 text-xs text-slate-500">Persetujuan mengubah status menjadi {attendanceRevisionReasonLabel(request.alasan)} dan mengosongkan jam presensi.</p>}</td>
+              <td className="px-5 py-4 text-sm"><p className="text-xs text-slate-500">Saat ini: <strong className="text-slate-700">{request.currentJamMasuk || '-'}</strong></p><p className="mt-1 text-xs text-slate-500">Diajukan: <strong className="text-blue-700">{isAbsenceRevision(request.alasan) ? 'Tidak diperlukan' : request.jamMasuk || 'Tidak diubah'}</strong></p></td>
+              <td className="px-5 py-4 text-sm"><p className="text-xs text-slate-500">Saat ini: <strong className="text-slate-700">{request.currentJamPulang || '-'}</strong></p><p className="mt-1 text-xs text-slate-500">Diajukan: <strong className="text-blue-700">{isAbsenceRevision(request.alasan) ? 'Tidak diperlukan' : request.jamPulang || 'Tidak diubah'}</strong></p></td>
               <td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${requestStatus(request.status)}`}>{request.status === 'pending' ? 'Menunggu' : request.status === 'approved' ? 'Disetujui' : 'Ditolak'}</span>{request.catatanAdmin && <p className="mt-2 max-w-48 text-xs text-slate-500">{request.catatanAdmin}</p>}</td>
               <td className="px-5 py-4">{request.status === 'pending' ? <div className="flex flex-wrap gap-2">
                 <Button type="button" size="sm" onClick={() => decide(request, 'approved')} disabled={activeId !== null}><Check /> Setujui</Button>

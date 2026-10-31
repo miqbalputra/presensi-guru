@@ -7,6 +7,7 @@ import { useGuruReport } from '../../hooks/useGuruReport'
 import { teacherAttendanceRevisionAPI } from '../../services/api'
 import { AppDialog } from '../ui/dialog'
 import { Button } from '../ui/button'
+import { attendanceRevisionReasons, attendanceRevisionReasonLabel, isAbsenceRevision } from '../../utils/attendanceRevision'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -143,24 +144,25 @@ function GuruStatistik({ user }) {
     if (!revisionDialog || revisionSaving) return
     const jamMasuk = revisionDraft.jamMasuk.trim()
     const jamPulang = revisionDraft.jamPulang.trim()
+    const absenceRevision = isAbsenceRevision(revisionDraft.alasan)
     const row = displayData.find((item) => item.tanggal === revisionDialog.tanggal)
     const hasCurrentCheckIn = row ? getJamMasuk(row) !== '-' : Boolean(revisionDialog.existing?.currentJamMasuk)
-    if (!jamMasuk && !jamPulang) {
+    if (!absenceRevision && !jamMasuk && !jamPulang) {
       setRevisionMessage({ type: 'error', text: 'Mohon isi jam masuk, jam pulang, atau keduanya.' })
       return
     }
-    if (!jamMasuk && !hasCurrentCheckIn) {
+    if (!absenceRevision && !jamMasuk && !hasCurrentCheckIn) {
       setRevisionMessage({ type: 'error', text: 'Jam masuk sebenarnya wajib diisi karena tanggal ini belum memiliki catatan jam masuk.' })
       return
     }
-    if (jamMasuk && jamPulang && jamPulang < jamMasuk) {
+    if (!absenceRevision && jamMasuk && jamPulang && jamPulang < jamMasuk) {
       setRevisionMessage({ type: 'error', text: 'Jam pulang tidak boleh lebih awal daripada jam masuk.' })
       return
     }
     setRevisionSaving(true)
     setRevisionMessage({ type: '', text: '' })
     try {
-      const payload = { alasan: revisionDraft.alasan, jamMasuk, jamPulang }
+      const payload = { alasan: revisionDraft.alasan, jamMasuk: absenceRevision ? '' : jamMasuk, jamPulang: absenceRevision ? '' : jamPulang }
       if (revisionDialog.existing) {
         await teacherAttendanceRevisionAPI.update(revisionDialog.existing.id, payload)
       } else {
@@ -485,7 +487,7 @@ function GuruStatistik({ user }) {
             <div key={request.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-800 dark:text-slate-100">{formatDisplayDate(request.tanggal)}</p><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${requestStatus.className}`}>{requestStatus.label}</span></div>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{request.alasan === 'lupa' ? 'Lupa presensi' : 'Kendala teknis'} · Jam masuk: {request.jamMasuk || request.currentJamMasuk || '-'} · Jam pulang: {request.jamPulang || request.currentJamPulang || '-'}</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{attendanceRevisionReasonLabel(request.alasan)}{isAbsenceRevision(request.alasan) ? ' · Pengajuan perubahan status, tanpa jam masuk/pulang.' : ` · Jam masuk: ${request.jamMasuk || request.currentJamMasuk || '-'} · Jam pulang: ${request.jamPulang || request.currentJamPulang || '-'}`}</p>
                 {request.status === 'rejected' && request.catatanAdmin && <p className="mt-1 text-sm text-red-700 dark:text-red-300">Catatan admin: {request.catatanAdmin}</p>}
               </div>
               {request.status === 'pending' && <Button type="button" variant="outline" onClick={() => openRevisionDialog({ tanggal: request.tanggal, jamMasuk: request.currentJamMasuk || '-', jamPulang: request.currentJamPulang || '-' }, request)}><PencilLine /> Edit Pengajuan</Button>}
@@ -508,19 +510,16 @@ function GuruStatistik({ user }) {
         {revisionDialog && <form onSubmit={saveRevision} className="space-y-5">
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold text-slate-800 dark:text-slate-100">Alasan pengajuan</legend>
-            {[
-              { value: 'lupa', label: 'Lupa', detail: 'Saya lupa melakukan presensi.' },
-              { value: 'kendala_teknis', label: 'Kendala Teknis', detail: 'Saya mengalami kendala saat menggunakan aplikasi.' },
-            ].map((reason) => <label key={reason.value} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${revisionDraft.alasan === reason.value ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-500/10' : 'border-slate-200 dark:border-slate-700'}`}>
-              <input type="radio" name="alasan-revisi" value={reason.value} checked={revisionDraft.alasan === reason.value} onChange={(event) => setRevisionDraft({ ...revisionDraft, alasan: event.target.value })} className="mt-1 accent-blue-600" />
+            {attendanceRevisionReasons.map((reason) => <label key={reason.value} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${revisionDraft.alasan === reason.value ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-500/10' : 'border-slate-200 dark:border-slate-700'}`}>
+              <input type="radio" name="alasan-revisi" value={reason.value} checked={revisionDraft.alasan === reason.value} onChange={(event) => setRevisionDraft({ ...revisionDraft, alasan: event.target.value, ...(isAbsenceRevision(event.target.value) ? { jamMasuk: '', jamPulang: '' } : {}) })} className="mt-1 accent-blue-600" />
               <span><span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{reason.label}</span><span className="text-xs text-slate-500 dark:text-slate-400">{reason.detail}</span></span>
             </label>)}
           </fieldset>
-          <div className="space-y-3">
+          {isAbsenceRevision(revisionDraft.alasan) ? <p role="status" className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-500/10 dark:text-blue-200">Mengajukan status <strong>{attendanceRevisionReasonLabel(revisionDraft.alasan)}</strong> untuk tanggal ini. Jam masuk dan pulang tidak diperlukan. Status baru berlaku setelah disetujui admin.</p> : <div className="space-y-3">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Jam sebenarnya <span className="font-normal text-slate-500">(isi satu atau keduanya)</span></p>
             <label className="block space-y-1.5"><span className="text-sm text-slate-600 dark:text-slate-300">Jam masuk {revisionHasCurrentCheckIn ? '(opsional)' : '(wajib karena belum ada catatan masuk)'}</span><input type="time" value={revisionDraft.jamMasuk} onChange={(event) => setRevisionDraft({ ...revisionDraft, jamMasuk: event.target.value })} required={!revisionHasCurrentCheckIn} className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" /></label>
             <label className="block space-y-1.5"><span className="text-sm text-slate-600 dark:text-slate-300">Jam pulang <span className="text-slate-400">(opsional)</span></span><input type="time" value={revisionDraft.jamPulang} onChange={(event) => setRevisionDraft({ ...revisionDraft, jamPulang: event.target.value })} className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" /></label>
-          </div>
+          </div>}
           {revisionMessage.text && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">{revisionMessage.text}</p>}
           <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => setRevisionDialog(null)} disabled={revisionSaving}><X /> Batal</Button><Button type="submit" disabled={revisionSaving}><Send /> {revisionSaving ? 'Mengirim...' : revisionDialog.existing ? 'Simpan Perubahan' : 'Kirim Pengajuan'}</Button></div>
         </form>}
