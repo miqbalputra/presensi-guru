@@ -217,7 +217,7 @@ func integrationAdminClaims() *auth.Claims { return &auth.Claims{Role: "admin"} 
 
 func (h *Handler) n8nGuru(c *fiber.Ctx) error {
 	var users []models.User
-	if err := h.db.Where("role = ? AND archived_at IS NULL", "guru").Order("nama ASC").Find(&users).Error; err != nil {
+	if err := h.db.Where("role = ? AND archived_at IS NULL AND is_on_leave = ?", "guru", false).Order("nama ASC").Find(&users).Error; err != nil {
 		return err
 	}
 	data := make([]map[string]any, 0, len(users))
@@ -267,6 +267,9 @@ func (h *Handler) missingTeachers(date string) ([]map[string]any, error) {
 	}
 	data := make([]map[string]any, 0)
 	for _, user := range users {
+		if user.IsOnLeave {
+			continue
+		}
 		workday, _, err := h.isWorkday(user, parsed)
 		if err != nil {
 			return nil, err

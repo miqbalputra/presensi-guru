@@ -14,6 +14,8 @@ function GuruModal({ guru, onClose, onSave }) {
     tanggalLahir: '',
     jenisKelamin: 'Laki-laki',
     tipeGuru: 'full_time',
+    isOnLeave: false,
+    leaveStartDate: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date()),
     alamat: '',
     noHP: '',
     jabatan: [''],
@@ -47,6 +49,8 @@ function GuruModal({ guru, onClose, onSave }) {
       const jabatanArray = Array.isArray(guru.jabatan) ? guru.jabatan : [guru.jabatan]
       setFormData({
         ...guru,
+        isOnLeave: Boolean(guru.isOnLeave),
+        leaveStartDate: guru.leaveStartDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date()),
         tanggalLahir: guru.tanggalLahir ? formatDateForInput(guru.tanggalLahir) : '',
         tanggalBertugas: guru.tanggalBertugas ? formatDateForInput(guru.tanggalBertugas) : '',
         jabatan: jabatanArray,
@@ -94,6 +98,18 @@ function GuruModal({ guru, onClose, onSave }) {
 {saveError && <Notice>{saveError}</Notice>}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {guru && <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <label htmlFor="guru-leave-status" className="block text-sm font-medium text-gray-800">Status tugas guru</label>
+            <select id="guru-leave-status" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" value={formData.isOnLeave ? 'cuti' : 'aktif'} onChange={e => setFormData({ ...formData, isOnLeave: e.target.value === 'cuti' })}>
+              <option value="aktif">Aktif — wajib presensi</option>
+              <option value="cuti">Cuti — tidak wajib presensi</option>
+            </select>
+            {formData.isOnLeave && <div>
+              <label htmlFor="guru-leave-start" className="mb-1 block text-sm font-medium text-gray-800">Mulai cuti</label>
+              <input id="guru-leave-start" type="date" required disabled={Boolean(guru.isOnLeave)} max={new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2" value={formData.leaveStartDate} onChange={e => setFormData({ ...formData, leaveStartDate: e.target.value })} />
+            </div>}
+            <p className="text-sm leading-relaxed text-gray-600">Guru cuti tetap bisa membuka aplikasi. Presensi tidak diwajibkan dan pengingat email/WhatsApp dihentikan sampai admin mengubah status menjadi Aktif. Saat diaktifkan, kewajiban presensi kembali berlaku mulai hari ini; riwayat cuti tetap tersimpan.</p>
+          </div>}
           <div>
             <label htmlFor="gurumodal-field-16" className="block text-sm font-medium text-gray-700 mb-2">
               ID Guru <span className="text-xs text-gray-500">(Nomor Induk Guru)</span>

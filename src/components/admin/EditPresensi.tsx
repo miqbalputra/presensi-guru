@@ -188,6 +188,7 @@ function EditPresensi({ user }) {
   }
 
   const handleEdit = (log) => {
+    if (log.status === 'cuti') { notify('Kelola status cuti melalui Data Guru → Edit guru.'); return }
     setEditingLog(log)
     setFormData({
       guruId: log.userId.toString(),
@@ -202,6 +203,7 @@ function EditPresensi({ user }) {
   }
 
   const handleDelete = async (log) => {
+    if (log.status === 'cuti') { notify('Riwayat cuti dikelola melalui Data Guru → Edit guru.'); return }
     if (!confirm(`Hapus presensi ${log.nama} pada ${log.tanggal}?`)) return
 
     try {

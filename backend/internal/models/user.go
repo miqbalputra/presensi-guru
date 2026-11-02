@@ -20,6 +20,8 @@ type User struct {
 	ArchivedAt      *time.Time `gorm:"column:archived_at" json:"archivedAt,omitempty"`
 	ArchiveReason   *string    `gorm:"column:archive_reason" json:"archiveReason,omitempty"`
 	TipeGuru        string     `gorm:"column:tipe_guru" json:"tipeGuru"`
+	IsOnLeave       bool       `gorm:"column:is_on_leave;not null;default:false" json:"isOnLeave"`
+	LeavePeriods    string     `gorm:"column:leave_periods;type:text" json:"-"`
 	CreatedAt       time.Time  `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt       time.Time  `gorm:"column:updated_at" json:"updatedAt"`
 }
@@ -42,5 +44,8 @@ func (u User) Public() map[string]any {
 		"tanggalBertugas": u.TanggalBertugas,
 		"tanggalLahir":    u.TanggalLahir,
 		"tipeGuru":        u.TipeGuru,
+		"isOnLeave":       u.IsOnLeave,
+		"leaveStartDate":  u.LeaveStartDate(),
+		"leavePeriods":    u.LeaveHistory(),
 	}
 }

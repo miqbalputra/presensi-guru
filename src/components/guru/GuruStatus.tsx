@@ -39,6 +39,8 @@ function GuruStatus() {
 
   const getStatusConfig = (statusFinal) => {
     switch (statusFinal) {
+      case 'cuti':
+        return { icon: FileText, text: 'Cuti', bg: 'bg-blue-50 dark:bg-blue-500/10', border: 'border-blue-200 dark:border-blue-500/20', badge: 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300', dot: 'bg-blue-500', iconColor: 'text-blue-600 dark:text-blue-400' }
       case 'hadir':
         return {
           icon: UserCheck,
@@ -227,7 +229,7 @@ function GuruStatus() {
                     </p>
                   )}
                   {/* Tampilkan jam masuk / pulang */}
-                  {guru.statusFinal !== 'belum' && guru.statusFinal !== 'izin' && guru.statusFinal !== 'sakit' && (
+                  {guru.statusFinal !== 'belum' && guru.statusFinal !== 'izin' && guru.statusFinal !== 'sakit' && guru.statusFinal !== 'cuti' && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                       {guru.jamMasuk && guru.jamMasuk !== '-' && (
                         <p className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">

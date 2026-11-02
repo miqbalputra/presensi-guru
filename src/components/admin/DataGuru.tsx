@@ -398,7 +398,7 @@ function DataGuru() {
                 <tr key={guru.id} className="transition-colors odd:bg-white even:bg-gray-50/40 hover:bg-blue-50/70">
                   <td className="whitespace-nowrap px-3 py-3 tabular-nums text-gray-500">{index + 1}</td>
                   <td className="truncate whitespace-nowrap px-3 py-3 font-medium text-blue-700" title={guru.idGuru || '-'}>{guru.idGuru || '-'}</td>
-                  <td className="truncate whitespace-nowrap px-3 py-3 font-medium text-gray-900" title={guru.nama}>{guru.nama}</td>
+                  <td className="truncate whitespace-nowrap px-3 py-3 font-medium text-gray-900" title={guru.nama}>{guru.nama}{guru.isOnLeave && <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">Cuti</span>}</td>
                   <td className="truncate whitespace-nowrap px-3 py-3 text-gray-600" title={guru.email || ''}>{guru.email || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-gray-600">{formatDisplayDate(guru.tanggalLahir)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-gray-600">{calculateAge(guru.tanggalLahir)}</td>

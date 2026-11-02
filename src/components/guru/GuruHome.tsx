@@ -977,13 +977,14 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
   const isGpsReady = isTestingMode || locationStatus.state === 'ready'
   const gpsLabel = isTestingMode ? 'Mode testing aktif' : locationStatus.state === 'ready' ? 'Lokasi siap digunakan' : locationStatus.state === 'loading' ? 'Sedang mencari lokasi...' : 'Lokasi perlu diperbarui'
   const checkedOut = Boolean(todayAttendance?.jamPulang || todayAttendance?.jam_pulang)
-  const isLeave = ['izin', 'sakit'].includes(todayAttendance?.status)
+  const isCuti = todayAttendance?.status === 'cuti'
+  const isLeave = ['izin', 'sakit', 'cuti'].includes(todayAttendance?.status)
   const isPresent = ['hadir', 'hadir_terlambat', 'hadir_izin_terlambat'].includes(todayAttendance?.status)
   const actionVisible = !isHoliday && !checkedOut && !isLeave && (!todayAttendance || isPresent)
   // The existing checkout path is available independently of button_enabled.
   const actionAllowed = isPresent || settings.button_enabled == '1'
   const checkoutReady = !isPresent || canShowPulangButton()
-  const title = isHoliday ? 'Hari ini libur' : checkedOut ? 'Presensi hari ini selesai' : isLeave ? (todayAttendance.status === 'izin' ? 'Izin sudah tercatat' : 'Sakit sudah tercatat') : isPresent ? 'Presensi masuk tercatat' : 'Mulai hari Anda'
+  const title = isCuti ? 'Anda sedang cuti' : isHoliday ? 'Hari ini libur' : checkedOut ? 'Presensi hari ini selesai' : isLeave ? (todayAttendance.status === 'izin' ? 'Izin sudah tercatat' : 'Sakit sudah tercatat') : isPresent ? 'Presensi masuk tercatat' : 'Mulai hari Anda'
   const time = (value) => value ? String(value).slice(0, 5) : 'Belum tercatat'
   const closeLeave = () => { setShowModal(false); setKeterangan(''); setFormError('') }
   const closePiket = () => { setShowPiketModal(false); setKeteranganPiket(''); setFormError('') }
@@ -997,9 +998,9 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
     <Card className="gap-4 p-5 sm:p-6" aria-labelledby="attendance-action-title" aria-busy={loading}>
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Presensi hari ini</p>{todayAttendance && <AttendanceStatus status={todayAttendance.status} />}</div>
       <div><h2 id="attendance-action-title" tabIndex={-1} className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-        {isHoliday ? (holidayInfo?.message || 'Tidak perlu melakukan presensi hari ini.') : checkedOut ? 'Jam masuk dan pulang Anda sudah tersimpan.' : isLeave ? 'Tidak perlu presensi pulang untuk status ini.' : isPresent ? checkoutReady ? 'Catat kepulangan untuk menyelesaikan presensi hari ini.' : 'Presensi pulang tersedia mulai ' + formatPulangThreshold() + ' WIB.' : 'Tekan tombol di bawah saat berada di area sekolah.'}
+        {isCuti ? 'Tidak perlu presensi. Pengingat email dan WhatsApp dihentikan sampai admin mengaktifkan kembali status Anda.' : isHoliday ? (holidayInfo?.message || 'Tidak perlu melakukan presensi hari ini.') : checkedOut ? 'Jam masuk dan pulang Anda sudah tersimpan.' : isLeave ? 'Tidak perlu presensi pulang untuk status ini.' : isPresent ? checkoutReady ? 'Catat kepulangan untuk menyelesaikan presensi hari ini.' : 'Presensi pulang tersedia mulai ' + formatPulangThreshold() + ' WIB.' : 'Tekan tombol di bawah saat berada di area sekolah.'}
       </p></div>
-      {!gmailComplete && <div role="status" className="flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+      {!gmailComplete && !isCuti && <div role="status" className="flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
         <div><p className="text-sm font-semibold">Gmail diperlukan untuk presensi</p><p className="mt-1 text-xs leading-5 text-amber-900/80 dark:text-amber-100/80">Mohon lengkapi Gmail aktif berakhiran <strong>@gmail.com</strong> melalui menu Akun agar dapat melakukan presensi masuk, izin/sakit, dan pulang.</p></div>
         <Button type="button" variant="outline" className="shrink-0 border-amber-400 bg-white text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-100 dark:hover:bg-amber-950" onClick={() => onChangeTab?.('akun')}>Lengkapi Gmail</Button>
       </div>}

@@ -40,6 +40,9 @@ func monthlyConfirmationPeriod(now time.Time) (time.Time, time.Time, bool) {
 }
 
 func monthlyConfirmationTarget(user models.User, now time.Time) (time.Time, time.Time, bool) {
+	if user.IsOnLeave {
+		return time.Time{}, time.Time{}, false
+	}
 	start, end, active := monthlyConfirmationPeriod(now)
 	if !active {
 		return time.Time{}, time.Time{}, false

@@ -43,6 +43,7 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
   const [overrides, setOverrides] = useState<any[]>([])
   const [optionalWorkdays, setOptionalWorkdays] = useState<any[]>([])
   const [workdaysCache, setWorkdaysCache] = useState<Record<string, any>>({})
+  const [leaveDatesCache, setLeaveDatesCache] = useState<Record<string, string[]>>({})
   const [baseLoading, setLoading] = useState(true)
   const [periodLoading, setPeriodLoading] = useState(true)
   const [baseError, setBaseError] = useState('')
@@ -109,12 +110,15 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
           )
 
           const newCache: Record<string, any> = {}
+          const newLeaveCache: Record<string, string[]> = {}
           if (allResponse.data?.teachers) {
             Object.values(allResponse.data.teachers as Record<string, any>).forEach((t: any) => {
               newCache[`${t.user_id}_${startDate}_${endDate}`] = t.workday_dates || []
+              newLeaveCache[`${t.user_id}_${startDate}_${endDate}`] = t.leave_dates || []
             })
           }
           setWorkdaysCache(newCache)
+          setLeaveDatesCache(newLeaveCache)
         } else {
           // Guru context hanya memakai kalender hasil perhitungan server untuk
           // dirinya sendiri. Endpoint optional-workdays dan weekend-overrides
@@ -133,6 +137,7 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
 
           const newCache: Record<string, any> = {}
           newCache[`${userId}_${startDate}_${endDate}`] = workdaysResponse.data?.workday_dates || []
+          setLeaveDatesCache({ [`${userId}_${startDate}_${endDate}`]: workdaysResponse.data?.leave_dates || [] })
           setWorkdaysCache(newCache)
         }
       } catch (error) {
@@ -245,11 +250,14 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
       })
 
       const workdayDates = getRelevantDates(g)
+      const leaveDates = (leaveDatesCache[`${guruId}_${startDate}_${endDate}`] || []).filter(date => date <= formatDateForInput(new Date()))
+      const leaveSet = new Set(leaveDates)
       const optionalDatesWithPresence = optionalWorkdays.filter((d) => logsByDate.has(d))
       const holidayDates = Array.from(holidayByDate.keys())
-      const allDates = Array.from(new Set([...workdayDates, ...optionalDatesWithPresence, ...holidayDates])).sort()
+      const allDates = Array.from(new Set([...workdayDates, ...leaveDates, ...optionalDatesWithPresence, ...holidayDates])).sort()
 
       return allDates.map((date) => {
+        if (leaveSet.has(date)) return { id: `cuti-${guruId}-${date}`, userId: guruId, tanggal: date, jamMasuk: "-", jamPulang: "-", status: "cuti", keterangan: "Cuti — tidak wajib presensi" }
         const log = logsByDate.get(date)
         const isOverrideOff = userOverrides.has(date) && !userOverrides.get(date)
         if (log) return log
@@ -286,7 +294,7 @@ export function useGuruReport(guru, startDate, endDate, options: { allGuru?: boo
         }
       })
     },
-    [guru, getGuruLogsInRange, getUserOverrides, optionalWorkdays, getRelevantDates, getGender, holidays, startDate, endDate]
+    [guru, getGuruLogsInRange, getUserOverrides, optionalWorkdays, getRelevantDates, getGender, holidays, startDate, endDate, leaveDatesCache]
   )
 
   return {

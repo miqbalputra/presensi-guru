@@ -64,6 +64,9 @@ func (h *Handler) n8nMonthlyConfirmationReminders(c *fiber.Ctx) error {
 		}
 
 		for _, user := range users {
+			if user.IsOnLeave {
+				continue
+			}
 			if _, _, eligible := monthlyConfirmationTarget(user, now); !eligible {
 				continue
 			}

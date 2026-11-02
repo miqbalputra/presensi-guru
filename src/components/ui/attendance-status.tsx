@@ -4,6 +4,7 @@ export const attendanceStatuses = {
   hadir_izin_terlambat: { label: 'Izin terlambat', tone: 'info' },
   izin: { label: 'Izin', tone: 'info' },
   sakit: { label: 'Sakit', tone: 'error' },
+  cuti: { label: 'Cuti', tone: 'info' },
   alfa: { label: 'Alfa', tone: 'neutral' },
   libur: { label: 'Libur', tone: 'holiday' },
   libur_override: { label: 'Libur khusus', tone: 'holiday' },

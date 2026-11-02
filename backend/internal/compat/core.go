@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/griyaquran/geopresensi/backend/internal/auth"
 	"github.com/griyaquran/geopresensi/backend/internal/httpx"
@@ -233,10 +235,23 @@ func (h *Handler) updateGuru(c *fiber.Ctx, body map[string]any) error {
 			updates[field] = parsed.Format("2006-01-02")
 		}
 	}
-	if len(updates) == 0 {
+	if len(updates) == 0 && body["isOnLeave"] == nil {
 		return invalid(c, "Tidak ada data yang diubah")
 	}
-	if err := h.db.Model(&models.User{}).Where("id = ? AND role = ?", id, "guru").Updates(updates).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND role = ? AND archived_at IS NULL", id, "guru").First(&user).Error; err != nil {
+			return err
+		}
+		leaveUpdates, err := teacherLeaveUpdates(user, body, time.Now().In(appLocation(h)))
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		}
+		for key, value := range leaveUpdates {
+			updates[key] = value
+		}
+		return tx.Model(&user).Updates(updates).Error
+	}); err != nil {
 		return err
 	}
 	return httpx.Success(c, "Guru berhasil diupdate", nil)
@@ -332,6 +347,53 @@ func (h *Handler) listAttendance(c *fiber.Ctx, claims *auth.Claims) error {
 	for _, row := range rows {
 		data = append(data, mapAttendance(row))
 	}
+	// Cuti is derived from its dated history; never overwrite recorded logs.
+	if c.Query("id") == "" {
+		startText, endText := c.Query("start_date"), c.Query("end_date")
+		if date := c.Query("tanggal"); date != "" {
+			startText, endText = date, date
+		}
+		if startText == "" || endText == "" {
+			startText, endText = today(h), today(h)
+		}
+		start, startErr := parseDate(startText, appLocation(h))
+		end, endErr := parseDate(endText, appLocation(h))
+		if startErr == nil && endErr == nil && validReportRange(start, end) {
+			usersQuery := h.db.Where("role = ? AND archived_at IS NULL", "guru")
+			if claims.Role == "guru" && c.Query("status_rekan") != "1" {
+				usersQuery = usersQuery.Where("id = ?", claims.UserID)
+			} else if c.Query("user_id") != "" && claims.Role != "guru" {
+				usersQuery = usersQuery.Where("id = ?", c.Query("user_id"))
+			}
+			var users []models.User
+			if err := usersQuery.Find(&users).Error; err != nil {
+				return err
+			}
+			leaveKeys := map[string]bool{}
+			virtual := []map[string]any{}
+			todayDate := dateOnly(time.Now().In(appLocation(h)))
+			for _, user := range users {
+				for _, date := range dateRange(start, end) {
+					if date.After(todayDate) || !user.OnLeaveOn(date) {
+						continue
+					}
+					day := date.Format("2006-01-02")
+					leaveKeys[fmt.Sprintf("%d:%s", user.ID, day)] = true
+					if c.Query("status") == "" || c.Query("status") == "cuti" {
+						virtual = append(virtual, teacherLeaveAttendance(user, day))
+					}
+				}
+			}
+			filtered := data[:0]
+			for _, item := range data {
+				if !leaveKeys[fmt.Sprintf("%v:%v", item["userId"], item["tanggal"])] {
+					filtered = append(filtered, item)
+				}
+			}
+			data = append(filtered, virtual...)
+			sort.SliceStable(data, func(i, j int) bool { return fmt.Sprint(data[i]["tanggal"]) > fmt.Sprint(data[j]["tanggal"]) })
+		}
+	}
 	return httpx.Success(c, "Data presensi berhasil diambil", data)
 }
 
@@ -344,7 +406,7 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 		return invalid(c, "User presensi harus diisi")
 	}
 	var user models.User
-	if err := h.db.Select("id, nama, tipe_guru, email").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
+	if err := h.db.Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
 		return httpx.Error(c, fiber.StatusNotFound, "USER_NOT_FOUND", "Data guru tidak ditemukan")
 	}
 	if claims.Role == "guru" && (user.Email == nil || !isGmailAddress(strings.TrimSpace(*user.Email))) {
@@ -364,6 +426,9 @@ func (h *Handler) createAttendance(c *fiber.Ctx, claims *auth.Claims, body map[s
 	parsedDate, err := parseDate(date, appLocation(h))
 	if err != nil {
 		return invalid(c, "Format tanggal tidak valid")
+	}
+	if user.OnLeaveOn(parsedDate) {
+		return teacherLeaveError()
 	}
 	if claims.Role == "guru" {
 		workday, optional, workdayErr := h.isWorkday(user, parsedDate)

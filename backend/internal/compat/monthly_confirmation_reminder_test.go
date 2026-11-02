@@ -72,6 +72,7 @@ func TestN8nMonthlyConfirmationRemindersOnlyReturnsUnconfirmedTeachers(t *testin
 		"no-contact":      {},
 		"archived":        {phone: "081234567895"},
 		"new-teacher":     {phone: "081234567896"},
+		"on-leave":        {phone: "081234567897", email: "on-leave@gmail.com"},
 	}
 	teachers := make(map[string]models.User, len(contacts))
 	for name, contact := range contacts {
@@ -88,6 +89,7 @@ func TestN8nMonthlyConfirmationRemindersOnlyReturnsUnconfirmedTeachers(t *testin
 			created = periodEnd.AddDate(0, 0, 1)
 		}
 		teacher := models.User{Username: "teacher-" + name, Role: "guru", Nama: name, NoHP: phonePtr, Email: emailPtr, CreatedAt: created}
+		teacher.IsOnLeave = name == "on-leave"
 		if name == "archived" {
 			archivedAt := time.Date(2026, time.October, 1, 8, 0, 0, 0, location)
 			teacher.ArchivedAt = &archivedAt

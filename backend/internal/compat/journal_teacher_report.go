@@ -94,9 +94,14 @@ func (h *Handler) buildTeacherAttendanceReport(teacher models.User, start, end t
 	}
 
 	rows := make([]fiber.Map, 0)
-	totalWorkdays, present, izin, sakit, alfa := 0, 0, 0, 0, 0
+	totalWorkdays, present, izin, sakit, alfa, cuti := 0, 0, 0, 0, 0, 0
 	for _, date := range dateRange(start, end) {
 		dateString := date.Format("2006-01-02")
+		if teacher.OnLeaveOn(date) {
+			cuti++
+			rows = append(rows, journalReportVirtualRow(dateString, "cuti", "Cuti — tidak wajib presensi"))
+			continue
+		}
 		log, hasLog := logByDate[dateString]
 		isWorkday, isOptional, isOverrideOff := journalReportDayType(calendar, teacher, date, overrideByDate)
 
@@ -173,6 +178,7 @@ func (h *Handler) buildTeacherAttendanceReport(teacher models.User, start, end t
 			"izin":       izin,
 			"sakit":      sakit,
 			"alfa":       alfa,
+			"cuti":       cuti,
 			"persentase": percentage,
 		},
 		"rows": rows,
@@ -223,6 +229,9 @@ func (h *Handler) myTeacherAttendanceReport(c *fiber.Ctx) error {
 }
 
 func journalReportDayType(calendar workdayCalendar, teacher models.User, date time.Time, overrides map[string]models.WeekendOverride) (isWorkday bool, isOptional bool, isOverrideOff bool) {
+	if teacher.OnLeaveOn(date) {
+		return false, false, false
+	}
 	dateString := date.Format("2006-01-02")
 	if _, optional := calendar.optional[dateString]; optional {
 		return false, true, false

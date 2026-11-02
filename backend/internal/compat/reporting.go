@@ -64,6 +64,9 @@ func (h *Handler) loadWorkdayCalendar(start, end time.Time) (workdayCalendar, er
 }
 
 func (calendar workdayCalendar) isWorkday(user models.User, date time.Time) (bool, bool) {
+	if user.OnLeaveOn(date) {
+		return false, false
+	}
 	dateString := date.Format("2006-01-02")
 	if _, ok := calendar.optional[dateString]; ok {
 		return false, true
@@ -88,6 +91,9 @@ func (calendar workdayCalendar) isWorkday(user models.User, date time.Time) (boo
 }
 
 func (h *Handler) isWorkday(user models.User, date time.Time) (bool, bool, error) {
+	if user.OnLeaveOn(date) {
+		return false, false, nil
+	}
 	dateString := date.Format("2006-01-02")
 	var holiday models.Holiday
 	holidayQuery := h.db.
@@ -279,8 +285,17 @@ func (h *Handler) overviewChart(c *fiber.Ctx) error {
 		}
 		trend = append(trend, map[string]any{"tanggal": dayLabel(date), "date": date.Format("2006-01-02"), "hadir": hadir, "tidakHadir": tidak})
 	}
+	todayUsers := map[uint]bool{}
+	for _, user := range users {
+		if workday, _ := calendar.isWorkday(user, now); workday {
+			todayUsers[user.ID] = true
+		}
+	}
 	stats := map[string]int{"hadir": 0, "izin": 0, "sakit": 0, "alfa": 0}
 	for _, log := range logs {
+		if !todayUsers[log.UserID] {
+			continue
+		}
 		if log.Tanggal.Format("2006-01-02") != now.Format("2006-01-02") {
 			continue
 		}
@@ -292,7 +307,7 @@ func (h *Handler) overviewChart(c *fiber.Ctx) error {
 			stats["sakit"]++
 		}
 	}
-	stats["alfa"] = maxInt(len(users)-stats["hadir"]-stats["izin"]-stats["sakit"], 0)
+	stats["alfa"] = maxInt(len(todayUsers)-stats["hadir"]-stats["izin"]-stats["sakit"], 0)
 	return httpx.Success(c, "Chart overview berhasil diambil", fiber.Map{"trend7Days": trend, "todayStats": stats, "totalGuru": len(users)})
 }
 
@@ -656,12 +671,16 @@ func (h *Handler) teacherWorkdays(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	workdays, optional, nonWorkdays := []string{}, []string{}, []string{}
+	workdays, optional, nonWorkdays, leaveDates := []string{}, []string{}, []string{}, []string{}
 	breakdown := []map[string]any{}
 	for _, date := range dateRange(start, end) {
 		isWorkday, isOptional := calendar.isWorkday(user, date)
 		item := map[string]any{"tanggal": date.Format("2006-01-02"), "day_of_week": int(date.Weekday()), "is_weekend": date.Weekday() == time.Saturday || date.Weekday() == time.Sunday, "is_workday": isWorkday, "is_optional": isOptional, "override": nil}
 		breakdown = append(breakdown, item)
+		item["is_on_leave"] = user.OnLeaveOn(date)
+		if user.OnLeaveOn(date) {
+			leaveDates = append(leaveDates, date.Format("2006-01-02"))
+		}
 		if isWorkday {
 			workdays = append(workdays, item["tanggal"].(string))
 		} else if isOptional {
@@ -670,7 +689,7 @@ func (h *Handler) teacherWorkdays(c *fiber.Ctx) error {
 			nonWorkdays = append(nonWorkdays, item["tanggal"].(string))
 		}
 	}
-	return httpx.Success(c, "Data hari kerja berhasil diambil", fiber.Map{"user_id": userID, "gender": user.JenisKelamin, "start_date": startValue, "end_date": endValue, "total_workdays": len(workdays), "workday_dates": workdays, "non_workday_dates": nonWorkdays, "optional_dates": optional, "optional_workdays": optional, "breakdown": breakdown})
+	return httpx.Success(c, "Data hari kerja berhasil diambil", fiber.Map{"user_id": userID, "gender": user.JenisKelamin, "start_date": startValue, "end_date": endValue, "total_workdays": len(workdays), "workday_dates": workdays, "leave_dates": leaveDates, "non_workday_dates": nonWorkdays, "optional_dates": optional, "optional_workdays": optional, "breakdown": breakdown})
 }
 
 func (h *Handler) teachersWorkdays(c *fiber.Ctx) error {
@@ -698,13 +717,16 @@ func (h *Handler) teachersWorkdays(c *fiber.Ctx) error {
 	teachers := map[string]any{}
 	for _, user := range users {
 		// Reuse the same shape used by the singular endpoint.
-		dates := []string{}
+		dates, leaveDates := []string{}, []string{}
 		for _, date := range dateRange(start, end) {
+			if user.OnLeaveOn(date) {
+				leaveDates = append(leaveDates, date.Format("2006-01-02"))
+			}
 			if workday, _ := calendar.isWorkday(user, date); workday {
 				dates = append(dates, date.Format("2006-01-02"))
 			}
 		}
-		teachers[fmt.Sprint(user.ID)] = map[string]any{"user_id": user.ID, "workday_dates": dates, "total_workdays": len(dates)}
+		teachers[fmt.Sprint(user.ID)] = map[string]any{"user_id": user.ID, "workday_dates": dates, "leave_dates": leaveDates, "total_workdays": len(dates)}
 	}
 	return httpx.Success(c, "Data hari kerja semua guru berhasil diambil", fiber.Map{"start_date": startValue, "end_date": endValue, "teachers": teachers, "optional_dates": []string{}})
 }

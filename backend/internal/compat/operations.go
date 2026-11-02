@@ -464,8 +464,11 @@ func isGmailAddress(email string) bool {
 
 func (h *Handler) requireTeacherGmail(c *fiber.Ctx, userID uint) error {
 	var user models.User
-	if err := h.db.Select("id, email").Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
+	if err := h.db.Where("id = ? AND role = ? AND archived_at IS NULL", userID, "guru").First(&user).Error; err != nil {
 		return err
+	}
+	if user.OnLeaveOn(time.Now().In(appLocation(h))) {
+		return teacherLeaveError()
 	}
 	if user.Email == nil || !isGmailAddress(strings.TrimSpace(*user.Email)) {
 		return httpx.Error(c, fiber.StatusForbidden, "GMAIL_REQUIRED", "Sebelum melakukan presensi, mohon lengkapi Gmail aktif berakhiran @gmail.com melalui menu Akun.")
@@ -522,6 +525,9 @@ func (h *Handler) guruHome(c *fiber.Ctx) error {
 		label = "Apel Senin"
 	}
 	return httpx.Success(c, "Data dashboard guru berhasil diambil", fiber.Map{"today": date, "checkinSchedule": fiber.Map{"time": checkinTime[:5], "label": label}, "settings": settings, "holiday": fiber.Map{"tanggal": date, "isHoliday": hasHoliday && !holiday.IsWorkday, "isWeekend": isWeekend, "isWorkday": effectiveWorkday, "dayName": dayName(attendanceDate.Weekday()), "holidayName": holiday.Nama, "holidayType": holiday.Jenis, "jamMasukKhusus": holiday.JamMasukKhusus}, "attendance": func() any {
+		if user.OnLeaveOn(attendanceDate) {
+			return teacherLeaveAttendance(user, date)
+		}
 		if attendanceQuery.Error == nil {
 			return mapAttendance(attendance)
 		}
@@ -591,6 +597,9 @@ func (h *Handler) statusRekan(c *fiber.Ctx) error {
 			if contains([]string{"hadir", "hadir_terlambat", "hadir_izin_terlambat"}, status) && attendance.JamPulang != nil {
 				status = "sudah_pulang"
 			}
+		}
+		if teacher.OnLeaveOn(attendanceDate) {
+			status, storedStatus, jamMasuk, jamPulang, lateMinutes = "cuti", "cuti", "-", nil, nil
 		}
 		var roles []string
 		if teacher.Jabatan != nil {

@@ -267,6 +267,9 @@ func (h *Handler) updateTeacherAttendanceRevision(c *fiber.Ctx) error {
 }
 
 func (h *Handler) validateNewAttendanceRevisionDate(user models.User, date time.Time) error {
+	if user.OnLeaveOn(date) {
+		return teacherLeaveError()
+	}
 	location := appLocation(h)
 	todayDate := dateOnly(time.Now().In(location))
 	monthStart := time.Date(todayDate.Year(), todayDate.Month(), 1, 0, 0, 0, 0, location)
@@ -530,6 +533,9 @@ func (h *Handler) applyAttendanceRevision(tx *gorm.DB, request *models.Attendanc
 	var teacher models.User
 	if err := tx.Where("id = ? AND role = ?", request.UserID, "guru").First(&teacher).Error; err != nil {
 		return err
+	}
+	if teacher.OnLeaveOn(request.Tanggal) {
+		return revisionAPIError(fiber.StatusConflict, "TEACHER_ON_LEAVE", "Guru sedang cuti pada tanggal pengajuan. Tidak perlu revisi presensi.")
 	}
 	var attendance models.AttendanceLog
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND tanggal = ?", request.UserID, request.Tanggal).First(&attendance).Error
