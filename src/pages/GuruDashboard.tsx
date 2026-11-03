@@ -20,6 +20,7 @@ import GuruHome from '../components/guru/GuruHome'
 import GuruAkun from '../components/guru/GuruAkun'
 import GuruMonthlyConfirmation from '../components/guru/GuruMonthlyConfirmation'
 import GuruGmailReminder from '../components/guru/GuruGmailReminder'
+import { useAttendanceRevisionPeriod } from '../hooks/useAttendanceRevisionPeriod'
 
 const GuruRiwayat = lazy(() => import('../components/guru/GuruRiwayat'))
 const GuruStatus = lazy(() => import('../components/guru/GuruStatus'))
@@ -38,6 +39,7 @@ function TabLoading() {
 }
 
 function GuruDashboard({ user, onLogout, installBanner }) {
+  const revisionPeriod = useAttendanceRevisionPeriod()
   const { theme, toggle } = useTheme()
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -71,7 +73,7 @@ function GuruDashboard({ user, onLogout, installBanner }) {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  }).format(new Date())
+  }).format(new Date(`${revisionPeriod.today}T12:00:00`))
 
   useEffect(() => {
     if (!['home', 'riwayat', 'status', 'peringkat', 'statistik', 'akun'].includes(activeTab)) navigate('/guru', { replace: true })

@@ -23,20 +23,11 @@ func TestAttendanceRevisionApprovalLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	today := dateOnly(time.Now().In(location))
-	if today.Day() <= 1 {
-		t.Skip("current month has no earlier date to use for a revision")
-	}
-	var targetDate time.Time
-	for candidate := today.AddDate(0, 0, -1); candidate.Month() == today.Month(); candidate = candidate.AddDate(0, 0, -1) {
-		if candidate.Weekday() != time.Saturday && candidate.Weekday() != time.Sunday {
-			targetDate = candidate
-			break
-		}
-	}
-	if targetDate.IsZero() {
-		t.Skip("current month has no earlier weekday to use for a revision")
-	}
+	previousClock := attendanceRevisionNow
+	clock := time.Date(2026, time.November, 3, 8, 0, 0, 0, location)
+	attendanceRevisionNow = func() time.Time { return clock }
+	t.Cleanup(func() { attendanceRevisionNow = previousClock })
+	targetDate := time.Date(2026, time.October, 30, 0, 0, 0, 0, location)
 
 	dbName := strings.ReplaceAll(t.Name(), "/", "-")
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", dbName)), &gorm.Config{})
@@ -57,6 +48,10 @@ func TestAttendanceRevisionApprovalLifecycle(t *testing.T) {
 	cfg := config.Config{AppTimezone: "Asia/Jakarta"}
 	h := NewHandler(db, cfg, auth.NewJWTManager(cfg))
 	app := fiber.New()
+	app.Get("/teacher/revisions", func(c *fiber.Ctx) error {
+		c.Locals("authClaims", &auth.Claims{UserID: teacher.ID, Role: "guru"})
+		return h.teacherAttendanceRevisions(c)
+	})
 	app.Post("/teacher/revisions", func(c *fiber.Ctx) error {
 		c.Locals("authClaims", &auth.Claims{UserID: teacher.ID, Role: "guru"})
 		return h.createTeacherAttendanceRevision(c)
@@ -91,6 +86,38 @@ func TestAttendanceRevisionApprovalLifecycle(t *testing.T) {
 			Code int
 			Body []byte
 		}{Code: response.StatusCode, Body: responseBody}
+	}
+
+	for _, query := range []string{
+		"start_date=2026-10-01&end_date=2026-10-31",
+		"start_date=2026-08-01&end_date=2026-11-30",
+	} {
+		response := request("GET", "/teacher/revisions?"+query, "")
+		var envelope struct {
+			Data struct {
+				EligibleDates []string `json:"eligibleDates"`
+			} `json:"data"`
+		}
+		if response.Code != fiber.StatusOK {
+			t.Fatalf("eligible dates status = %d: %s", response.Code, response.Body)
+		}
+		if err := json.Unmarshal(response.Body, &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if !contains(envelope.Data.EligibleDates, dateText) {
+			t.Fatalf("previous-month weekday missing from eligible dates: %v", envelope.Data.EligibleDates)
+		}
+		for _, date := range envelope.Data.EligibleDates {
+			if date < "2026-10-01" || date > "2026-11-03" {
+				t.Fatalf("out-of-window date is eligible: %s", date)
+			}
+		}
+	}
+	for _, date := range []string{"2026-09-30", "2026-11-04", "2026-10-25"} {
+		invalid := request("POST", "/teacher/revisions", fmt.Sprintf(`{"tanggal":%q,"alasan":"lupa","jamMasuk":"07:00"}`, date))
+		if invalid.Code != fiber.StatusBadRequest {
+			t.Fatalf("ineligible date %s status = %d, want 400: %s", date, invalid.Code, invalid.Body)
+		}
 	}
 
 	missingCheckIn := request("POST", "/teacher/revisions", fmt.Sprintf(`{"tanggal":%q,"alasan":"lupa","jamPulang":"15:00"}`, dateText))
@@ -186,6 +213,91 @@ func TestAttendanceRevisionApprovalLifecycle(t *testing.T) {
 	}
 	if historyCount != 2 {
 		t.Fatalf("stored revision history count = %d, want 2", historyCount)
+	}
+
+	clock = time.Date(2026, time.November, 5, 23, 59, 59, 0, location)
+	beforeDeadline := request("POST", "/teacher/revisions", fmt.Sprintf(`{"tanggal":%q,"alasan":"lupa","jamPulang":"15:40"}`, dateText))
+	if beforeDeadline.Code != fiber.StatusOK {
+		t.Fatalf("previous-month revision on day 5 rejected: %d: %s", beforeDeadline.Code, beforeDeadline.Body)
+	}
+	var deadlineRequest struct {
+		Data struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(beforeDeadline.Body, &deadlineRequest); err != nil {
+		t.Fatal(err)
+	}
+	deadlinePath := fmt.Sprintf("/teacher/revisions/%d", deadlineRequest.Data.ID)
+	beforeDeadlineEdit := request("PUT", deadlinePath, `{"alasan":"lupa","jamPulang":"15:45"}`)
+	if beforeDeadlineEdit.Code != fiber.StatusOK {
+		t.Fatalf("pending revision edit on day 5 rejected: %d: %s", beforeDeadlineEdit.Code, beforeDeadlineEdit.Body)
+	}
+	clock = time.Date(2026, time.November, 6, 0, 0, 0, 0, location)
+	closedDates := request("GET", "/teacher/revisions?start_date=2026-10-01&end_date=2026-10-31", "")
+	var closedEnvelope struct {
+		Data struct {
+			EligibleDates []string `json:"eligibleDates"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(closedDates.Body, &closedEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if closedDates.Code != fiber.StatusOK || len(closedEnvelope.Data.EligibleDates) != 0 {
+		t.Fatalf("previous month still eligible after cutoff: %d: %s", closedDates.Code, closedDates.Body)
+	}
+	afterDeadline := request("POST", "/teacher/revisions", `{"tanggal":"2026-10-29","alasan":"lupa","jamMasuk":"07:00"}`)
+	if afterDeadline.Code != fiber.StatusBadRequest {
+		t.Fatalf("previous-month submission after cutoff = %d, want 400: %s", afterDeadline.Code, afterDeadline.Body)
+	}
+	afterDeadlineEdit := request("PUT", deadlinePath, `{"alasan":"lupa","jamPulang":"16:00"}`)
+	if afterDeadlineEdit.Code != fiber.StatusBadRequest {
+		t.Fatalf("pending revision edit after cutoff = %d, want 400: %s", afterDeadlineEdit.Code, afterDeadlineEdit.Body)
+	}
+	currentMonth := request("POST", "/teacher/revisions", `{"tanggal":"2026-11-06","alasan":"lupa","jamMasuk":"07:00"}`)
+	if currentMonth.Code != fiber.StatusOK {
+		t.Fatalf("current-month revision after day 5 rejected: %d: %s", currentMonth.Code, currentMonth.Body)
+	}
+	lateApproval := request("POST", fmt.Sprintf("/admin/revisions/%d/decision", deadlineRequest.Data.ID), `{"decision":"approved"}`)
+	if lateApproval.Code != fiber.StatusOK {
+		t.Fatalf("admin cannot approve a submitted revision after cutoff: %d: %s", lateApproval.Code, lateApproval.Body)
+	}
+	if err := db.First(&saved, saved.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stringPointerValue(saved.JamPulang) != "15:45:00" {
+		t.Fatalf("cutoff failed to preserve submitted times: %v", saved.JamPulang)
+	}
+}
+
+func TestAttendanceRevisionCalendarWindow(t *testing.T) {
+	location, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct{ now, start, end string }{
+		{"2026-11-01T00:00:00+07:00", "2026-10-01", "2026-11-01"},
+		{"2026-11-02T09:00:00+07:00", "2026-10-01", "2026-11-02"},
+		{"2026-11-03T12:00:00+07:00", "2026-10-01", "2026-11-03"},
+		{"2026-11-05T23:59:59+07:00", "2026-10-01", "2026-11-05"},
+		{"2026-11-06T00:00:00+07:00", "2026-11-01", "2026-11-06"},
+		{"2026-11-30T23:59:59+07:00", "2026-11-01", "2026-11-30"},
+		{"2027-01-01T00:00:00+07:00", "2026-12-01", "2027-01-01"},
+		{"2027-01-06T00:00:00+07:00", "2027-01-01", "2027-01-06"},
+		{"2028-03-01T00:00:00+07:00", "2028-02-01", "2028-03-01"},
+		{"2026-10-31T17:00:00Z", "2026-10-01", "2026-11-01"},
+		{"2026-11-05T17:00:00Z", "2026-11-01", "2026-11-06"},
+	} {
+		t.Run(test.now, func(t *testing.T) {
+			now, err := time.Parse(time.RFC3339, test.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			start, end := attendanceRevisionDateRange(now.In(location))
+			if start.Format("2006-01-02") != test.start || end.Format("2006-01-02") != test.end {
+				t.Fatalf("window = %s through %s, want %s through %s", start, end, test.start, test.end)
+			}
+		})
 	}
 }
 

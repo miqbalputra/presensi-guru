@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, Clock3, MessageCircle } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Clock3, PencilLine } from 'lucide-react'
 import { monthlyAttendanceConfirmationAPI } from '../../services/api'
 import { AppDialog } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Notice } from '../ui/page'
+import { useNavigate } from '../../router'
+import { useAttendanceRevisionPeriod } from '../../hooks/useAttendanceRevisionPeriod'
 
 const statusLabels: Record<string, string> = {
   hadir: 'Hadir',
@@ -80,6 +82,8 @@ function ReminderBanner({ confirmation, onReview }: { confirmation: any; onRevie
 }
 
 export default function GuruMonthlyConfirmation({ onDialogStateChange }: { onDialogStateChange?: (open: boolean, ready: boolean) => void } = {}) {
+  const navigate = useNavigate()
+  const revisionPeriod = useAttendanceRevisionPeriod()
   const [confirmation, setConfirmation] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -137,33 +141,11 @@ export default function GuruMonthlyConfirmation({ onDialogStateChange }: { onDia
     }
   }
 
-  const handleCorrection = async () => {
-    const correctionUrl = confirmation?.correctionWhatsAppUrl
-    if (!correctionUrl) {
-      setActionError('Nomor WhatsApp admin belum diatur. Hubungi administrator untuk melengkapinya.')
-      return
-    }
-    const popup = window.open('', '_blank')
-    setAction('correction')
+  const handleCorrection = () => {
+    if (!revisionPeriod.previousMonthOpen) return
     setActionError('')
-    try {
-      const response = await monthlyAttendanceConfirmationAPI.requestCorrection()
-      const updated = { ...confirmation, ...(response.data || {}), needsConfirmation: true, required: true }
-      setConfirmation(updated)
-      window.dispatchEvent(new CustomEvent('guru-monthly-confirmation-updated', { detail: updated }))
-      const destination = response.data?.correctionWhatsAppUrl || correctionUrl
-      if (popup) {
-        popup.opener = null
-        popup.location.assign(destination)
-      } else {
-        window.location.assign(destination)
-      }
-    } catch (failure) {
-      popup?.close()
-      setActionError(failure.message || 'Pengajuan koreksi belum dapat dicatat.')
-    } finally {
-      setAction('')
-    }
+    setDialogOpen(false)
+    navigate('/guru/statistik?periode=bulan_lalu')
   }
 
   const needsConfirmation = Boolean(confirmation?.needsConfirmation ?? confirmation?.required)
@@ -174,10 +156,9 @@ export default function GuruMonthlyConfirmation({ onDialogStateChange }: { onDia
   const busy = Boolean(action)
   const summary = confirmation?.summary || {}
   const rows = Array.isArray(confirmation?.rows) ? confirmation.rows : []
-  const correctionUnavailable = !confirmation?.correctionWhatsAppUrl
 
   return <>
-    <ReminderBanner confirmation={confirmation} onReview={() => setDialogOpen(true)} />
+    <ReminderBanner confirmation={confirmation} onReview={loadConfirmation} />
     <AppDialog open={dialogOpen} onOpenChange={setDialogOpen} busy={busy} title="Konfirmasi Rekap Presensi" description={`Tinjau data ${confirmation?.period?.label || 'bulan sebelumnya'} untuk kebutuhan rekap penggajian.`} className="max-w-4xl">
       <div className="space-y-4">
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
@@ -202,11 +183,13 @@ export default function GuruMonthlyConfirmation({ onDialogStateChange }: { onDia
 
         {actionError && <Notice tone="error" onDismiss={() => setActionError('')}>{actionError}</Notice>}
         {confirmation?.status === 'correction_requested' && <Notice tone="warning">Pengajuan koreksi sudah dicatat. Rekap tetap menunggu persetujuan Anda setelah data selesai diperiksa.</Notice>}
-        {correctionUnavailable && <Notice tone="warning">Nomor WhatsApp admin belum diatur. Tombol Pengajuan Koreksi akan tersedia setelah admin melengkapinya di Pengaturan.</Notice>}
+        <p className="text-xs text-muted-foreground">{revisionPeriod.previousMonthOpen
+          ? 'Revisi bulan kemarin tersedia sampai tanggal 5 pukul 23.59 WIB. Pilih Ajukan Revisi, lalu pilih tanggal dan isi jam yang benar. Setelah admin memprosesnya, tinjau rekap kembali sebelum menyetujui.'
+          : 'Pengajuan dan edit revisi bulan kemarin sudah ditutup setelah tanggal 5. Pengajuan yang sudah dikirim tetap dapat diproses admin.'}</p>
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={busy}>Nanti</Button>
-          <Button type="button" variant="outline" onClick={handleCorrection} disabled={busy || correctionUnavailable}><MessageCircle aria-hidden="true" />{action === 'correction' ? 'Mencatat...' : 'Ajukan Koreksi'}</Button>
+          {revisionPeriod.previousMonthOpen && <Button type="button" variant="outline" onClick={handleCorrection} disabled={busy}><PencilLine aria-hidden="true" />Ajukan Revisi</Button>}
           <Button type="button" onClick={handleConfirm} disabled={busy}><CheckCircle2 aria-hidden="true" />{action === 'confirm' ? 'Menyimpan...' : 'Setuju'}</Button>
         </div>
         <p className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground"><ClipboardCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />Presensi bulan berjalan tetap dapat digunakan. Rekap tetap tercatat sebagai konfirmasi meskipun admin kemudian melakukan koreksi data.</p>

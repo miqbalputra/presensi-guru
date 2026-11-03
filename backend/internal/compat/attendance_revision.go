@@ -21,6 +21,18 @@ const (
 	attendanceRevisionRejected = "rejected"
 )
 
+var attendanceRevisionNow = time.Now
+
+// Open the previous calendar month only during days 1–5 for payroll corrections.
+func attendanceRevisionDateRange(now time.Time) (time.Time, time.Time) {
+	today := dateOnly(now)
+	monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, today.Location())
+	if today.Day() <= 5 {
+		return monthStart.AddDate(0, -1, 0), today
+	}
+	return monthStart, today
+}
+
 type attendanceRevisionAPIError struct {
 	status  int
 	code    string
@@ -105,11 +117,9 @@ func revisionQueryRange(c *fiber.Ctx, location *time.Location) (time.Time, time.
 }
 
 func (h *Handler) eligibleAttendanceRevisionDates(user models.User, start, end time.Time) ([]string, error) {
-	location := appLocation(h)
-	todayDate := dateOnly(time.Now().In(location))
-	monthStart := time.Date(todayDate.Year(), todayDate.Month(), 1, 0, 0, 0, 0, location)
-	if start.Before(monthStart) || start.Year() != todayDate.Year() || start.Month() != todayDate.Month() {
-		return []string{}, nil
+	windowStart, todayDate := attendanceRevisionDateRange(attendanceRevisionNow().In(appLocation(h)))
+	if start.Before(windowStart) {
+		start = windowStart
 	}
 	if end.After(todayDate) {
 		end = todayDate
@@ -236,6 +246,9 @@ func (h *Handler) updateTeacherAttendanceRevision(c *fiber.Ctx) error {
 		if request.Status != attendanceRevisionPending {
 			return revisionAPIError(fiber.StatusConflict, "REVISION_ALREADY_REVIEWED", "Pengajuan sudah diproses dan tidak dapat diedit")
 		}
+		if err := h.validateAttendanceRevisionDateRange(request.Tanggal); err != nil {
+			return err
+		}
 		var attendance models.AttendanceLog
 		findErr := tx.Where("user_id = ? AND tanggal = ?", user.ID, request.Tanggal).First(&attendance).Error
 		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
@@ -266,15 +279,20 @@ func (h *Handler) updateTeacherAttendanceRevision(c *fiber.Ctx) error {
 	return httpx.Success(c, "Pengajuan revisi berhasil diperbarui", items[0])
 }
 
+func (h *Handler) validateAttendanceRevisionDateRange(date time.Time) error {
+	windowStart, todayDate := attendanceRevisionDateRange(attendanceRevisionNow().In(appLocation(h)))
+	if date.Before(windowStart) || date.After(todayDate) {
+		return revisionAPIError(fiber.StatusBadRequest, "REVISION_DATE_OUT_OF_RANGE", "Revisi tersedia untuk bulan berjalan hingga hari ini. Revisi bulan kemarin hanya tersedia tanggal 1–5 setiap bulan")
+	}
+	return nil
+}
+
 func (h *Handler) validateNewAttendanceRevisionDate(user models.User, date time.Time) error {
 	if user.OnLeaveOn(date) {
 		return teacherLeaveError()
 	}
-	location := appLocation(h)
-	todayDate := dateOnly(time.Now().In(location))
-	monthStart := time.Date(todayDate.Year(), todayDate.Month(), 1, 0, 0, 0, 0, location)
-	if date.Before(monthStart) || date.Year() != todayDate.Year() || date.Month() != todayDate.Month() || date.After(todayDate) {
-		return revisionAPIError(fiber.StatusBadRequest, "REVISION_DATE_OUT_OF_RANGE", "Revisi hanya dapat diajukan untuk hari kerja pada bulan berjalan sampai hari ini")
+	if err := h.validateAttendanceRevisionDateRange(date); err != nil {
+		return err
 	}
 	calendar, err := h.loadWorkdayCalendar(date, date)
 	if err != nil {

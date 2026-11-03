@@ -8,6 +8,8 @@ import { teacherAttendanceRevisionAPI } from '../../services/api'
 import { AppDialog } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { attendanceRevisionReasons, attendanceRevisionReasonLabel, isAbsenceRevision } from '../../utils/attendanceRevision'
+import { useLocation, useNavigate } from '../../router'
+import { useAttendanceRevisionPeriod } from '../../hooks/useAttendanceRevisionPeriod'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -19,7 +21,15 @@ const itemVariants = {
 }
 
 function GuruStatistik({ user }) {
-  const [filter, setFilter] = useState('bulan_ini')
+  const { search } = useLocation()
+  const navigate = useNavigate()
+  const revisionPeriod = useAttendanceRevisionPeriod()
+  const today = new Date(`${revisionPeriod.today}T12:00:00`)
+  const requestedPeriod = new URLSearchParams(search).get('periode')
+  const allowedPeriods = revisionPeriod.previousMonthOpen ? ['bulan_ini', 'bulan_lalu', '3_bulan', 'tahun_ini'] : ['bulan_ini']
+  const filter = allowedPeriods.includes(requestedPeriod) ? requestedPeriod : 'bulan_ini'
+  const setFilter = (period: string) => navigate(`/guru/statistik?periode=${period}`, { replace: true })
+  const canEditRevisionDate = (date: string) => date >= revisionPeriod.startDate && date <= revisionPeriod.today
   const [revisionRequests, setRevisionRequests] = useState<any[]>([])
   const [eligibleRevisionDates, setEligibleRevisionDates] = useState<string[]>([])
   const [revisionRefresh, setRevisionRefresh] = useState(0)
@@ -28,8 +38,20 @@ function GuruStatistik({ user }) {
   const [revisionSaving, setRevisionSaving] = useState(false)
   const [revisionMessage, setRevisionMessage] = useState({ type: '', text: '' })
 
+  useEffect(() => {
+    if (requestedPeriod && requestedPeriod !== filter) {
+      navigate(`/guru/statistik?periode=${filter}`, { replace: true })
+    }
+  }, [requestedPeriod, filter, navigate])
+
+  useEffect(() => {
+    if (revisionDialog && (revisionDialog.tanggal < revisionPeriod.startDate || revisionDialog.tanggal > revisionPeriod.today)) {
+      setRevisionDialog(null)
+      setRevisionMessage({ type: 'error', text: 'Batas revisi tanggal ini sudah berakhir. Revisi bulan kemarin hanya tersedia sampai tanggal 5 pukul 23.59 WIB.' })
+    }
+  }, [revisionDialog?.tanggal, revisionPeriod.startDate, revisionPeriod.today])
+
   const getPeriodRange = () => {
-    const today = new Date()
     const currentMonth = today.getMonth()
     const currentYear = today.getFullYear()
 
@@ -48,7 +70,7 @@ function GuruStatistik({ user }) {
         }
       }
       case '3_bulan': {
-        const threeMonthsAgo = new Date()
+        const threeMonthsAgo = new Date(today)
         threeMonthsAgo.setMonth(today.getMonth() - 3)
         return {
           startDate: formatDateForInput(threeMonthsAgo),
@@ -72,6 +94,7 @@ function GuruStatistik({ user }) {
 
   useEffect(() => {
     let active = true
+    setEligibleRevisionDates([])
     teacherAttendanceRevisionAPI.getMine(startDate, endDate)
       .then((response) => {
         if (!active) return
@@ -82,7 +105,7 @@ function GuruStatistik({ user }) {
         if (active) setRevisionMessage({ type: 'error', text: error.message || 'Status pengajuan belum dapat dimuat.' })
       })
     return () => { active = false }
-  }, [user?.id, startDate, endDate, revisionRefresh])
+  }, [user?.id, startDate, endDate, revisionRefresh, revisionPeriod.today])
 
   // Sumber data tunggal: sama dengan Admin "Download Laporan" dan Guru "Riwayat".
   const { loading, error, retry, getGuruReportRows, getGuruSummary } = useGuruReport(user, startDate, endDate, {
@@ -110,9 +133,9 @@ function GuruStatistik({ user }) {
   const getPeriodeLabel = () => {
     switch (filter) {
       case 'bulan_ini':
-        return 'Bulan Ini'
+        return `Bulan Ini · ${currentMonthLabel}`
       case 'bulan_lalu':
-        return 'Bulan Lalu'
+        return `Bulan Kemarin · ${previousMonthLabel}`
       case '3_bulan':
         return '3 Bulan Terakhir'
       case 'tahun_ini':
@@ -121,6 +144,10 @@ function GuruStatistik({ user }) {
         return 'Bulan Ini'
     }
   }
+
+  const monthLabel = (date: Date) => new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(date)
+  const currentMonthLabel = monthLabel(today)
+  const previousMonthLabel = monthLabel(new Date(today.getFullYear(), today.getMonth() - 1, 1))
 
   const getJamMasuk = (log) => log.jamMasuk || log.jam_masuk || log.jamHadir || log.jam_hadir || '-'
   const getJamPulang = (log) => log.jamPulang || log.jam_pulang || '-'
@@ -142,6 +169,10 @@ function GuruStatistik({ user }) {
   const saveRevision = async (event) => {
     event.preventDefault()
     if (!revisionDialog || revisionSaving) return
+    if (!canEditRevisionDate(revisionDialog.tanggal)) {
+      setRevisionMessage({ type: 'error', text: 'Batas revisi tanggal ini sudah berakhir. Revisi bulan kemarin hanya tersedia sampai tanggal 5 pukul 23.59 WIB.' })
+      return
+    }
     const jamMasuk = revisionDraft.jamMasuk.trim()
     const jamPulang = revisionDraft.jamPulang.trim()
     const absenceRevision = isAbsenceRevision(revisionDraft.alasan)
@@ -301,26 +332,41 @@ function GuruStatistik({ user }) {
     >
       <motion.section
         variants={itemVariants}
-        className="guru-surface flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+        className="guru-surface space-y-4 p-5 sm:p-6"
         aria-labelledby="statistik-title"
       >
         <div>
           <h2 id="statistik-title" className="text-xl font-bold text-slate-900 dark:text-slate-100">Statistik Kehadiran Saya</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Periode: <span className="font-semibold text-slate-700 dark:text-slate-300">{getPeriodeLabel()}</span></p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{formatDisplayDate(startDate)} – {formatDisplayDate(endDate)}</p>
         </div>
-        <div className="relative">
+        <div className={`grid gap-2 ${revisionPeriod.previousMonthOpen ? 'grid-cols-2' : 'grid-cols-1'}`} role="group" aria-label="Pilih bulan presensi">
+          {[
+            { value: 'bulan_ini', label: 'Bulan ini', month: currentMonthLabel, description: 'Berjalan' },
+            { value: 'bulan_lalu', label: 'Bulan kemarin', month: previousMonthLabel, description: 'Rekap penggajian' },
+          ].filter((period) => period.value === 'bulan_ini' || revisionPeriod.previousMonthOpen).map((period) => <button key={period.value} type="button" aria-pressed={filter === period.value} onClick={() => setFilter(period.value)} className={`min-h-24 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${filter === period.value ? 'border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
+            <span className="block text-xs font-semibold">{period.label} · {period.description}</span>
+            <span className="mt-1 block text-sm font-bold sm:text-base">{period.month}</span>
+          </button>)}
+        </div>
+        {revisionPeriod.previousMonthOpen && <div className="relative w-full sm:w-fit">
           <select
-            aria-label="Pilih periode statistik"
-            value={filter}
+            aria-label="Pilih periode ringkasan lainnya"
+            value={['3_bulan', 'tahun_ini'].includes(filter) ? filter : ''}
             onChange={(e) => setFilter(e.target.value)}
-            className="appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
-            <option value="bulan_ini">Bulan Ini</option>
-            <option value="bulan_lalu">Bulan Lalu</option>
+            <option value="" disabled>Ringkasan periode lainnya</option>
             <option value="3_bulan">3 Bulan Terakhir</option>
             <option value="tahun_ini">Tahun Ini</option>
           </select>
           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+        </div>}
+        <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-sm text-blue-900 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-100">
+          {revisionPeriod.previousMonthOpen
+            ? `${filter === 'bulan_lalu' ? `Anda sedang meninjau ${previousMonthLabel} untuk rekap penggajian. ` : ''}Revisi bulan kemarin tersedia sampai ${formatDisplayDate(revisionPeriod.previousMonthDeadline)} pukul 23.59 WIB. Pilih Ajukan Revisi pada tanggal yang perlu diperbaiki.`
+            : 'Revisi bulan kemarin sudah ditutup setelah tanggal 5. Revisi tersedia untuk bulan berjalan hingga hari ini.'}
+          <p className="mt-1 text-xs">Pengajuan ditinjau admin melalui dashboard atau Telegram. Presensi berubah setelah disetujui.</p>
         </div>
       </motion.section>
 
@@ -415,11 +461,11 @@ function GuruStatistik({ user }) {
               {displayData.map((log) => (
                 (() => {
                   const request = requestByDate.get(log.tanggal)
-                  const eligible = filter === 'bulan_ini' && eligibleRevisionDates.includes(log.tanggal)
+                  const eligible = canEditRevisionDate(log.tanggal) && eligibleRevisionDates.includes(log.tanggal)
                   const requestStatus = request ? statusRequest(request.status) : null
                   return (
                 <tr key={log.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td data-label="Tanggal" className="whitespace-nowrap px-5 py-3.5 text-sm font-semibold text-slate-800 dark:text-slate-200">{log.tanggal}</td>
+                  <td data-label="Tanggal" className="whitespace-nowrap px-5 py-3.5 text-sm font-semibold text-slate-800 dark:text-slate-200">{formatDisplayDate(log.tanggal)}</td>
                   <td data-label="Jam masuk" className="whitespace-nowrap px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{getJamMasuk(log)}</td>
                   <td data-label="Jam pulang" className="whitespace-nowrap px-5 py-3.5 text-sm text-slate-600 dark:text-slate-400">{getJamPulang(log)}</td>
                   <td data-label="Status" className="whitespace-nowrap px-5 py-3.5">
@@ -430,9 +476,9 @@ function GuruStatistik({ user }) {
                     {request?.status === 'pending' ? (
                       <div className="space-y-2">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${requestStatus.className}`}>{requestStatus.label}</span>
-                        <button type="button" onClick={() => openRevisionDialog(log, request)} className="flex items-center gap-1.5 font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-300">
+                        {canEditRevisionDate(log.tanggal) && <button type="button" onClick={() => openRevisionDialog(log, request)} className="flex items-center gap-1.5 font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-300">
                           <PencilLine className="h-4 w-4" /> Edit Pengajuan
-                        </button>
+                        </button>}
                       </div>
                     ) : request ? (
                       <div className="space-y-1.5">
@@ -477,7 +523,7 @@ function GuruStatistik({ user }) {
         <div className="border-b border-slate-100 p-5 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"><Timer className="h-5 w-5" /></span>
-            <div><h3 id="pengajuan-saya-title" className="text-base font-bold text-slate-800 dark:text-slate-100">Pengajuan Saya</h3><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Riwayat keputusan dan catatan admin tersedia di sini. Pengajuan menunggu tetap dapat diedit setelah bulan berganti.</p></div>
+            <div><h3 id="pengajuan-saya-title" className="text-base font-bold text-slate-800 dark:text-slate-100">Pengajuan Saya</h3><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Riwayat keputusan dan catatan admin tersedia di sini. Pengajuan bulan kemarin dapat diedit sampai tanggal 5; setelah itu tetap dapat diproses admin.</p></div>
           </div>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -490,7 +536,7 @@ function GuruStatistik({ user }) {
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{attendanceRevisionReasonLabel(request.alasan)}{isAbsenceRevision(request.alasan) ? ' · Pengajuan perubahan status, tanpa jam masuk/pulang.' : ` · Jam masuk: ${request.jamMasuk || request.currentJamMasuk || '-'} · Jam pulang: ${request.jamPulang || request.currentJamPulang || '-'}`}</p>
                 {request.status === 'rejected' && request.catatanAdmin && <p className="mt-1 text-sm text-red-700 dark:text-red-300">Catatan admin: {request.catatanAdmin}</p>}
               </div>
-              {request.status === 'pending' && <Button type="button" variant="outline" onClick={() => openRevisionDialog({ tanggal: request.tanggal, jamMasuk: request.currentJamMasuk || '-', jamPulang: request.currentJamPulang || '-' }, request)}><PencilLine /> Edit Pengajuan</Button>}
+              {request.status === 'pending' && canEditRevisionDate(request.tanggal) && <Button type="button" variant="outline" onClick={() => openRevisionDialog({ tanggal: request.tanggal, jamMasuk: request.currentJamMasuk || '-', jamPulang: request.currentJamPulang || '-' }, request)}><PencilLine /> Edit Pengajuan</Button>}
             </div>
           )})}
           {revisionRequests.length === 0 && (
