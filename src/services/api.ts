@@ -783,7 +783,20 @@ export const monthlyAttendanceConfirmationAPI = {
   }),
 }
 
+export type AttendanceRevisionAccess = {
+  today: string
+  startDate: string
+  periodStart: string
+  periodLabel: string
+  deadlineAt: string
+  previousMonthOpen: boolean
+  closedByAdmin: boolean
+  closedAt: string | null
+  canChangeVisibility: boolean
+}
+
 export const teacherAttendanceRevisionAPI = {
+  getAccess: async () => fetchAPI(`/v1/guru/attendance-revision-access?_t=${Date.now()}`, { method: 'GET', cache: 'no-store' }),
   getMine: async (startDate?, endDate?) => {
     const params = new URLSearchParams()
     if (startDate && endDate) {
@@ -804,6 +817,10 @@ export const teacherAttendanceRevisionAPI = {
 }
 
 export const adminAttendanceRevisionAPI = {
+  getAccess: async () => fetchAPI(`/v1/admin/attendance-revision-access?_t=${Date.now()}`, { method: 'GET', cache: 'no-store' }),
+  setAccess: async (periodStart: string, hidden: boolean) => fetchAPI('/v1/admin/attendance-revision-access', {
+    method: 'PUT', body: JSON.stringify({ periodStart, hidden }),
+  }),
   getAll: async (status = 'pending') => {
     const params = new URLSearchParams({ status })
     return fetchAPI(`/v1/admin/attendance-revisions?${params}`, { method: 'GET' })

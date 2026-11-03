@@ -185,7 +185,10 @@ export default function GuruMonthlyConfirmation({ onDialogStateChange }: { onDia
         {confirmation?.status === 'correction_requested' && <Notice tone="warning">Pengajuan koreksi sudah dicatat. Rekap tetap menunggu persetujuan Anda setelah data selesai diperiksa.</Notice>}
         <p className="text-xs text-muted-foreground">{revisionPeriod.previousMonthOpen
           ? 'Revisi bulan kemarin tersedia sampai tanggal 5 pukul 23.59 WIB. Pilih Ajukan Revisi, lalu pilih tanggal dan isi jam yang benar. Setelah admin memprosesnya, tinjau rekap kembali sebelum menyetujui.'
-          : 'Pengajuan dan edit revisi bulan kemarin sudah ditutup setelah tanggal 5. Pengajuan yang sudah dikirim tetap dapat diproses admin.'}</p>
+          : !revisionPeriod.accessReady ? 'Memuat akses pengajuan revisi...'
+            : revisionPeriod.accessError ? 'Status akses revisi belum dapat dimuat. Tinjau kembali setelah koneksi tersedia.'
+              : revisionPeriod.closedByAdmin ? 'Pengajuan dan edit revisi bulan kemarin sudah ditutup oleh admin. Pengajuan yang sudah dikirim tetap dapat diproses admin.'
+                : 'Pengajuan dan edit revisi bulan kemarin sudah ditutup setelah tanggal 5. Pengajuan yang sudah dikirim tetap dapat diproses admin.'}</p>
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={busy}>Nanti</Button>

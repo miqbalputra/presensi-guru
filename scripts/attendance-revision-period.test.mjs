@@ -25,3 +25,14 @@ for (const [now, open, startDate, today] of [
     assert.equal(period.previousMonthDeadline, `${today.slice(0, 7)}-05`)
   })
 }
+
+test('server access is required and respects admin closure for the matching period', () => {
+  const now = new Date('2026-11-02T10:00:00+07:00')
+  assert.equal(getAttendanceRevisionPeriod(now, null).previousMonthOpen, false)
+  const closed = getAttendanceRevisionPeriod(now, { periodStart: '2026-10-01', previousMonthOpen: false })
+  assert.equal(closed.previousMonthOpen, false)
+  assert.equal(closed.startDate, '2026-11-01')
+  assert.equal(getAttendanceRevisionPeriod(now, { periodStart: '2026-10-01', previousMonthOpen: true }).previousMonthOpen, true)
+  assert.equal(getAttendanceRevisionPeriod(now, { periodStart: '2026-09-01', previousMonthOpen: true }).previousMonthOpen, false)
+  assert.equal(getAttendanceRevisionPeriod(new Date('2026-11-06T00:00:00+07:00'), { periodStart: '2026-10-01', previousMonthOpen: true }).previousMonthOpen, false)
+})

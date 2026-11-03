@@ -8,6 +8,7 @@ import { AppDialog } from '../ui/dialog'
 import { AttendanceStatus, attendanceStatuses } from '../ui/attendance-status'
 import { PageHeader, Notice, EmptyState } from '../ui/page'
 import { Skeleton } from '../ui/skeleton'
+import AttendanceRevisionAccessControl from './AttendanceRevisionAccessControl'
 
 const periods = { today: 'Hari ini', yesterday: 'Kemarin', '7days': '7 hari terakhir', '14days': '14 hari terakhir', '30days': '30 hari terakhir' }
 const PAGE_SIZE = 25
@@ -31,7 +32,7 @@ function formatConfirmationDeadline(value) {
   return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta', timeZoneName: 'short' }).format(parsed)
 }
 
-export default function DashboardHome() {
+export default function DashboardHome({ user }) {
   const [period, setPeriod] = useState('today')
   const [revision, setRevision] = useState(0)
   const [snapshot, setSnapshot] = useState<any>(null)
@@ -123,6 +124,7 @@ export default function DashboardHome() {
     <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground"><p>{periods[period]} · Ringkasan mengikuti periode, pencarian hanya menyaring tabel.</p><p aria-live="polite">{current ? 'Diperbarui ' + current.updated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : loading ? 'Mengambil data terbaru...' : 'Data belum tersedia'}</p></div>
     {error && <Notice onRetry={() => setRevision((value) => value + 1)}>{error}{current && '\nMenampilkan data terakhir yang berhasil dimuat; pembaruan belum berhasil.'}</Notice>}
     {monthlyConfirmationError && <Notice tone="warning" onRetry={() => setRevision((value) => value + 1)}>{monthlyConfirmationError}</Notice>}
+    <AttendanceRevisionAccessControl canManage={user?.role === 'admin'} refreshKey={revision} />
     {!current && loading && <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Memuat ringkasan">{stats.map((stat) => <Skeleton key={stat.label} className="h-28 rounded-xl" />)}</div>}
     {current && <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{stats.map((stat, index) => <Card key={stat.label} className={'gap-3 p-4 ' + (index === 0 ? 'col-span-2 lg:col-span-1' : '')}><div className="flex items-center justify-between gap-2 text-muted-foreground"><p className="text-sm">{stat.label}</p><stat.icon className="h-4 w-4" aria-hidden="true" /></div><p className="flex items-baseline gap-2"><span className="text-3xl font-semibold tabular-nums tracking-tight">{Number(stat.value) || 0}</span><span className="text-xs text-muted-foreground">{stat.unit}</span></p></Card>)}</div>

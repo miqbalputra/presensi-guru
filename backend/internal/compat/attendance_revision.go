@@ -117,7 +117,12 @@ func revisionQueryRange(c *fiber.Ctx, location *time.Location) (time.Time, time.
 }
 
 func (h *Handler) eligibleAttendanceRevisionDates(user models.User, start, end time.Time) ([]string, error) {
-	windowStart, todayDate := attendanceRevisionDateRange(attendanceRevisionNow().In(appLocation(h)))
+	access, err := h.attendanceRevisionAccessAt(h.db, attendanceRevisionNow().In(appLocation(h)))
+	if err != nil {
+		return nil, err
+	}
+	windowStart, _ := parseDate(access.StartDate, appLocation(h))
+	todayDate, _ := parseDate(access.Today, appLocation(h))
 	if start.Before(windowStart) {
 		start = windowStart
 	}
@@ -202,11 +207,16 @@ func (h *Handler) createTeacherAttendanceRevision(c *fiber.Ctx) error {
 		Alasan: input.Alasan, JamMasuk: jamMasuk, JamPulang: jamPulang,
 		Status: attendanceRevisionPending, PendingKey: &pendingKey,
 	}
-	if err := h.db.Create(&request).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := h.validateLockedAttendanceRevisionAccess(tx, date); err != nil {
+			return err
+		}
+		return tx.Create(&request).Error
+	}); err != nil {
 		if isDuplicateError(err) {
 			return httpx.Error(c, fiber.StatusConflict, "REVISION_ALREADY_PENDING", "Pengajuan revisi untuk tanggal ini sudah menunggu. Silakan pilih Edit Pengajuan.")
 		}
-		return err
+		return respondAttendanceRevisionError(c, err)
 	}
 	items, err := h.attendanceRevisionPayloads([]models.AttendanceRevisionRequest{request}, false)
 	if err != nil {
@@ -246,7 +256,7 @@ func (h *Handler) updateTeacherAttendanceRevision(c *fiber.Ctx) error {
 		if request.Status != attendanceRevisionPending {
 			return revisionAPIError(fiber.StatusConflict, "REVISION_ALREADY_REVIEWED", "Pengajuan sudah diproses dan tidak dapat diedit")
 		}
-		if err := h.validateAttendanceRevisionDateRange(request.Tanggal); err != nil {
+		if err := h.validateLockedAttendanceRevisionAccess(tx, request.Tanggal); err != nil {
 			return err
 		}
 		var attendance models.AttendanceLog
@@ -282,7 +292,17 @@ func (h *Handler) updateTeacherAttendanceRevision(c *fiber.Ctx) error {
 func (h *Handler) validateAttendanceRevisionDateRange(date time.Time) error {
 	windowStart, todayDate := attendanceRevisionDateRange(attendanceRevisionNow().In(appLocation(h)))
 	if date.Before(windowStart) || date.After(todayDate) {
-		return revisionAPIError(fiber.StatusBadRequest, "REVISION_DATE_OUT_OF_RANGE", "Revisi tersedia untuk bulan berjalan hingga hari ini. Revisi bulan kemarin hanya tersedia tanggal 1–5 setiap bulan")
+		return attendanceRevisionRangeError()
+	}
+	period, _ := attendanceRevisionAccessPeriod(attendanceRevisionNow().In(appLocation(h)))
+	if date.Before(period.AddDate(0, 1, 0)) {
+		access, err := h.attendanceRevisionAccessAt(h.db, attendanceRevisionNow().In(appLocation(h)))
+		if err != nil {
+			return err
+		}
+		if access.ClosedByAdmin {
+			return attendanceRevisionClosedError()
+		}
 	}
 	return nil
 }

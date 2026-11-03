@@ -37,19 +37,22 @@ function GuruStatistik({ user }) {
   const [revisionDraft, setRevisionDraft] = useState({ alasan: 'lupa', jamMasuk: '', jamPulang: '' })
   const [revisionSaving, setRevisionSaving] = useState(false)
   const [revisionMessage, setRevisionMessage] = useState({ type: '', text: '' })
+  const revisionClosedMessage = revisionPeriod.closedByAdmin
+    ? 'Revisi bulan kemarin sudah ditutup oleh admin. Hanya presensi bulan berjalan yang dapat direvisi.'
+    : 'Batas revisi tanggal ini sudah berakhir. Revisi bulan kemarin hanya tersedia sampai tanggal 5 pukul 23.59 WIB.'
 
   useEffect(() => {
-    if (requestedPeriod && requestedPeriod !== filter) {
+    if (revisionPeriod.accessReady && requestedPeriod && requestedPeriod !== filter) {
       navigate(`/guru/statistik?periode=${filter}`, { replace: true })
     }
-  }, [requestedPeriod, filter, navigate])
+  }, [requestedPeriod, filter, navigate, revisionPeriod.accessReady])
 
   useEffect(() => {
     if (revisionDialog && (revisionDialog.tanggal < revisionPeriod.startDate || revisionDialog.tanggal > revisionPeriod.today)) {
       setRevisionDialog(null)
-      setRevisionMessage({ type: 'error', text: 'Batas revisi tanggal ini sudah berakhir. Revisi bulan kemarin hanya tersedia sampai tanggal 5 pukul 23.59 WIB.' })
+      setRevisionMessage({ type: 'error', text: revisionClosedMessage })
     }
-  }, [revisionDialog?.tanggal, revisionPeriod.startDate, revisionPeriod.today])
+  }, [revisionDialog?.tanggal, revisionPeriod.startDate, revisionPeriod.today, revisionClosedMessage])
 
   const getPeriodRange = () => {
     const currentMonth = today.getMonth()
@@ -170,7 +173,7 @@ function GuruStatistik({ user }) {
     event.preventDefault()
     if (!revisionDialog || revisionSaving) return
     if (!canEditRevisionDate(revisionDialog.tanggal)) {
-      setRevisionMessage({ type: 'error', text: 'Batas revisi tanggal ini sudah berakhir. Revisi bulan kemarin hanya tersedia sampai tanggal 5 pukul 23.59 WIB.' })
+      setRevisionMessage({ type: 'error', text: revisionClosedMessage })
       return
     }
     const jamMasuk = revisionDraft.jamMasuk.trim()
@@ -204,6 +207,7 @@ function GuruStatistik({ user }) {
       setRevisionRefresh((value) => value + 1)
     } catch (error) {
       setRevisionMessage({ type: 'error', text: error.message || 'Pengajuan belum berhasil disimpan. Silakan coba kembali.' })
+      void revisionPeriod.refreshAccess()
     } finally {
       setRevisionSaving(false)
     }
@@ -365,10 +369,15 @@ function GuruStatistik({ user }) {
         <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-sm text-blue-900 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-100">
           {revisionPeriod.previousMonthOpen
             ? `${filter === 'bulan_lalu' ? `Anda sedang meninjau ${previousMonthLabel} untuk rekap penggajian. ` : ''}Revisi bulan kemarin tersedia sampai ${formatDisplayDate(revisionPeriod.previousMonthDeadline)} pukul 23.59 WIB. Pilih Ajukan Revisi pada tanggal yang perlu diperbaiki.`
-            : 'Revisi bulan kemarin sudah ditutup setelah tanggal 5. Revisi tersedia untuk bulan berjalan hingga hari ini.'}
+            : !revisionPeriod.accessReady ? 'Memuat akses revisi bulan kemarin...'
+              : revisionPeriod.accessError ? 'Status akses bulan kemarin belum dapat diperiksa. Presensi bulan berjalan tetap tersedia.'
+                : revisionPeriod.closedByAdmin ? revisionClosedMessage
+                  : 'Revisi bulan kemarin sudah ditutup setelah tanggal 5. Revisi tersedia untuk bulan berjalan hingga hari ini.'}
           <p className="mt-1 text-xs">Pengajuan ditinjau admin melalui dashboard atau Telegram. Presensi berubah setelah disetujui.</p>
         </div>
       </motion.section>
+
+      {revisionPeriod.accessError && <Notice tone="warning" onRetry={revisionPeriod.refreshAccess}>{revisionPeriod.accessError}</Notice>}
 
       {/* Hero persentase */}
       <motion.section

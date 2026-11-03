@@ -6,6 +6,7 @@ import { AppDialog } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { notify } from '../ui/toast'
 import { attendanceRevisionReasonLabel, isAbsenceRevision } from '../../utils/attendanceRevision'
+import AttendanceRevisionAccessControl from './AttendanceRevisionAccessControl'
 
 const filters = [
   { value: 'pending', label: 'Menunggu' },
@@ -69,6 +70,8 @@ export default function AttendanceRevisionQueue() {
       </div>
       <Button type="button" variant="outline" onClick={loadRequests} disabled={loading}><RefreshCw className={loading ? 'animate-spin' : ''} /> Muat Ulang</Button>
     </div>
+
+    <AttendanceRevisionAccessControl />
 
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter status pengajuan">
       {filters.map((item) => <button key={item.value} type="button" role="tab" aria-selected={filter === item.value} onClick={() => setFilter(item.value)} className={`min-h-10 rounded-lg px-4 text-sm font-semibold transition ${filter === item.value ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>

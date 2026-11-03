@@ -133,7 +133,7 @@ function AdminDashboard({ user, onLogout, installBanner }) {
           <div className="mx-auto w-full max-w-[1600px]">
             <Suspense fallback={<SectionLoading />}>
               <Routes>
-                <Route path="/" element={<DashboardHome />} />
+                <Route path="/" element={<DashboardHome user={user} />} />
                 <Route path="/analitik" element={<Analitik />} />
                 <Route path="/data-guru" element={<DataGuru />} />
                 <Route path="/arsip-guru" element={<ArsipGuru />} />
