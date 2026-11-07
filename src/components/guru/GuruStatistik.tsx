@@ -1,5 +1,5 @@
 import { Notice } from '../ui/page'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Calendar, TrendingUp, Clock, AlertCircle, CheckCircle, FileText, UserX, Inbox, PencilLine, Send, Timer, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { formatDateForInput, formatDisplayDate } from '../../utils/dateUtils'
@@ -26,9 +26,12 @@ function GuruStatistik({ user }) {
   const revisionPeriod = useAttendanceRevisionPeriod()
   const today = new Date(`${revisionPeriod.today}T12:00:00`)
   const requestedPeriod = new URLSearchParams(search).get('periode')
+  const choosingRevisionDate = new URLSearchParams(search).get('revisi') === 'pilih'
+  const revisionListHeading = useRef<HTMLHeadingElement>(null)
+  const scrolledRevisionPeriod = useRef('')
   const allowedPeriods = revisionPeriod.previousMonthOpen ? ['bulan_ini', 'bulan_lalu', '3_bulan', 'tahun_ini'] : ['bulan_ini']
   const filter = allowedPeriods.includes(requestedPeriod) ? requestedPeriod : 'bulan_ini'
-  const setFilter = (period: string) => navigate(`/guru/statistik?periode=${period}`, { replace: true })
+  const setFilter = (period: string) => navigate(`/guru/statistik?periode=${period}${choosingRevisionDate ? '&revisi=pilih' : ''}`, { replace: true })
   const canEditRevisionDate = (date: string) => date >= revisionPeriod.startDate && date <= revisionPeriod.today
   const [revisionRequests, setRevisionRequests] = useState<any[]>([])
   const [eligibleRevisionDates, setEligibleRevisionDates] = useState<string[]>([])
@@ -114,6 +117,18 @@ function GuruStatistik({ user }) {
   const { loading, error, retry, getGuruReportRows, getGuruSummary } = useGuruReport(user, startDate, endDate, {
     allGuru: false,
   })
+
+  useEffect(() => {
+    if (!choosingRevisionDate || loading || error || !revisionPeriod.accessReady || scrolledRevisionPeriod.current === filter) return
+    const frame = window.requestAnimationFrame(() => {
+      const heading = revisionListHeading.current
+      if (!heading) return
+      heading.scrollIntoView({ block: 'start' })
+      heading.focus({ preventScroll: true })
+      scrolledRevisionPeriod.current = filter
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [choosingRevisionDate, loading, error, revisionPeriod.accessReady, filter])
 
   const summary = user?.id
     ? getGuruSummary(user.id)
@@ -454,8 +469,11 @@ function GuruStatistik({ user }) {
 
       <motion.section variants={itemVariants} className="guru-surface overflow-hidden" aria-labelledby="statistik-riwayat-title">
         <div className="border-b border-slate-100 p-5 dark:border-slate-800">
-          <h3 id="statistik-riwayat-title" className="text-base font-bold text-slate-800 dark:text-slate-100">Riwayat Presensi {getPeriodeLabel()}</h3>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Termasuk presensi opsional, alfa, dan libur</p>
+          <h3 ref={revisionListHeading} tabIndex={-1} id="statistik-riwayat-title" className="scroll-mt-24 text-base font-bold text-slate-800 outline-none dark:text-slate-100">Riwayat Presensi {getPeriodeLabel()}</h3>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{choosingRevisionDate ? 'Pilih tanggal yang ingin diperbaiki, lalu tekan Ajukan Revisi.' : 'Termasuk presensi opsional, alfa, dan libur'}</p>
+          {choosingRevisionDate && revisionPeriod.previousMonthOpen && <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Pilih bulan untuk revisi">
+            {[{ value: 'bulan_ini', label: `Bulan ini · ${currentMonthLabel}` }, { value: 'bulan_lalu', label: `Bulan kemarin · ${previousMonthLabel}` }].map((period) => <Button key={period.value} type="button" variant={filter === period.value ? 'default' : 'outline'} aria-pressed={filter === period.value} onClick={() => setFilter(period.value)}>{period.label}</Button>)}
+          </div>}
         </div>
         <div className="overflow-x-auto">
           <table className="guru-records-table w-full" aria-label="Riwayat presensi pada periode statistik">

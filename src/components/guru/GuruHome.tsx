@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, CheckCircle, FileText, AlertCircle, Clock, History, Users, LogOut, MapPin, ArrowRight, Home, HelpCircle, BarChart3, ClipboardList, ArrowUpRight, ShieldCheck, X } from 'lucide-react'
+import { RefreshCw, CheckCircle, FileText, AlertCircle, Clock, History, Users, LogOut, MapPin, ArrowRight, Home, HelpCircle, BarChart3, ClipboardList, ArrowUpRight, ShieldCheck, X, PencilLine } from 'lucide-react'
 import { formatFullDate, formatDate, formatDateForInput } from '../../utils/dateUtils'
 import { calculateDistance, getReliableUserLocation, warmUpUserLocation, getLastKnownLocation, getLocationErrorMessage } from '../../utils/geoLocation'
 import { authAPI, guruHomeAPI, presensiAPI, holidaysAPI, settingsAPI, jadwalPiketAPI, qrScanAPI, locationTrackingAPI } from '../../services/api'
@@ -1015,6 +1015,14 @@ function GuruHome({ user, onChangeTab, gmailComplete = false }) {
       {todayAttendance?.keterangan && <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Keterangan presensi</summary><p className="whitespace-pre-wrap break-words py-2">{todayAttendance.keterangan}</p></details>}
       {actionVisible && <div className="grid grid-cols-2 gap-3"><Button type="button" variant="outline" disabled={loading || !gmailComplete} onClick={() => handleIzinSakit('izin')}><FileText aria-hidden="true" />Izin</Button><Button type="button" variant="outline" disabled={loading || !gmailComplete} onClick={() => handleIzinSakit('sakit')}><AlertCircle aria-hidden="true" />Sakit</Button></div>}
       {message.text && !showModal && !showPiketModal && !pulangLuarModal && !attendanceFeedback && <Notice tone={message.type} onDismiss={() => setMessage({ type: '', text: '' })}>{message.text}</Notice>}
+    </Card>
+
+    <Card className="gap-3 border-blue-200 bg-blue-50/60 p-5 dark:border-blue-500/30 dark:bg-blue-500/10 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"><PencilLine className="h-5 w-5" aria-hidden="true" /></span>
+        <div><h2 className="text-base font-semibold">Revisi Presensi</h2><p className="mt-1 text-sm text-muted-foreground">Ada presensi yang perlu diperbaiki? Pilih tanggal dan ajukan revisi kepada admin.</p></div>
+      </div>
+      <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={() => onChangeTab?.('statistik?periode=bulan_ini&revisi=pilih')}>Revisi Presensi<ArrowRight aria-hidden="true" /></Button>
     </Card>
 
     <Card className="gap-4 p-5">
